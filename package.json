@@ -8,6 +8,7 @@
     "dev:admin": "cd apps/admin && shopify app dev",
     "dev:down": "docker compose -f docker/docker-compose.dev.yml down",
     "build": "pnpm -r build",
+    "build:packages": "pnpm --filter \"./packages/**\" build",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint . --max-warnings=0",
     "test": "vitest run",
@@ -16,6 +17,9 @@
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio --schema prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

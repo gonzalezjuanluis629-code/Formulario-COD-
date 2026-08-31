@@ -52,7 +52,7 @@ export class FormsService {
     // A igualdad, gana el de mayor `priority` configurado por el merchant.
     const rank: Record<string, number> = { PRODUCT: 5, COLLECTION: 4, TAG: 3, VENDOR: 2, ALL: 1 };
     const assignment = candidates.sort(
-      (a, b) => (rank[b.type] - rank[a.type]) || (b.priority - a.priority),
+      (a, b) => ((rank[b.type] ?? 0) - (rank[a.type] ?? 0)) || (b.priority - a.priority),
     )[0]!;
 
     const form = assignment.form;

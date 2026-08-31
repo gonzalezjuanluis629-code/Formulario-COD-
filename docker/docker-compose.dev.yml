@@ -40,12 +40,19 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-cod}:${POSTGRES_PASSWORD:-cod}@postgres:5432/${POSTGRES_DB:-cod}?schema=public
       REDIS_URL: redis://redis:6379
-    ports: ["3001:3001"]
+    ports: ["3002:3001"]
     volumes:
       - ../apps/api:/app/apps/api
       - ../packages:/app/packages
       - ../prisma:/app/prisma
       - /app/node_modules
+      - /app/apps/api/node_modules
+      - /app/packages/contracts/node_modules
+      - /app/packages/pricing/node_modules
+      - /app/packages/geo/node_modules
+      - /app/packages/contracts/dist
+      - /app/packages/pricing/dist
+      - /app/packages/geo/dist
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -65,6 +72,11 @@ services:
       - ../packages:/app/packages
       - ../prisma:/app/prisma
       - /app/node_modules
+      - /app/apps/worker/node_modules
+      - /app/packages/contracts/node_modules
+      - /app/packages/geo/node_modules
+      - /app/packages/contracts/dist
+      - /app/packages/geo/dist
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

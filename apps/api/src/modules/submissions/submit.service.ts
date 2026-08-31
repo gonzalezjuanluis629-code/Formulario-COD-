@@ -90,7 +90,7 @@ export class SubmitService {
     /* 6 ─ Addons aceptados: se validan contra Shopify (precio real). */
     const resolvedAddons = await this.addons.resolve(
       ctx,
-      dto.acceptedAddons.map((a) => a.id),
+      dto.acceptedAddons.map((a: { id: string }) => a.id),
     );
 
     /* 6b ─ RECÁLCULO. Lo que el cliente diga que cuesta nos da igual. */
@@ -100,7 +100,7 @@ export class SubmitService {
       qty: dto.qty,
       province: this.declaredProvince(dto),
       discountCode: dto.discountCode ?? null,
-      addonIds: dto.acceptedAddons.map((a) => a.id),
+      addonIds: dto.acceptedAddons.map((a: { id: string }) => a.id),
     });
 
     if (dto.clientTotals && dto.clientTotals.totalCents !== totals.totalCents) {
