@@ -1,0 +1,28 @@
+{% comment %}
+  App Block (Theme App Extension).
+  El merchant lo añade desde el editor del tema. CERO modificaciones de código.
+  Nada de ScriptTag: está prohibido por Built for Shopify y ralentiza el tema.
+{% endcomment %}
+
+<div
+  data-cod-form
+  data-product-id="gid://shopify/Product/{{ product.id }}"
+  data-variant-id="gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}"
+  {{ block.shopify_attributes }}
+></div>
+
+{% comment %} defer: no bloquea el render del tema. {% endcomment %}
+<script src="{{ 'widget.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Formulario COD",
+  "target": "section",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "El diseño, los campos y las reglas se configuran desde el panel de la app COD Forms."
+    }
+  ]
+}
+{% endschema %}

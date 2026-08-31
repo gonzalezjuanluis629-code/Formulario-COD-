@@ -1,0 +1,24 @@
+{% comment %}
+  App Embed. Se activa con un interruptor en el editor del tema.
+  Inyecta un botón flotante que abre el formulario en modal.
+{% endcomment %}
+
+{% if block.settings.enabled and template contains 'product' %}
+  <div
+    data-cod-form
+    data-mode="popup"
+    data-product-id="gid://shopify/Product/{{ product.id }}"
+    data-variant-id="gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}"
+  ></div>
+  <script src="{{ 'widget.js' | asset_url }}" defer></script>
+{% endif %}
+
+{% schema %}
+{
+  "name": "COD Forms (flotante)",
+  "target": "body",
+  "settings": [
+    { "type": "checkbox", "id": "enabled", "label": "Activar el formulario COD", "default": true }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,74 @@
+# Desarrollo: infraestructura en Docker; `admin` corre en el HOST con el
+# Shopify CLI (necesita su propio tunnel, no conviene contenerizarlo en dev).
+name: cod-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cod}
+      POSTGRES_DB: ${POSTGRES_DB:-cod}
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cod}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes: ["redisdata:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+      target: dev
+    restart: unless-stopped
+    env_file: [../.env]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cod}:${POSTGRES_PASSWORD:-cod}@postgres:5432/${POSTGRES_DB:-cod}?schema=public
+      REDIS_URL: redis://redis:6379
+    ports: ["3001:3001"]
+    volumes:
+      - ../apps/api:/app/apps/api
+      - ../packages:/app/packages
+      - ../prisma:/app/prisma
+      - /app/node_modules
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+      target: dev
+    restart: unless-stopped
+    env_file: [../.env]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cod}:${POSTGRES_PASSWORD:-cod}@postgres:5432/${POSTGRES_DB:-cod}?schema=public
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ../apps/worker:/app/apps/worker
+      - ../packages:/app/packages
+      - ../prisma:/app/prisma
+      - /app/node_modules
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisdata:

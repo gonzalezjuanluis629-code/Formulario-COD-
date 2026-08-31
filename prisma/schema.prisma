@@ -1,0 +1,483 @@
+// COD Forms — Modelo de datos
+// Camino A: N custom apps (una por tienda) → 1 backend multi-tenant.
+// REGLA DE ORO: toda tabla de negocio lleva shopId y se consulta SIEMPRE con scope.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ════════════════════════════════════════════════════════════════
+// TENANCY
+// ════════════════════════════════════════════════════════════════
+
+/// Credenciales de UNA custom app de Shopify. Camino A: una fila por tienda.
+/// El ProxyGuard y el WebhookGuard resuelven el secret correcto a partir
+/// del dominio de la tienda, no de una env var global.
+model ShopifyApp {
+  id              String   @id @default(cuid())
+  handle          String   @unique // "tienda-a"
+  clientId        String   @unique
+  clientSecretEnc Bytes // AES-256-GCM
+  scopes          String
+  appProxyPrefix  String   @default("apps")
+  appProxySubpath String   @default("cod")
+  apiVersion      String   @default("2025-07")
+  createdAt       DateTime @default(now())
+  shops           Shop[]
+}
+
+model Shop {
+  id             String     @id @default(cuid())
+  domain         String     @unique // xxx.myshopify.com
+  shopifyAppId   String
+  shopifyApp     ShopifyApp @relation(fields: [shopifyAppId], references: [id])
+  accessTokenEnc Bytes // AES-256-GCM, clave derivada por tienda
+  scopes         String
+  name           String?
+  email          String?
+  currency       String     @default("DOP")
+  countryCode    String     @default("DO")
+  timezone       String     @default("America/Santo_Domingo")
+  settings       Json       @default("{}") // ShopSettings (validado con Zod)
+  installedAt    DateTime   @default(now())
+  uninstalledAt  DateTime?
+
+  forms         Form[]
+  themes        Theme[]
+  offers        Offer[]
+  shippingZones ShippingZone[]
+  discounts     Discount[]
+  submissions   Submission[]
+  blocklist     BlocklistEntry[]
+  outbox        OutboxEvent[]
+  analytics     AnalyticsDaily[]
+
+  @@index([shopifyAppId])
+}
+
+/// Sesiones OAuth (@shopify/shopify-app-session-storage-prisma).
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+
+  @@index([shop])
+}
+
+// ════════════════════════════════════════════════════════════════
+// FORMULARIOS
+// ════════════════════════════════════════════════════════════════
+
+enum FormStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum DisplayMode {
+  EMBEDDED
+  POPUP
+  STICKY
+  MULTISTEP
+}
+
+enum AssignmentType {
+  ALL
+  PRODUCT
+  COLLECTION
+  TAG
+  VENDOR
+  PRODUCT_TYPE
+}
+
+model Form {
+  id          String      @id @default(cuid())
+  shopId      String
+  shop        Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name        String
+  status      FormStatus  @default(DRAFT)
+  displayMode DisplayMode @default(EMBEDDED)
+  themeId     String?
+  theme       Theme?      @relation(fields: [themeId], references: [id])
+
+  /// Version publicada actualmente. Publicar = apuntar aqui a una nueva version.
+  currentVersionId String?       @unique
+  versions         FormVersion[]
+  assignments      FormAssignment[]
+  experiments      Experiment[]
+  submissions      Submission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId, status])
+}
+
+/// Inmutable una vez publicada. Permite revertir y A/B testear sin romper nada.
+model FormVersion {
+  id      String @id @default(cuid())
+  formId  String
+  form    Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
+  version Int
+
+  /// Arbol de bloques (campos + contenido). Valida contra FormSchema de @cod/contracts.
+  schema Json
+
+  /// Reglas condicionales (JSON-Logic) — ver @cod/rules-engine.
+  rules Json @default("[]")
+
+  /// Overrides de design tokens a nivel de version.
+  designOverrides Json @default("{}")
+
+  publishedAt DateTime?
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([formId, version])
+}
+
+model FormAssignment {
+  id       String         @id @default(cuid())
+  formId   String
+  form     Form           @relation(fields: [formId], references: [id], onDelete: Cascade)
+  type     AssignmentType
+  value    String? // gid://shopify/Product/123 | "verano" | "Nike"
+  label    String? // nombre legible del recurso elegido (para el panel)
+  priority Int            @default(0)
+
+  @@index([formId])
+  @@index([type, value])
+}
+
+// ════════════════════════════════════════════════════════════════
+// DISEÑO
+// ════════════════════════════════════════════════════════════════
+
+model Theme {
+  id        String  @id @default(cuid())
+  shopId    String
+  shop      Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name      String
+  isDefault Boolean @default(false)
+
+  /// Design tokens: colores, tipografia, radios, sombras, espaciado,
+  /// animaciones, darkMode, customCss, customJs (sandboxed).
+  tokens Json
+
+  forms Form[]
+
+  @@index([shopId])
+}
+
+// ════════════════════════════════════════════════════════════════
+// OFERTAS (Fase 4 — schema listo desde ya)
+// ════════════════════════════════════════════════════════════════
+
+enum OfferType {
+  QUANTITY
+  UPSELL
+  CROSS_SELL
+  ORDER_BUMP
+  DOWNSELL
+  POST_PURCHASE
+  FREE_GIFT
+}
+
+model Offer {
+  id       String    @id @default(cuid())
+  shopId   String
+  shop     Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name     String
+  type     OfferType
+  active   Boolean   @default(true)
+  priority Int       @default(0)
+
+  conditions Json @default("{}") // JSON-Logic
+  payload    Json // productos, variantes, tiers, descuento
+
+  impressions Int     @default(0)
+  accepts     Int     @default(0)
+  revenue     Decimal @default(0) @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+
+  @@index([shopId, type, active])
+}
+
+// ════════════════════════════════════════════════════════════════
+// ENVIOS Y DESCUENTOS
+// ════════════════════════════════════════════════════════════════
+
+model ShippingZone {
+  id      String @id @default(cuid())
+  shopId  String
+  shop    Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name    String
+  country String @default("DO")
+
+  /// Jerarquia RD: provincia > municipio > sector
+  /// [{ province:"DO-01", municipalities:[{ name, sectors:[] }] }]
+  regions Json @default("[]")
+
+  rates ShippingRate[]
+
+  @@index([shopId])
+}
+
+model ShippingRate {
+  id     String       @id @default(cuid())
+  zoneId String
+  zone   ShippingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  name   String
+
+  /// Centavos. NUNCA float.
+  priceCents Int @default(0)
+
+  /// { freeAboveCents, minQty, productIds, collectionIds, maxWeightGrams }
+  conditions Json @default("{}")
+  priority   Int  @default(0)
+  etaMinDays Int?
+  etaMaxDays Int?
+
+  @@index([zoneId])
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+  BXGY
+  TIERED
+  FREE_SHIPPING
+}
+
+model Discount {
+  id         String       @id @default(cuid())
+  shopId     String
+  shop       Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name       String
+  code       String? // null = descuento automatico
+  type       DiscountType
+  active     Boolean      @default(true)
+  stackable  Boolean      @default(false)
+  conditions Json         @default("{}")
+  payload    Json
+  usageLimit Int?
+  usageCount Int          @default(0)
+  startsAt   DateTime?
+  endsAt     DateTime?
+
+  @@unique([shopId, code])
+  @@index([shopId, active])
+}
+
+// ════════════════════════════════════════════════════════════════
+// SUBMISSIONS (el corazon)
+// ════════════════════════════════════════════════════════════════
+
+enum SubmissionStatus {
+  STARTED
+  ABANDONED
+  PENDING_OTP // reservado — OTP no implementado (decisión del proyecto)
+  HELD // riesgo alto: retenido para revisión manual del merchant
+  PENDING // aceptada, pedido encolado hacia Shopify
+  CONFIRMED // orderCreate OK
+  FAILED // agoto reintentos — recuperable a mano
+  REJECTED // el merchant rechazó el pedido retenido
+  CANCELLED
+}
+
+enum LocationSource {
+  GPS
+  MAP_PIN
+  SEARCH
+  MANUAL
+  NONE
+}
+
+model Submission {
+  id                String  @id @default(cuid())
+  shopId            String
+  shop              Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  formId            String
+  form              Form    @relation(fields: [formId], references: [id])
+  formVersionId     String
+  experimentVariant String?
+
+  /// Generada por el widget al abrir el formulario. Garantiza exactly-once.
+  idempotencyKey String           @unique
+  status         SubmissionStatus @default(STARTED)
+
+  /// PII CIFRADA (AES-256-GCM, clave derivada por tienda). Jamas en claro.
+  customerDataEnc Bytes?
+
+  /// HMAC-SHA256 con pepper. Permite deduplicar y aplicar blocklist sin descifrar.
+  phoneHash String?
+  emailHash String?
+  cartHash  String? // dedup: mismo telefono + mismo carrito en <10 min
+
+  items            Json // [{ variantId, qty, unitPriceCents, offerId? }]
+  totals           Json // { subtotalCents, shippingCents, discountCents, totalCents, currency }
+  appliedOffers    Json @default("[]")
+  appliedDiscounts Json @default("[]")
+
+  // ── Ubicacion inteligente ──
+  latitude           Decimal?        @db.Decimal(10, 7)
+  longitude          Decimal?        @db.Decimal(10, 7)
+  accuracyMeters     Int?
+  locationSource     LocationSource? @default(NONE)
+  geocodedAddress    Json?
+  locationConfidence Decimal?        @db.Decimal(3, 2)
+  locationCapturedAt DateTime?
+
+  // ── Anti-fraude ──
+  ipHash      String? // IP hasheada (GDPR/PCD)
+  userAgent   String?
+  riskScore   Int      @default(0)
+  riskFlags   String[] @default([])
+  otpVerified Boolean  @default(false)
+
+  // ── Shopify ──
+  shopifyOrderId    String?
+  shopifyOrderName  String?
+  shopifyCustomerId String?
+  createAttempts    Int     @default(0)
+  lastError         String?
+
+  // ── Analitica ──
+  timeToCompleteMs Int?
+  fieldErrors      Json @default("[]")
+
+  createdAt   DateTime  @default(now())
+  confirmedAt DateTime?
+
+  /// Retencion de datos protegidos (Protected Customer Data).
+  purgeAfter DateTime?
+
+  @@index([shopId, status, createdAt])
+  @@index([shopId, phoneHash])
+  @@index([shopifyOrderId])
+  @@index([purgeAfter])
+}
+
+// ════════════════════════════════════════════════════════════════
+// OUTBOX — garantia de entrega. Una caida de Shopify NO pierde pedidos.
+// ════════════════════════════════════════════════════════════════
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  DONE
+  DEAD
+}
+
+model OutboxEvent {
+  id          String       @id @default(cuid())
+  shopId      String
+  shop        Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  type        String // ORDER_CREATE | CAPI | SHEETS | WEBHOOK_OUT
+  payload     Json
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  nextRetryAt DateTime     @default(now())
+  lastError   String?
+  createdAt   DateTime     @default(now())
+
+  @@index([status, nextRetryAt])
+  @@index([shopId, type])
+}
+
+// ════════════════════════════════════════════════════════════════
+// ANTI-FRAUDE
+// ════════════════════════════════════════════════════════════════
+
+enum BlocklistType {
+  IP
+  PHONE
+  EMAIL
+  POSTAL_CODE
+  PROVINCE
+}
+
+model BlocklistEntry {
+  id        String        @id @default(cuid())
+  shopId    String
+  shop      Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  type      BlocklistType
+  valueHash String // hasheado, igual que phoneHash
+  label     String? // texto legible para el admin
+  reason    String?
+  createdAt DateTime      @default(now())
+
+  @@unique([shopId, type, valueHash])
+}
+
+/// Reservado. OTP no se implementa (decision 4), pero el schema ya existe
+/// para que activarlo no requiera migracion destructiva.
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  shopId     String
+  phoneHash  String
+  codeHash   String
+  channel    String // SMS | WHATSAPP
+  attempts   Int       @default(0)
+  verifiedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+
+  @@index([shopId, phoneHash])
+}
+
+// ════════════════════════════════════════════════════════════════
+// EXPERIMENTOS Y ANALITICA
+// ════════════════════════════════════════════════════════════════
+
+model Experiment {
+  id        String    @id @default(cuid())
+  formId    String
+  form      Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
+  name      String
+  status    String    @default("RUNNING")
+  variants  Json // [{ key:"A", formVersionId, weight:50 }]
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+}
+
+model AnalyticsDaily {
+  id     String   @id @default(cuid())
+  shopId String
+  shop   Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  formId String?
+  date   DateTime @db.Date
+
+  views          Int     @default(0)
+  starts         Int     @default(0)
+  submissions    Int     @default(0)
+  confirmed      Int     @default(0)
+  abandoned      Int     @default(0)
+  failed         Int     @default(0)
+  withGpsLocation Int    @default(0) // nuestra metrica insignia
+  revenueCents   BigInt  @default(0)
+  avgCompleteMs  Int     @default(0)
+  topErrors      Json    @default("[]")
+
+  @@unique([shopId, formId, date])
+  @@index([shopId, date])
+}

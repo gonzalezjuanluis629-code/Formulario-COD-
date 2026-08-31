@@ -1,0 +1,35 @@
+# Camino A: UNA custom app por tienda. Este archivo se duplica por tienda
+# cambiando client_id y application_url. El backend es el mismo para todas.
+client_id = "REEMPLAZAR_POR_EL_CLIENT_ID_DE_LA_TIENDA"
+name = "COD Forms"
+handle = "cod-forms"
+application_url = "https://admin.tudominio.com"
+embedded = true
+
+[access_scopes]
+# Mínimo indispensable. Pedir de más retrasa la aprobación de Protected Customer Data.
+scopes = "write_orders,read_orders,read_products,read_customers,write_customers,read_discounts"
+
+[auth]
+redirect_urls = [ "https://admin.tudominio.com/auth/callback" ]
+
+# El widget se sirve por aquí. Shopify firma cada request con HMAC.
+[app_proxy]
+url = "https://api.tudominio.com"
+subpath = "cod"
+prefix = "apps"
+
+[webhooks]
+api_version = "2025-07"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled", "orders/cancelled" ]
+  uri = "https://api.tudominio.com/webhooks"
+
+  # Obligatorios para Protected Customer Data.
+  [[webhooks.subscriptions]]
+  topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+  uri = "https://api.tudominio.com/webhooks"
+
+[build]
+automatically_update_urls_on_dev = false
