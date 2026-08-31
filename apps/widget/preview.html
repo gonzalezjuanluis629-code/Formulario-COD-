@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vista previa — Formulario COD</title>
+  <style>
+    body { margin:0; background:#f3f4f6; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; color:#111; }
+    .wrap { max-width:520px; margin:0 auto; padding:28px 16px 60px; }
+    .banner { text-align:center; margin-bottom:20px; }
+    .banner h1 { font-size:18px; margin:0 0 4px; }
+    .banner p { font-size:13px; color:#6b7280; margin:0; }
+    .product { display:flex; gap:14px; align-items:center; background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:14px; margin-bottom:18px; }
+    .product .ph { width:64px; height:64px; border-radius:10px; background:linear-gradient(135deg,#e5e7eb,#cbd5e1); flex:none; }
+    .product .info b { display:block; font-size:15px; }
+    .product .info span { color:#6b7280; font-size:14px; }
+    .card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; padding:6px; box-shadow:0 4px 24px rgba(0,0,0,.06); }
+    #cod-host { display:block; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="banner">
+      <h1>Vista previa del Formulario COD</h1>
+      <p>Modo demo — así lo verá tu cliente. No crea pedidos reales.</p>
+    </div>
+    <div class="product">
+      <div class="ph"></div>
+      <div class="info"><b>Producto de ejemplo</b><span>RD$ 1,890.00</span></div>
+    </div>
+    <div class="card"><div id="cod-host"></div></div>
+  </div>
+
+  <script type="module">
+    import { renderPreview } from './dist/preview.js';
+
+    const fields = [
+      { key:'fullName', type:'text', label:'Nombre completo', placeholder:'Tu nombre completo', help:'', required:true, defaultValue:null, width:'100', order:1, visible:true, options:[], conditions:[], content:'', validation:{ minLength:3, maxLength:80, regex:null, message:null } },
+      { key:'phone', type:'phone', label:'WhatsApp', placeholder:'809 000 0000', help:'', required:true, defaultValue:null, width:'50', order:2, visible:true, options:[], conditions:[], content:'', validation:{ minLength:null, maxLength:null, regex:null, message:null } },
+      { key:'email', type:'email', label:'Correo', placeholder:'tucorreo@ejemplo.com', help:'', required:false, defaultValue:null, width:'50', order:3, visible:true, options:[], conditions:[], content:'', validation:{ minLength:null, maxLength:null, regex:null, message:null } },
+      { key:'location', type:'location', label:'Dirección de entrega', placeholder:'', help:'', required:true, defaultValue:null, width:'100', order:4, visible:true, options:[], conditions:[], content:'', validation:{ minLength:null, maxLength:null, regex:null, message:null } },
+      { key:'province', type:'select', label:'Provincia', placeholder:'Selecciona tu provincia', help:'', required:true, defaultValue:null, width:'100', order:5, visible:true, options:[{label:'Distrito Nacional',value:'DO-01'},{label:'Santiago',value:'DO-25'},{label:'La Altagracia',value:'DO-11'},{label:'Santo Domingo',value:'DO-32'}], conditions:[{ field:'locationMode', op:'eq', value:'manual' }], content:'', validation:{ minLength:null, maxLength:null, regex:null, message:null } },
+      { key:'address', type:'textarea', label:'Dirección', placeholder:'Calle, número, sector y punto de referencia…', help:'', required:true, defaultValue:null, width:'100', order:6, visible:true, options:[], conditions:[{ field:'locationMode', op:'eq', value:'manual' }], content:'', validation:{ minLength:5, maxLength:300, regex:null, message:null } },
+      { key:'confirm', type:'checkbox', label:'', placeholder:'', content:'Confirmo que recibiré mi pedido.', help:'', required:true, defaultValue:null, width:'100', order:7, visible:true, options:[], conditions:[], validation:{ minLength:null, maxLength:null, regex:null, message:null } },
+    ];
+
+    const tokens = {
+      brand:'#111111', success:'#16a34a', danger:'#e53935', surface:'#ffffff', field:'#fafafa',
+      border:'#e4e4e4', text:'#111111', muted:'#8a8a8a',
+      fontFamily:'-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+      fontSize:14.5, radius:10, buttonRadius:12, buttonHeight:48, buttonText:'Finalizar pedido',
+      shadow:'md', spacing:'compact', animations:true, progressBar:true, progressColor:'#16a34a',
+      readyColor:'#16a34a', logoUrl:null, darkMode:false, customCss:'',
+      trigger:{ text:'Comprar ahora', width:'auto', height:52, fontSize:15, descriptionFontSize:12, bg:'#111111', color:'#ffffff', radius:100, iconType:'emoji', icon:'🛒', iconImageUrl:null, descriptions:['Envío gratis a todo el país','Pago contra entrega'], descriptionIntervalMs:3000, animation:'pulse' },
+      submit:{ text:'Finalizar pedido', height:48, fontSize:15, radius:12, bg:'#111111', color:'#ffffff', readyBg:'#16a34a', iconType:'none', icon:'→', animation:'none' },
+    };
+
+    renderPreview(document.getElementById('cod-host'), fields, tokens);
+  </script>
+</body>
+</html>
