@@ -36,9 +36,20 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 }
 
 export async function action({ request, params }: ActionFunctionArgs) {
+  const requestUrl = new URL(request.url);
+  console.info('[form-action] start', {
+    method: request.method,
+    hasAuthorization: request.headers.has('authorization'),
+    hasUrlToken: requestUrl.searchParams.has('id_token'),
+  });
   const { shop } = await requireShop(request);
+  console.info('[form-action] authenticated');
   const fd = await request.formData();
   const intent = String(fd.get('intent'));
+  console.info('[form-action] parsed', {
+    intent,
+    fieldsLength: String(fd.get('fields') ?? '').length,
+  });
 
   const form = await db.form.findFirstOrThrow({ where: { id: params.id!, shopId: shop.id } });
 
