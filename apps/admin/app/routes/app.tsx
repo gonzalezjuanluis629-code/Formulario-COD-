@@ -19,7 +19,7 @@ export default function AppLayout() {
   const { apiKey } = useLoaderData<typeof loader>();
 
   return (
-    <AppProvider isEmbeddedApp apiKey={apiKey}>
+    <AppProvider embedded apiKey={apiKey}>
       <PolarisAppProvider i18n={esTranslations}>
         <NavMenu>
           <a href="/app" rel="home">Inicio</a>
