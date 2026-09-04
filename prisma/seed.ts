@@ -1,6 +1,5 @@
 /**
- * Seed. Registra la primera custom app (Camino A) y crea un formulario base
- * con los campos que ya validamos en el prototipo.
+ * Seed. Registra la custom app y repara sus credenciales cifradas.
  *
  *   pnpm db:seed
  */
@@ -24,20 +23,34 @@ function encrypt(shopId: string, plain: string): Buffer {
 async function main() {
   const app = await prisma.shopifyApp.upsert({
     where: { handle: process.env.SHOPIFY_APP_HANDLE! },
-    update: {},
+    update: {
+      clientId: process.env.SHOPIFY_API_KEY!,
+      scopes: process.env.SHOPIFY_SCOPES!,
+      apiVersion: process.env.SHOPIFY_API_VERSION ?? '2025-07',
+    },
     create: {
       handle: process.env.SHOPIFY_APP_HANDLE!,
       clientId: process.env.SHOPIFY_API_KEY!,
-      clientSecretEnc: Buffer.alloc(0), // se cifra al vincular la tienda (necesita shopId)
+      clientSecretEnc: Buffer.alloc(0),
       scopes: process.env.SHOPIFY_SCOPES!,
       apiVersion: process.env.SHOPIFY_API_VERSION ?? '2025-07',
     },
   });
 
-  console.log(`✓ ShopifyApp "${app.handle}" registrada`);
-  console.log('  El accessToken y el clientSecret se cifran durante el OAuth.');
+  const installedShop = await prisma.shop.findFirst({
+    where: { shopifyAppId: app.id, uninstalledAt: null },
+    select: { id: true },
+  });
+  if (installedShop && process.env.SHOPIFY_API_SECRET) {
+    await prisma.shopifyApp.update({
+      where: { id: app.id },
+      data: { clientSecretEnc: encrypt(installedShop.id, process.env.SHOPIFY_API_SECRET) },
+    });
+  }
 
-  /* Campos del formulario base — exactamente los del prototipo v7. */
+  console.log(`✓ ShopifyApp "${app.handle}" registrada`);
+  console.log('  El accessToken y el clientSecret quedan cifrados por tienda.');
+
   const FIELDS = [
     { key: 'fullName', type: 'text', label: 'Nombre completo', placeholder: 'Tu nombre completo',
       required: true, width: '100', order: 1, validation: { minLength: 3, maxLength: 80, regex: null, message: null } },
@@ -47,7 +60,6 @@ async function main() {
       required: false, width: '50', order: 3 },
     { key: 'location', type: 'location', label: 'Dirección de entrega',
       required: true, width: '100', order: 4 },
-    // Solo se ven si el cliente elige "Escribirla" (regla condicional).
     { key: 'province', type: 'select', label: 'Provincia', placeholder: 'Selecciona tu provincia',
       required: true, width: '100', order: 5,
       options: DO_PROVINCES.map((p) => ({ label: p.name, value: p.code })),
@@ -62,8 +74,6 @@ async function main() {
   ];
 
   console.log(`✓ Plantilla de formulario lista (${FIELDS.length} campos)`);
-  console.log('\nSiguiente paso: instala la app en tu dev store con `shopify app dev`.');
-  console.log('El OAuth creará la fila Shop y cifrará el token automáticamente.\n');
 }
 
 main()
