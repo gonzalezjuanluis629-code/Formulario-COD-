@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   Badge, BlockStack, Button, Card, InlineStack, Layout, Page, Select, Text, TextField, Toast, Frame,
 } from '@shopify/polaris';
-import { useFetcher, useLoaderData } from 'react-router';
+import { useFetcher, useLoaderData, useNavigate } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { FieldSchema, ThemeTokensSchema, type Field, type ThemeTokens } from '@cod/contracts';
 import { requireShop } from '../lib/shop.server';
@@ -133,6 +133,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 }
 
 export default function FormEditor() {
+  const navigate = useNavigate();
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ ok: boolean; message: string }>();
 
@@ -194,7 +195,7 @@ export default function FormEditor() {
   return (
     <Frame>
       <Page
-        backAction={{ content: 'Formularios', url: '/app/forms' }}
+        backAction={{ content: 'Formularios', onAction: () => navigate('/app/forms') }}
         title={name}
         titleMetadata={
           <InlineStack gap="200">
