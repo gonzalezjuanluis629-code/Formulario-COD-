@@ -1,5 +1,7 @@
 import { AppProvider } from '@shopify/shopify-app-react-router/react';
 import { NavMenu } from '@shopify/app-bridge-react';
+import { AppProvider as PolarisAppProvider } from '@shopify/polaris';
+import esTranslations from '@shopify/polaris/locales/es.json';
 import { Link, Outlet, useLoaderData, useRouteError } from 'react-router';
 import { boundary } from '@shopify/shopify-app-react-router/server';
 import type { HeadersFunction, LoaderFunctionArgs } from 'react-router';
@@ -18,18 +20,20 @@ export default function AppLayout() {
 
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
-      <NavMenu>
-        <Link to="/app" rel="home">Inicio</Link>
-        <Link to="/app/forms">Formularios</Link>
-        <Link to="/app/design">Diseño</Link>
-        <Link to="/app/offers">Ofertas y descuentos</Link>
-        <Link to="/app/shipping">Envíos</Link>
-        <Link to="/app/orders">Pedidos</Link>
-        <Link to="/app/analytics">Analítica</Link>
-        <Link to="/app/antifraud">Lista de bloqueo</Link>
-        <Link to="/app/settings">Ajustes</Link>
-      </NavMenu>
-      <Outlet />
+      <PolarisAppProvider i18n={esTranslations}>
+        <NavMenu>
+          <Link to="/app" rel="home">Inicio</Link>
+          <Link to="/app/forms">Formularios</Link>
+          <Link to="/app/design">Diseño</Link>
+          <Link to="/app/offers">Ofertas y descuentos</Link>
+          <Link to="/app/shipping">Envíos</Link>
+          <Link to="/app/orders">Pedidos</Link>
+          <Link to="/app/analytics">Analítica</Link>
+          <Link to="/app/antifraud">Lista de bloqueo</Link>
+          <Link to="/app/settings">Ajustes</Link>
+        </NavMenu>
+        <Outlet />
+      </PolarisAppProvider>
     </AppProvider>
   );
 }
