@@ -7,14 +7,6 @@ import {
 import { PrismaSessionStorage } from '@shopify/shopify-app-session-storage-prisma';
 import { db } from './db.server';
 
-/**
- * Camino A: UNA custom app por tienda.
- *
- * Cada tienda tiene su propio despliegue del admin (o su propio conjunto de
- * variables), pero TODAS apuntan al mismo Postgres. El backend (NestJS) resuelve
- * las credenciales por dominio desde la tabla ShopifyApp; aquí, en el admin,
- * basta con las env vars de esa app concreta.
- */
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY!,
   apiSecretKey: process.env.SHOPIFY_API_SECRET!,
@@ -23,14 +15,9 @@ const shopify = shopifyApp({
   appUrl: process.env.SHOPIFY_APP_URL!,
   authPathPrefix: '/auth',
   sessionStorage: new PrismaSessionStorage(db),
-  distribution: AppDistribution.AppStore, // custom distribution usa el mismo flujo OAuth
-  future: { unstable_newEmbeddedAuthStrategy: true },
+  distribution: AppDistribution.AppStore,
 
   hooks: {
-    /**
-     * Tras el OAuth: damos de alta la tienda y CIFRAMOS el access token.
-     * En claro no se guarda jamás.
-     */
     afterAuth: async ({ session, admin }) => {
       const { encryptForShop } = await import('./lib/crypto.server');
 
@@ -51,7 +38,7 @@ const shopify = shopifyApp({
         create: {
           domain: session.shop,
           shopifyAppId: app.id,
-          accessTokenEnc: Buffer.alloc(0), // se rellena abajo (necesita el id)
+          accessTokenEnc: Buffer.alloc(0),
           scopes: session.scope ?? '',
           name: s.name,
           email: s.email,
@@ -67,12 +54,18 @@ const shopify = shopifyApp({
         data: { accessTokenEnc: encryptForShop(shop.id, session.accessToken!) },
       });
 
+      await db.shopifyApp.update({
+        where: { id: app.id },
+        data: {
+          clientSecretEnc: encryptForShop(shop.id, process.env.SHOPIFY_API_SECRET!),
+        },
+      });
+
       await ensureDefaults(shop.id);
     },
   },
 });
 
-/** Primera instalación: tema por defecto + formulario base listo para usar. */
 async function ensureDefaults(shopId: string) {
   const exists = await db.form.findFirst({ where: { shopId } });
   if (exists) return;
