@@ -1,9 +1,9 @@
 # Camino A: UNA custom app por tienda. Este archivo se duplica por tienda
 # cambiando client_id y application_url. El backend es el mismo para todas.
-client_id = "REEMPLAZAR_POR_EL_CLIENT_ID_DE_LA_TIENDA"
+client_id = "ff96db52ce043d910bb3e194da76b0ce"
 name = "COD Forms"
-handle = "cod-forms"
-application_url = "https://admin.tudominio.com"
+handle = "cod-forms-4"
+application_url = "https://admin-production-d33e.up.railway.app/app"
 embedded = true
 
 [access_scopes]
@@ -11,11 +11,11 @@ embedded = true
 scopes = "write_orders,read_orders,read_products,read_customers,write_customers,read_discounts"
 
 [auth]
-redirect_urls = [ "https://admin.tudominio.com/auth/callback" ]
+redirect_urls = [ "https://admin-production-d33e.up.railway.app/auth/callback" ]
 
 # El widget se sirve por aquí. Shopify firma cada request con HMAC.
 [app_proxy]
-url = "https://api.tudominio.com"
+url = "https://api-production-e421.up.railway.app"
 subpath = "cod"
 prefix = "apps"
 
@@ -24,12 +24,12 @@ api_version = "2025-07"
 
   [[webhooks.subscriptions]]
   topics = [ "app/uninstalled", "orders/cancelled" ]
-  uri = "https://api.tudominio.com/webhooks"
+  uri = "https://api-production-e421.up.railway.app/webhooks"
 
   # Obligatorios para Protected Customer Data.
   [[webhooks.subscriptions]]
-  topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
-  uri = "https://api.tudominio.com/webhooks"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+  uri = "https://api-production-e421.up.railway.app/webhooks"
 
 [build]
 automatically_update_urls_on_dev = false
