@@ -1,5 +1,5 @@
 import { Badge, Button, Card, EmptyState, IndexTable, Page, Text } from '@shopify/polaris';
-import { Form, useLoaderData, useSubmit } from 'react-router';
+import { Form, Link, useLoaderData, useSubmit } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { redirect } from 'react-router';
 import { requireShop } from '../lib/shop.server';
@@ -104,7 +104,7 @@ export default function FormsList() {
           {forms.map((f, i) => (
             <IndexTable.Row id={f.id} key={f.id} position={i}>
               <IndexTable.Cell>
-                <a href={`/app/forms/${f.id}`} style={{ fontWeight: 600 }}>{f.name}</a>
+                <Link to={`/app/forms/${f.id}`} style={{ fontWeight: 600 }}>{f.name}</Link>
               </IndexTable.Cell>
               <IndexTable.Cell>
                 <Badge tone={f.status === 'ACTIVE' ? 'success' : f.status === 'PAUSED' ? 'warning' : undefined}>
