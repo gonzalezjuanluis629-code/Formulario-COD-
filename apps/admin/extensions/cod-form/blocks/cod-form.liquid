@@ -12,7 +12,7 @@
 ></div>
 
 {% comment %} defer: no bloquea el render del tema. {% endcomment %}
-<script src="{{ 'widget.js' | asset_url }}" defer></script>
+<script src="{{ 'widget.js' | asset_url }}" type="module"></script>
 
 {% schema %}
 {
