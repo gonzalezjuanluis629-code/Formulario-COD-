@@ -13,7 +13,7 @@ export function loader() {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       // Solo se puede embeber desde el admin de Shopify.
-      'Content-Security-Policy': "frame-ancestors https://admin.shopify.com https://*.myshopify.com",
+      'Content-Security-Policy': "frame-ancestors 'self' https://admin.shopify.com https://*.myshopify.com",
     },
   });
 }
