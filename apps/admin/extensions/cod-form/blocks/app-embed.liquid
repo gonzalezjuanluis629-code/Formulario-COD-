@@ -10,7 +10,7 @@
     data-product-id="gid://shopify/Product/{{ product.id }}"
     data-variant-id="gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}"
   ></div>
-  <script src="{{ 'widget.js' | asset_url }}" defer></script>
+  <script src="{{ 'widget.js' | asset_url }}" type="module"></script>
 {% endif %}
 
 {% schema %}
