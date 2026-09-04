@@ -178,14 +178,26 @@ export default function FormEditor() {
     setDirty(true);
   }, [selected]);
 
-  const send = (intent: string, extra: Record<string, string> = {}) => {
+  const send = async (intent: string, extra: Record<string, string> = {}) => {
+    // React Router conserva los query params de la carga inicial, incluido un
+    // id_token que caduca al minuto. Al guardar después de editar, Shopify
+    // rechazaba ese token antiguo con 400. Sustituirlo justo antes del submit
+    // mantiene autenticadas todas las acciones del editor.
+    const actionUrl = new URL(window.location.href);
+    const shopify = (window as unknown as {
+      shopify?: { idToken?: () => Promise<string> };
+    }).shopify;
+    if (shopify?.idToken) {
+      actionUrl.searchParams.set('id_token', await shopify.idToken());
+    }
+
     fetcher.submit(
       {
         intent, name, fields: JSON.stringify(fields),
         assignType, assignValue, assignLabel,
         ...extra,
       },
-      { method: 'post' },
+      { method: 'post', action: `${actionUrl.pathname}${actionUrl.search}` },
     );
     setDirty(false);
   };
