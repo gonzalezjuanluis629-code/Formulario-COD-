@@ -15,7 +15,7 @@ redirect_urls = [ "https://admin-production-d33e.up.railway.app/auth/callback" ]
 
 # El widget se sirve por aquí. Shopify firma cada request con HMAC.
 [app_proxy]
-url = "https://api-production-e421.up.railway.app"
+url = "https://api-production-e421.up.railway.app/apps/cod"
 subpath = "cod"
 prefix = "apps"
 
