@@ -10,8 +10,9 @@ import type { FormState } from '../index';
 export function renderOffers(host: HTMLElement, config: WidgetConfig, state: FormState, onChange: () => void): void {
   const list = [...config.offers].sort((a, b) => a.minQty - b.minQty);
   if (!list.some((o) => o.minQty > 1)) return;
-  // La página ya tiene su caja de ofertas: no se repiten (el precio sí se aplica).
-  if (state.pageManagesQty) return;
+  // La página ya tiene su caja de ofertas (o el comerciante las ocultó): no se
+  // repiten. El precio de la oferta se aplica igual con la cantidad de la página.
+  if (state.pageManagesQty || config.tokens.offerCard.showInForm === false) return;
 
   const unit = config.product.unitPriceCents;
   const cur = config.settings.currency;

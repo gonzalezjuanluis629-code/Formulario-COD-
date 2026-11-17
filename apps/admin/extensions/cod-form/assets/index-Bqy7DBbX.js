@@ -500,7 +500,7 @@ function renderOffers(host, config, state, onChange) {
   var _a2;
   const list = [...config.offers].sort((a, b) => a.minQty - b.minQty);
   if (!list.some((o) => o.minQty > 1)) return;
-  if (state.pageManagesQty) return;
+  if (state.pageManagesQty || config.tokens.offerCard.showInForm === false) return;
   const unit = config.product.unitPriceCents;
   const cur = config.settings.currency;
   const style = config.tokens.offerCard;
@@ -579,7 +579,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-BQjpa1Py.js").then(({ renderAddons }) => {
+    void import("./addons-BYjsRQFf.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1156,7 +1156,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-DkewmEBz.js");
+    const { renderTrigger } = await import("./trigger-Dw8pbe_i.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";

@@ -210,6 +210,10 @@ export const ThemeTokensSchema = z.object({
     saveColor: z.string().default('#3f6b2a'),
     showCompare: z.boolean().default(true),
     showSave: z.boolean().default(true),
+    /** false = las tarjetas no salen en el formulario (la tienda tiene su propia
+     *  caja de ofertas): el precio de la oferta se aplica igual con la cantidad
+     *  que el cliente eligió en la página. */
+    showInForm: z.boolean().default(true),
   }).default({}),
   /** Botón «Aplicar» del código de descuento. */
   applyBg: z.string().default('#111111'),

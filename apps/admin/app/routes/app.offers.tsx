@@ -315,6 +315,13 @@ export default function Offers() {
                   <Text as="p" variant="bodySm" tone="subdued">
                     Tarjetas para elegir cuántas unidades lleva el cliente. Se aplica la de la cantidad elegida.
                   </Text>
+                  <Box padding="300" background="bg-surface-secondary" borderRadius="200">
+                    <Checkbox label="Mostrar las tarjetas en el formulario" checked={card.showInForm}
+                      onChange={(v) => { setCard({ ...card, showInForm: v }); setDirty(true); }}
+                      helpText={card.showInForm
+                        ? 'Desmárcalo si las ofertas ya están en tu página de producto: el cliente elige ahí y el formulario cobra con el precio de la oferta.'
+                        : 'Las tarjetas no salen en el formulario. El cliente elige la cantidad en tu página y se cobra con el precio de la oferta de esa cantidad. Pon aquí los mismos precios que muestra tu página.'} />
+                  </Box>
                   {[...offers].sort((a, b) => (parseInt(a.minQty, 10) || 0) - (parseInt(b.minQty, 10) || 0)).map((o) => (
                     <Item key={o.id} open={open === o.id} onToggle={() => setOpen(open === o.id ? null : o.id)}
                       title={o.title || `${o.minQty || '?'} unidades`}
