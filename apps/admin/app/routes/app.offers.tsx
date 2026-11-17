@@ -18,9 +18,12 @@ import { DEFAULT_FIELDS } from '../lib/defaults';
 
 type OfferDraft = {
   id: string; active: boolean; minQty: string; title: string; subtitle: string; badge: string;
-  priceMode: 'bundle' | 'percent' | 'none'; bundlePrice: string; percent: string;
+  priceMode: 'bundle' | 'percent' | 'amount' | 'none'; bundlePrice: string; percent: string; amount: string;
   freeShipping: boolean; preselected: boolean;
-};
+} & ProductScopeDraft;
+
+/** En qué productos vale una oferta o un cupón. */
+type ProductScopeDraft = { scope: 'all' | 'some'; products: { id: string; title: string }[] };
 
 type AddonDraft = {
   id: string; active: boolean; kind: 'ORDER_BUMP' | 'UPSELL' | 'DOWNSELL';
@@ -39,6 +42,8 @@ function toOffer(d: OfferDraft): Offer {
     id: d.id, type: 'QUANTITY', minQty: qty,
     discountBps: d.priceMode === 'percent' ? Math.round((Number(d.percent) || 0) * 100) : 0,
     bundlePriceCents: d.priceMode === 'bundle' && d.bundlePrice ? cents(d.bundlePrice) : null,
+    discountCents: d.priceMode === 'amount' ? cents(d.amount) : 0,
+    productIds: d.scope === 'some' ? d.products.map((p) => p.id) : [],
     freeShipping: d.freeShipping, label: d.title || `${qty} unidades`,
     title: d.title, subtitle: d.subtitle, badge: d.badge, preselected: d.preselected,
   };
@@ -72,9 +77,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const o = OfferSchema.parse({ id: r.id, label: r.name, type: 'QUANTITY', ...(r.payload as object) });
     return {
       id: r.id, active: r.active, minQty: String(o.minQty), title: o.title, subtitle: o.subtitle, badge: o.badge,
-      priceMode: o.bundlePriceCents != null ? 'bundle' : o.discountBps > 0 ? 'percent' : 'none',
+      priceMode: o.bundlePriceCents != null ? 'bundle' : o.discountCents > 0 ? 'amount' : o.discountBps > 0 ? 'percent' : 'none',
       bundlePrice: fromCents(o.bundlePriceCents), percent: o.discountBps ? String(o.discountBps / 100) : '',
+      amount: fromCents(o.discountCents),
       freeShipping: o.freeShipping, preselected: o.preselected,
+      ...scopeFrom(o.productIds, (r.payload as { productTitles?: unknown }).productTitles),
     };
   });
   const addons: AddonDraft[] = addonRows.map((r) => {
@@ -90,7 +97,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
   });
 
   return {
-    offers, addons, discounts,
+    offers, addons,
+    discounts: discounts.map((d) => {
+      const c = (d.conditions ?? {}) as { productIds?: unknown; productTitles?: unknown };
+      const sc = scopeFrom(Array.isArray(c.productIds) ? c.productIds as string[] : [], c.productTitles);
+      return { id: d.id, code: d.code ?? '', name: d.name, type: d.type, payload: d.payload, usageCount: d.usageCount, usageLimit: d.usageLimit, products: sc.products };
+    }),
     fields: ((version?.schema as Field[] | undefined) ?? DEFAULT_FIELDS),
     tokens: ThemeTokensSchema.parse(theme?.tokens ?? {}),
     currency: shop.currency,
@@ -110,12 +122,20 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result | 
     // Ofertas por cantidad: crear, actualizar y borrar las quitadas.
     const keepOffers: string[] = [];
     for (const d of body.offers) {
+      if (d.scope === 'some' && !d.products.length) {
+        return { ok: false, message: `Elige al menos un producto para la oferta «${d.title || `${d.minQty} unidades`}» o marca «Todos los productos».` };
+      }
+      if (d.priceMode === 'amount' && !(cents(d.amount) > 0)) {
+        return { ok: false, message: `Pon el monto de descuento de la oferta «${d.title || `${d.minQty} unidades`}».` };
+      }
       const o = toOffer(d);
       const data = {
         name: o.label, type: 'QUANTITY' as const, priority: o.minQty, active: d.active,
         payload: {
           minQty: o.minQty, discountBps: o.discountBps, freeShipping: o.freeShipping, title: o.title,
           subtitle: o.subtitle, badge: o.badge, bundlePriceCents: o.bundlePriceCents, preselected: o.preselected,
+          discountCents: o.discountCents, productIds: o.productIds,
+          productTitles: d.scope === 'some' ? d.products.map((p) => p.title) : [],
         },
       };
       if (d.id.startsWith('new-')) keepOffers.push((await db.offer.create({ data: { shopId: shop.id, ...data } })).id);
@@ -159,17 +179,24 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result | 
     const value = Number(fd.get('value') || 0);
     const code = String(fd.get('code') || '').trim().toUpperCase();
     if (!code) return { ok: false, message: 'Escribe el código del cupón.' };
+    if (type !== 'FREE_SHIPPING' && !(value > 0)) return { ok: false, message: 'Pon cuánto descuenta el cupón.' };
+    if (type === 'PERCENTAGE' && value > 100) return { ok: false, message: 'El porcentaje no puede pasar de 100.' };
+    const products = JSON.parse(String(fd.get('products') || '[]')) as { id: string; title: string }[];
+    const fields = {
+      name: String(fd.get('name') || code), type,
+      usageLimit: fd.get('usageLimit') ? Number(fd.get('usageLimit')) : null,
+      payload: type === 'PERCENTAGE' ? { valueBps: Math.round(value * 100) }
+        : type === 'FIXED' ? { valueCents: Math.round(value * 100) } : {},
+      // Vacío = vale en todos los productos.
+      conditions: { productIds: products.map((p) => p.id), productTitles: products.map((p) => p.title) },
+    };
+    const existed = await db.discount.findUnique({ where: { shopId_code: { shopId: shop.id, code } } });
     await db.discount.upsert({
       where: { shopId_code: { shopId: shop.id, code } },
-      update: {},
-      create: {
-        shopId: shop.id, name: String(fd.get('name') || code), code, type,
-        usageLimit: fd.get('usageLimit') ? Number(fd.get('usageLimit')) : null,
-        payload: type === 'PERCENTAGE' ? { valueBps: Math.round(value * 100) }
-          : type === 'FIXED' ? { valueCents: Math.round(value * 100) } : {},
-      },
+      update: fields,
+      create: { shopId: shop.id, code, ...fields },
     });
-    return { ok: true, message: `Cupón ${code} creado.` };
+    return { ok: true, message: existed ? `Cupón ${code} actualizado.` : `Cupón ${code} creado.` };
   }
 
   if (intent === 'discount:delete') {
@@ -221,7 +248,8 @@ export default function Offers() {
     const qty = Math.max(1, ...used) + (offers.length ? 1 : 1);
     const d: OfferDraft = {
       id: newId(), active: true, minQty: String(offers.length ? qty : 2), title: '', subtitle: '', badge: '',
-      priceMode: 'percent', bundlePrice: '', percent: '10', freeShipping: false, preselected: false,
+      priceMode: 'percent', bundlePrice: '', percent: '10', amount: '', freeShipping: false, preselected: false,
+      scope: 'all', products: [],
     };
     setOffers((l) => [...l, d]); setOpen(d.id); setDirty(true);
   };
@@ -290,8 +318,9 @@ export default function Offers() {
                   {[...offers].sort((a, b) => (parseInt(a.minQty, 10) || 0) - (parseInt(b.minQty, 10) || 0)).map((o) => (
                     <Item key={o.id} open={open === o.id} onToggle={() => setOpen(open === o.id ? null : o.id)}
                       title={o.title || `${o.minQty || '?'} unidades`}
-                      subtitle={o.priceMode === 'bundle' && o.bundlePrice ? `Paquete por RD$ ${o.bundlePrice}`
-                        : o.priceMode === 'percent' && o.percent ? `${o.percent} % de descuento` : 'Sin descuento'}
+                      subtitle={`${o.priceMode === 'bundle' && o.bundlePrice ? `Paquete por RD$ ${o.bundlePrice}`
+                        : o.priceMode === 'percent' && o.percent ? `${o.percent} % de descuento`
+                        : o.priceMode === 'amount' && o.amount ? `RD$ ${o.amount} de descuento` : 'Sin descuento'}${scopeLabel(o)}`}
                       badges={[!o.active && 'Pausada', o.badge, o.preselected && 'Marcada'].filter(Boolean) as string[]}>
                       <InlineStack gap="200" wrap={false}>
                         <div style={{ width: 110 }}>
@@ -306,7 +335,7 @@ export default function Offers() {
                       <TextField label="Descripción" value={o.subtitle} autoComplete="off" placeholder="Ej. 20 cebos · casa completa"
                         onChange={(v) => updOffer(o.id, { subtitle: v })} />
                       <Choice label="Precio" value={o.priceMode} onChange={(v) => updOffer(o.id, { priceMode: v as OfferDraft['priceMode'] })}
-                        options={[['bundle', 'Precio del paquete'], ['percent', '% de descuento'], ['none', 'Normal']]} />
+                        options={[['bundle', 'Paquete'], ['percent', '% menos'], ['amount', 'Monto fijo'], ['none', 'Normal']]} />
                       {o.priceMode === 'bundle' && (
                         <TextField label={`Precio total por ${o.minQty || 'X'} unidades`} prefix="RD$" type="number" value={o.bundlePrice}
                           autoComplete="off" onChange={(v) => updOffer(o.id, { bundlePrice: v })}
@@ -316,6 +345,12 @@ export default function Offers() {
                         <TextField label="Descuento" suffix="%" type="number" value={o.percent} autoComplete="off"
                           onChange={(v) => updOffer(o.id, { percent: v })} />
                       )}
+                      {o.priceMode === 'amount' && (
+                        <TextField label={`Cuánto se descuenta al llevar ${o.minQty || 'X'} unidades`} prefix="RD$" type="number" value={o.amount}
+                          autoComplete="off" onChange={(v) => updOffer(o.id, { amount: v })}
+                          helpText="Se resta del precio normal. Ej.: 2 unidades de RD$ 1,799 con RD$ 300 de descuento = RD$ 3,298." />
+                      )}
+                      <ProductScope value={o} onChange={(p) => updOffer(o.id, p)} />
                       <TextField label="Cinta destacada" value={o.badge} autoComplete="off" placeholder="Ej. MÁS VENDIDO (vacío = sin cinta)"
                         onChange={(v) => updOffer(o.id, { badge: v })} />
                       <Checkbox label="Envío gratis con esta oferta" checked={o.freeShipping} onChange={(v) => updOffer(o.id, { freeShipping: v })} />
@@ -400,7 +435,7 @@ export default function Offers() {
                   </Text>
                   {data.discounts.length > 0 && (
                     <IndexTable itemCount={data.discounts.length} selectable={false}
-                      headings={[{ title: 'Código' }, { title: 'Descuento' }, { title: 'Usos' }, { title: '' }]}>
+                      headings={[{ title: 'Código' }, { title: 'Descuento' }, { title: 'Productos' }, { title: 'Usos' }, { title: '' }]}>
                       {data.discounts.map((d, i) => {
                         const p = d.payload as { valueBps?: number; valueCents?: number };
                         return (
@@ -408,6 +443,9 @@ export default function Offers() {
                             <IndexTable.Cell><Text as="span" fontWeight="semibold">{d.code}</Text></IndexTable.Cell>
                             <IndexTable.Cell>
                               {d.type === 'PERCENTAGE' ? `${(p.valueBps ?? 0) / 100} %` : d.type === 'FIXED' ? `RD$ ${(p.valueCents ?? 0) / 100}` : 'Envío gratis'}
+                            </IndexTable.Cell>
+                            <IndexTable.Cell>
+                              <Text as="span" variant="bodySm" truncate>{d.products.length ? d.products.map((x) => x.title).join(', ') : 'Todos'}</Text>
                             </IndexTable.Cell>
                             <IndexTable.Cell>{d.usageCount}{d.usageLimit ? ` / ${d.usageLimit}` : ''}</IndexTable.Cell>
                             <IndexTable.Cell>
@@ -527,29 +565,84 @@ function Color({ label, value, onChange }: { label: string; value: string; onCha
 function CouponModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const submit = useSubmit();
   const [code, setCode] = useState('');
-  const [type, setType] = useState('PERCENTAGE');
+  const [type, setType] = useState<'PERCENTAGE' | 'FIXED' | 'FREE_SHIPPING'>('PERCENTAGE');
   const [value, setValue] = useState('10');
   const [limit, setLimit] = useState('');
+  const [scope, setScope] = useState<ProductScopeDraft>({ scope: 'all', products: [] });
+  const missingProducts = scope.scope === 'some' && !scope.products.length;
+  const missingValue = type !== 'FREE_SHIPPING' && !(Number(value) > 0);
+  const reset = () => { setCode(''); setType('PERCENTAGE'); setValue('10'); setLimit(''); setScope({ scope: 'all', products: [] }); };
   return (
     <Modal open={open} onClose={onClose} title="Crear cupón"
       primaryAction={{
-        content: 'Crear', disabled: !code.trim(),
-        onAction: () => { submit({ intent: 'discount:create', name: code, code, type, value, usageLimit: limit }, { method: 'post' }); onClose(); },
+        content: 'Crear', disabled: !code.trim() || missingProducts || missingValue,
+        onAction: () => {
+          submit({
+            intent: 'discount:create', name: code, code, type, value, usageLimit: limit,
+            products: JSON.stringify(scope.scope === 'some' ? scope.products : []),
+          }, { method: 'post' });
+          reset(); onClose();
+        },
       }}>
       <Modal.Section>
         <BlockStack gap="300">
           <TextField label="Código" value={code} onChange={(v) => setCode(v.toUpperCase().replace(/\s+/g, ''))} placeholder="BIENVENIDO10" autoComplete="off" />
-          <Select label="Tipo" value={type} onChange={setType}
-            options={[{ label: 'Porcentaje', value: 'PERCENTAGE' }, { label: 'Monto fijo', value: 'FIXED' }, { label: 'Envío gratis', value: 'FREE_SHIPPING' }]} />
+          <Choice label="Tipo de descuento" value={type}
+            onChange={(v) => { setType(v as typeof type); if (v === 'FIXED' && value === '10') setValue(''); }}
+            options={[['PERCENTAGE', 'Porcentaje'], ['FIXED', 'Monto fijo'], ['FREE_SHIPPING', 'Envío gratis']]} />
           {type !== 'FREE_SHIPPING' && (
-            <TextField label={type === 'PERCENTAGE' ? 'Porcentaje' : 'Monto'} type="number" value={value} onChange={setValue}
-              suffix={type === 'PERCENTAGE' ? '%' : undefined} prefix={type === 'FIXED' ? 'RD$' : undefined} autoComplete="off" />
+            <TextField label={type === 'PERCENTAGE' ? 'Porcentaje que se descuenta' : 'Monto que se descuenta'} type="number" value={value} onChange={setValue}
+              suffix={type === 'PERCENTAGE' ? '%' : undefined} prefix={type === 'FIXED' ? 'RD$' : undefined} autoComplete="off"
+              helpText={type === 'FIXED' ? 'Se resta del total de los productos. Ej.: RD$ 200 menos.' : undefined} />
           )}
+          <ProductScope value={scope} onChange={(p) => setScope((s) => ({ ...s, ...p }))} />
           <TextField label="Límite de usos (opcional)" type="number" value={limit} onChange={setLimit} autoComplete="off" helpText="Vacío = sin límite." />
         </BlockStack>
       </Modal.Section>
     </Modal>
   );
+}
+
+/** «Todos los productos» o «Solo estos productos» (con selector de productos). */
+function ProductScope({ value, onChange }: { value: ProductScopeDraft; onChange: (p: ProductScopeDraft) => void }) {
+  const add = async () => {
+    const picked = await pickResources({ type: 'product' });
+    const p = picked?.[0];
+    if (!p || value.products.some((x) => x.id === p.id)) return;
+    onChange({ scope: 'some', products: [...value.products, { id: p.id, title: p.title }] });
+  };
+  return (
+    <BlockStack gap="200">
+      <Choice label="¿En qué productos vale?" value={value.scope}
+        onChange={(v) => onChange({ scope: v as ProductScopeDraft['scope'], products: value.products })}
+        options={[['all', 'Todos los productos'], ['some', 'Solo algunos']]} />
+      {value.scope === 'some' && (
+        <BlockStack gap="150">
+          {value.products.map((p) => (
+            <InlineStack key={p.id} align="space-between" blockAlign="center" wrap={false} gap="200">
+              <div style={{ minWidth: 0, flex: 1 }}><Text as="span" variant="bodyMd" truncate>{p.title}</Text></div>
+              <Button variant="plain" tone="critical" icon={DeleteIcon} accessibilityLabel={`Quitar ${p.title}`}
+                onClick={() => onChange({ scope: 'some', products: value.products.filter((x) => x.id !== p.id) })} />
+            </InlineStack>
+          ))}
+          {!value.products.length && <Text as="p" variant="bodySm" tone="critical">Elige al menos un producto.</Text>}
+          <div><Button icon={PlusIcon} onClick={() => void add()}>Añadir producto</Button></div>
+        </BlockStack>
+      )}
+    </BlockStack>
+  );
+}
+
+function scopeFrom(ids: string[], titles: unknown): ProductScopeDraft {
+  const t = Array.isArray(titles) ? titles : [];
+  return ids.length
+    ? { scope: 'some', products: ids.map((id, i) => ({ id, title: typeof t[i] === 'string' && t[i] ? String(t[i]) : 'Producto' })) }
+    : { scope: 'all', products: [] };
+}
+
+function scopeLabel(d: ProductScopeDraft): string {
+  if (d.scope !== 'some') return '';
+  return d.products.length === 1 ? ` · solo ${d.products[0]!.title}` : ` · ${d.products.length} productos`;
 }
 
 const CSS = `

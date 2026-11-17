@@ -88,14 +88,17 @@ export class DiscountsService {
     if (d.usageLimit != null && d.usageCount >= d.usageLimit) return null;
 
     const p = d.payload as { valueBps?: number; valueCents?: number };
+    // Productos en los que vale el cupón (vacío = todos).
+    const c = (d.conditions ?? {}) as { productIds?: unknown };
+    const productIds = Array.isArray(c.productIds) ? c.productIds.filter((x): x is string => typeof x === 'string') : [];
     if (d.type === 'PERCENTAGE') {
-      return { code, source: 'APP', label: d.name, kind: 'PERCENTAGE', valueBps: p.valueBps ?? 0 };
+      return { code, source: 'APP', label: d.name, kind: 'PERCENTAGE', valueBps: p.valueBps ?? 0, productIds };
     }
     if (d.type === 'FIXED') {
-      return { code, source: 'APP', label: d.name, kind: 'FIXED', valueCents: p.valueCents ?? 0 };
+      return { code, source: 'APP', label: d.name, kind: 'FIXED', valueCents: p.valueCents ?? 0, productIds };
     }
     if (d.type === 'FREE_SHIPPING') {
-      return { code, source: 'APP', label: d.name, kind: 'FREE_SHIPPING' };
+      return { code, source: 'APP', label: d.name, kind: 'FREE_SHIPPING', productIds };
     }
     return null;
   }

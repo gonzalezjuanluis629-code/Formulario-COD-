@@ -32,23 +32,36 @@ export class QuoteService {
     let qty: number;
     let unitPriceCents: number;
     let parsed: Offer[] = [];
+    // Lo que suma cada producto (para los cupones que valen solo en algunos).
+    let byProduct: { productId: string; cents: number }[];
     const [only] = lines;
     if (lines.length === 1 && only) {
       qty = only.qty;
-      unitPriceCents = await this.variantPrice(ctx, only.variantId);
+      const v = await this.variant(ctx, only.variantId);
+      unitPriceCents = v.priceCents;
+      byProduct = [{ productId: v.productId, cents: v.priceCents * qty }];
       const offers = await this.prisma.offer.findMany({
         where: { shopId: ctx.shopId, active: true, type: 'QUANTITY' },
         orderBy: { priority: 'desc' },
       });
-      parsed = offers.map((o) =>
-        OfferSchema.parse({ id: o.id, label: o.name, type: 'QUANTITY', ...(o.payload as object) }),
-      );
+      parsed = offers
+        .map((o) => OfferSchema.parse({ id: o.id, label: o.name, type: 'QUANTITY', ...(o.payload as object) }))
+        // Ofertas de otros productos no cuentan.
+        .filter((o) => !o.productIds.length || o.productIds.includes(v.productId));
     } else {
       qty = 1;
-      unitPriceCents = await this.cartPrice(ctx, lines);
+      byProduct = await this.cartPrices(ctx, lines);
+      unitPriceCents = byProduct.reduce((s, l) => s + l.cents, 0);
     }
 
-    const discount = await this.discounts.validate(ctx, dto.discountCode ?? null);
+    let discount = await this.discounts.validate(ctx, dto.discountCode ?? null);
+    let discountBaseCents: number | null = null;
+    if (discount?.productIds?.length) {
+      const ids = new Set(discount.productIds);
+      discountBaseCents = byProduct.filter((l) => ids.has(l.productId)).reduce((s, l) => s + l.cents, 0);
+      // El cupón es de otros productos: aquí no vale (el formulario avisa «código no válido»).
+      if (discountBaseCents === 0) { discount = null; discountBaseCents = null; }
+    }
 
     // Total de los addons aceptados, con precio verificado en Shopify.
     const { totalCents: addonsCents } = await this.addons.resolve(ctx, dto.addonIds ?? []);
@@ -70,34 +83,34 @@ export class QuoteService {
       provinceShippingCents,
       codFeeCents: settings.codFeeCents,
       discount,
+      discountBaseCents,
       addonsCents,
     });
   }
 
-  /** Suma del carrito con el precio real de cada variante en Shopify. */
-  private async cartPrice(ctx: ShopContext, lines: CartLine[]): Promise<number> {
-    const data = await this.admin.graphql<{ nodes: ({ id: string; price?: string } | null)[] }>(
-      ctx, `query($ids: [ID!]!){ nodes(ids:$ids){ ... on ProductVariant { id price } } }`,
+  /** Cada línea del carrito con el precio real de su variante en Shopify (× cantidad). */
+  private async cartPrices(ctx: ShopContext, lines: CartLine[]): Promise<{ productId: string; cents: number }[]> {
+    type Node = { id: string; price?: string; product?: { id: string } } | null;
+    const data = await this.admin.graphql<{ nodes: Node[] }>(
+      ctx, `query($ids: [ID!]!){ nodes(ids:$ids){ ... on ProductVariant { id price product { id } } } }`,
       { ids: lines.map((l) => l.variantId) },
     );
-    const price = new Map(data.nodes.filter((n): n is { id: string; price: string } => !!n?.price).map((n) => [n.id, n.price]));
-    let total = 0;
-    for (const l of lines) {
-      const p = price.get(l.variantId);
-      if (p == null) throw new NotFoundException('Un producto del carrito ya no está disponible. Recarga la página.');
-      total += Math.round(parseFloat(p) * 100) * l.qty;
-    }
-    return total;
+    const byId = new Map(data.nodes.filter((n): n is NonNullable<Node> => !!n?.price).map((n) => [n.id, n]));
+    return lines.map((l) => {
+      const n = byId.get(l.variantId);
+      if (!n?.price) throw new NotFoundException('Un producto del carrito ya no está disponible. Recarga la página.');
+      return { productId: n.product?.id ?? '', cents: Math.round(parseFloat(n.price) * 100) * l.qty };
+    });
   }
 
-  /** Precio real de la variante, cacheado 60 s. */
-  private async variantPrice(ctx: ShopContext, variantId: string): Promise<number> {
+  /** Precio real de la variante y su producto. */
+  private async variant(ctx: ShopContext, variantId: string): Promise<{ priceCents: number; productId: string }> {
     const data = await this.admin.graphql<{
-      productVariant: { price: string; availableForSale: boolean } | null;
-    }>(ctx, `query($id: ID!){ productVariant(id:$id){ price availableForSale } }`, { id: variantId });
+      productVariant: { price: string; availableForSale: boolean; product: { id: string } | null } | null;
+    }>(ctx, `query($id: ID!){ productVariant(id:$id){ price availableForSale product { id } } }`, { id: variantId });
 
     if (!data.productVariant) throw new NotFoundException('Variante no encontrada');
-    return Math.round(parseFloat(data.productVariant.price) * 100);
+    return { priceCents: Math.round(parseFloat(data.productVariant.price) * 100), productId: data.productVariant.product?.id ?? '' };
   }
 }
 

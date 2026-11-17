@@ -89,9 +89,10 @@ export class FormsService {
         (ctx.settings as Record<string, unknown>).location ?? {},
       ),
       settings: this.publicSettings({ ...ShopSettingsSchema.parse(ctx.settings ?? {}), ...(ctx.currency ? { currency: ctx.currency } : {}) }),
-      offers: offers.map((o) =>
-        OfferSchema.parse({ id: o.id, label: o.name, type: 'QUANTITY', ...(o.payload as object) }),
-      ),
+      offers: offers
+        .map((o) => OfferSchema.parse({ id: o.id, label: o.name, type: 'QUANTITY', ...(o.payload as object) }))
+        // Solo las ofertas de este producto (o de todos).
+        .filter((o) => !o.productIds.length || o.productIds.includes(productGid)),
       addons: addonRows.map((o) => AddonSchema.parse({ id: o.id, ...(o.payload as object) })),
       product: {
         variantId: variantGid,

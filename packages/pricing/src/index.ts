@@ -22,6 +22,8 @@ export interface PricingContext {
   discount: ValidatedDiscount | null;
   /** Precio total de los addons aceptados (order bumps + upsells), en centavos. */
   addonsCents?: number;
+  /** Cupón solo para algunos productos: lo que suman esos productos (base del descuento). */
+  discountBaseCents?: number | null;
 }
 
 export interface ValidatedDiscount {
@@ -33,6 +35,8 @@ export interface ValidatedDiscount {
   valueBps?: number;
   /** centavos si es FIXED */
   valueCents?: number;
+  /** Productos en los que vale (gid://shopify/Product/…). Vacío o ausente = todos. */
+  productIds?: string[];
 }
 
 interface Draft {
@@ -73,6 +77,9 @@ const quantityOffers: PricingStep = {
       const full = ctx.unitPriceCents * match.minQty;
       const rate = full > 0 ? Math.max(0, 1 - match.bundlePriceCents / full) : 0;
       d.discountCents += Math.round(d.subtotalCents * rate);
+    } else if (match.discountCents > 0) {
+      // Monto fijo: «llévate 2 y ahorra RD$ 200».
+      d.discountCents += Math.min(match.discountCents, d.subtotalCents);
     } else if (match.discountBps > 0) {
       d.discountCents += Math.round((d.subtotalCents * match.discountBps) / 10000);
     }
@@ -87,10 +94,12 @@ const discounts: PricingStep = {
   apply(d, ctx) {
     const x = ctx.discount;
     if (!x) return;
+    // Cupón de algunos productos: se calcula solo sobre lo que suman esos productos.
+    const base = ctx.discountBaseCents != null ? Math.min(ctx.discountBaseCents, d.subtotalCents) : d.subtotalCents;
     if (x.kind === 'PERCENTAGE' && x.valueBps) {
-      d.discountCents += Math.round((d.subtotalCents * x.valueBps) / 10000);
+      d.discountCents += Math.round((base * x.valueBps) / 10000);
     } else if (x.kind === 'FIXED' && x.valueCents) {
-      d.discountCents += x.valueCents;
+      d.discountCents += Math.min(x.valueCents, base);
     } else if (x.kind === 'FREE_SHIPPING') {
       d.freeShipping = true;
     }
