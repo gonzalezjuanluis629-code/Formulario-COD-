@@ -148,29 +148,46 @@ function hideWhileInlineVisible(floatingHost: HTMLElement): void {
 
 /** Modal para el modo popup. El formulario se monta fresco cada apertura. */
 function openModal(shadow: ShadowRoot, config: WidgetConfig, renderInto: (el: HTMLElement) => void): void {
+  // La ventana va en su propio contenedor AL FINAL DE LA PÁGINA (no dentro de la
+  // sección del tema): las animaciones/transformaciones del tema podían dejarla
+  // atrapada debajo de otras capas («se ve pero no se puede tocar»).
+  document.querySelectorAll('[data-cod-modal]').forEach((el) => el.remove());
+  const portal = document.createElement('div');
+  portal.setAttribute('data-cod-modal', '');
+  portal.style.cssText = 'position:fixed;inset:0;z-index:2147483600;';
+  const pshadow = portal.attachShadow({ mode: 'open' });
+  // Los mismos estilos (y colores del diseño) que el botón que la abrió.
+  shadow.querySelectorAll('style').forEach((st) => pshadow.appendChild(st.cloneNode(true)));
+  document.body.appendChild(portal);
+
   const overlay = document.createElement('div');
   overlay.className = 'cod-modal-overlay';
 
   const modal = document.createElement('div');
   modal.className = 'cod-modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
   modal.innerHTML = `<button class="cod-modal-close" aria-label="Cerrar">✕</button><div class="cod-modal-body"></div>`;
   overlay.appendChild(modal);
-  // Dentro del Shadow DOM: así el modal y el formulario llevan sus estilos.
-  shadow.appendChild(overlay);
+  pshadow.appendChild(overlay);
+  const prevOverflow = document.body.style.overflow;
   document.body.style.overflow = 'hidden';
 
   requestAnimationFrame(() => overlay.classList.add('cod-open'));
 
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     overlay.classList.remove('cod-open');
-    document.body.style.overflow = '';
-    setTimeout(() => overlay.remove(), 250);
+    document.body.style.overflow = prevOverflow;
+    document.removeEventListener('keydown', esc);
+    setTimeout(() => portal.remove(), 250);
   };
+  const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   modal.querySelector('.cod-modal-close')!.addEventListener('click', close);
-  document.addEventListener('keydown', function esc(e) {
-    if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); }
-  });
+  document.addEventListener('keydown', esc);
 
   const formRoot = document.createElement('div');
   formRoot.className = 'cod-root';
