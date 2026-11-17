@@ -3,7 +3,7 @@
 # el código del bloque vive dentro de Shopify.
 #
 # Requiere el secreto SHOPIFY_SERVICE_ACCOUNT_TOKEN: token de una cuenta de servicio
-# con permiso «App development» para esta app (Dev Dashboard → app → Settings →
+# con permiso «App development» para esta app (Dev Dashboard → app cod-forms → Settings →
 # App CLI automation token → Manage).
 name: Shopify app deploy
 
