@@ -96,8 +96,11 @@ export async function mount(opts: MountOptions): Promise<void> {
     renderTrigger(root, config.tokens.trigger, () => {
       // Si en la página ya está el formulario completo, el botón flotante lleva hasta él.
       const inlineForm = floating ? findInline('form') : null;
-      if (inlineForm) inlineForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else openModal(shadow, config, renderInto);
+      if (inlineForm) { inlineForm.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      // Con el carrito lateral abierto, el toque es para pagar EL CARRITO (este
+      // botón puede quedar encima del «Comprar ahora» del carrito).
+      if (!isCart && DIRECT?.cartButton && cartOpen()) { void openCartForm(); return; }
+      openModal(shadow, config, renderInto);
     });
     try { api.track(config.formId, 'view', config.formVersionId); } catch { /* nunca bloquea */ }
     if (!floating && !isCart) ensureFloating(host);
@@ -183,7 +186,7 @@ function hideWhileInlineVisible(floatingHost: HTMLElement): void {
     for (const el of visible) if (!el.isConnected) visible.delete(el);
     // También se esconde con un carrito lateral o una ventana del tema abiertos:
     // si no, quedaba ENCIMA de sus botones (p. ej. «Comprar ahora» del carrito).
-    const hide = visible.size > 0 || overlayOpen();
+    const hide = visible.size > 0 || overlayOpen() || cartOpen();
     floatingHost.style.opacity = hide ? '0' : '1';
     floatingHost.style.transform = hide ? 'translateY(120%)' : 'none';
     floatingHost.style.pointerEvents = hide ? 'none' : 'auto';
@@ -229,6 +232,33 @@ function overlayOpen(): boolean {
     if (r.right <= 0 || r.left >= window.innerWidth || r.bottom <= 0 || r.top >= window.innerHeight) return false;
     const cs = getComputedStyle(el);
     return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05;
+  });
+}
+
+/** Carrito lateral abierto (temas comunes y el de la tienda), aunque no se marque como ventana. */
+const CART_OPEN = '#pd-cart.is-open, .pd-panel.is-open, cart-drawer[open], cart-drawer.active, cart-drawer.is-open, .cart-drawer.active, .cart-drawer.is-open, .cart-drawer--active, [id*="CartDrawer"].active, [id*="CartDrawer"].is-open, [id*="cart-drawer"].active, [id*="cart-drawer"].is-open, .drawer--cart.is-open';
+/** Último toque dentro de un carrito lateral (el tema puede cerrarlo y luego «pulsar» nuestro botón). */
+let lastCartTap = 0;
+const markCartTap = (e: Event) => {
+  const t = e.target as Element | null;
+  if (!t?.closest?.(`${CART_OPEN}, #pd-cart, .pd-panel, cart-drawer, [id*="CartDrawer"], [class*="cart-drawer"]`)) return;
+  // Cerrar el carrito (la X o el fondo oscuro) no cuenta como «pagar desde el carrito».
+  if (t.closest('[data-pd-close], [aria-label*="errar"], [aria-label*="lose"], .close, [class*="overlay"], [class*="close"]')) return;
+  lastCartTap = Date.now();
+};
+document.addEventListener('pointerdown', markCartTap, true);
+document.addEventListener('click', markCartTap, true);
+
+function cartOpen(): boolean {
+  if (Date.now() - lastCartTap < 1000) return true;
+  const big = (e: Element) => {
+    const r = e.getBoundingClientRect();
+    return r.width > 40 && r.height > 40 && r.right > 0 && r.left < window.innerWidth && r.bottom > 0 && r.top < window.innerHeight;
+  };
+  return [...document.querySelectorAll<HTMLElement>(CART_OPEN)].some((el) => {
+    if (el.closest('[data-cod-form], [data-cod-modal]')) return false;
+    // El contenedor puede medir 0 y su panel (fijo) sí verse: se mira también lo de dentro.
+    return big(el) || [...el.children].some((c) => big(c) && getComputedStyle(c).visibility !== 'hidden');
   });
 }
 
@@ -788,7 +818,7 @@ if (DIRECT?.cartButton) {
     // En la página del carrito o con el carrito lateral abierto (un botón de otra
     // app puede quedar ENCIMA del carrito): TODO el carrito.
     // Botón de Releasit en la página de un producto: el formulario de ese producto.
-    const fromCart = !!cartBtn || onCartPage() || overlayOpen()
+    const fromCart = !!cartBtn || onCartPage() || overlayOpen() || cartOpen()
       || !!el?.closest?.('#pd-cart, .pd-panel, cart-drawer, cart-notification, [id*="CartDrawer"], [class*="cart-drawer"]');
     if (fromCart || !openProductForm()) void openCartForm();
   }, true);
