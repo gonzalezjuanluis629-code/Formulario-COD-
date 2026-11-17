@@ -4,6 +4,8 @@ import { Form, Link, useLoaderData, useSubmit } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { redirect } from 'react-router';
 import { requireShop } from '../lib/shop.server';
+import { basePath } from '../lib/figui.server';
+import { useBase } from '../lib/base';
 import { db } from '../db.server';
 import { DEFAULT_FIELDS } from '../lib/defaults';
 
@@ -14,6 +16,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
     orderBy: { updatedAt: 'desc' },
     include: { _count: { select: { submissions: true } }, versions: { select: { version: true } } },
   });
+  // Desde Figui, con un solo formulario se abre directo el editor (más simple).
+  // ?lista=1 muestra la lista igualmente (botón «Formularios» y la flecha de volver).
+  const url = new URL(request.url);
+  if (basePath(request) === '/figui' && forms.length === 1 && !url.searchParams.has('lista')) {
+    const ft = url.searchParams.get('ft');
+    throw redirect(`/figui/forms/${forms[0].id}${ft ? `?ft=${encodeURIComponent(ft)}` : ''}`);
+  }
   return { forms };
 }
 
@@ -34,7 +43,7 @@ export async function action({ request }: ActionFunctionArgs) {
       data: { formId: form.id, version: 1, schema: DEFAULT_FIELDS as object },
     });
     await db.form.update({ where: { id: form.id }, data: { currentVersionId: v.id } });
-    return redirect(`/app/forms/${form.id}`);
+    return redirect(`${basePath(request)}/forms/${form.id}`);
   }
 
   if (intent === 'duplicate') {
@@ -56,7 +65,7 @@ export async function action({ request }: ActionFunctionArgs) {
       data: { formId: copy.id, version: 1, schema: current.schema as object, rules: current.rules as object },
     });
     await db.form.update({ where: { id: copy.id }, data: { currentVersionId: v.id } });
-    return redirect(`/app/forms/${copy.id}`);
+    return redirect(`${basePath(request)}/forms/${copy.id}`);
   }
 
   if (intent === 'archive') {
@@ -71,6 +80,7 @@ export async function action({ request }: ActionFunctionArgs) {
 export default function FormsList() {
   const { forms } = useLoaderData<typeof loader>();
   const submit = useSubmit();
+  const base = useBase();
 
   if (!forms.length) {
     return (
@@ -105,7 +115,7 @@ export default function FormsList() {
           {forms.map((f, i) => (
             <IndexTable.Row id={f.id} key={f.id} position={i}>
               <IndexTable.Cell>
-                <Link to={`/app/forms/${f.id}`} style={{ fontWeight: 600 }}>{f.name}</Link>
+                <Link to={`${base}/forms/${f.id}`} style={{ fontWeight: 600 }}>{f.name}</Link>
               </IndexTable.Cell>
               <IndexTable.Cell>
                 <Badge tone={f.status === 'ACTIVE' ? 'success' : f.status === 'PAUSED' ? 'warning' : undefined}>

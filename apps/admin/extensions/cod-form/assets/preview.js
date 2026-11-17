@@ -1,5 +1,5 @@
-import { C as CSS, t as tokensToCss, F as FormState, q as quote, r as renderForm } from "./index-BnfK0wj3.js";
-import { renderTrigger } from "./trigger-iPpYspdH.js";
+import { C as CSS, t as tokensToCss, F as FormState, q as quote, r as renderForm } from "./index-DKIllh8F.js";
+import { renderTrigger } from "./trigger-CaGIARKb.js";
 let lastFocus = null;
 let lastSelected = null;
 let lastFormKey = "";
@@ -125,7 +125,8 @@ function buildForm(root, fields, tokens, opts) {
         ga4MeasurementId: "",
         ga4ApiSecret: "",
         purchaseEventName: "Purchase"
-      }
+      },
+      storefront: { autoPlace: true, floating: true }
     },
     offers: (_a = opts.offers) != null ? _a : [],
     addons: (_b = opts.addons) != null ? _b : [],

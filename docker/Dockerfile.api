@@ -6,6 +6,8 @@ COPY package.json pnpm-workspace.yaml ./
 COPY prisma ./prisma
 COPY packages ./packages
 COPY apps/api ./apps/api
+# El widget se sirve desde la API para las tiendas conectadas desde Figui.
+COPY apps/widget ./apps/widget
 
 # ─── dev ───────────────────────────────────────────────────────────
 FROM base AS dev
@@ -29,6 +31,7 @@ RUN apk add --no-cache openssl && addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --from=build --chown=app:app /app/node_modules ./node_modules
 COPY --from=build --chown=app:app /app/apps/api/dist ./apps/api/dist
+COPY --from=build --chown=app:app /app/apps/widget/dist ./apps/widget/dist
 COPY --from=build --chown=app:app /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build --chown=app:app /app/packages ./packages
 COPY --from=build --chown=app:app /app/prisma ./prisma

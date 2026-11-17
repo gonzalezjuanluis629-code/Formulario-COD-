@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import * as crypto from 'node:crypto';
 import { ShopContextService } from '../../infra/shopify/shop-context.service';
 import { CryptoService } from '../crypto/crypto.service';
+import { isValidStorefrontKey } from '../storefront/storefront-key';
 
 /**
  * Shopify firma cada request que pasa por el App Proxy.
@@ -20,7 +21,16 @@ export class AppProxyGuard implements CanActivate {
     const req = exec.switchToHttp().getRequest();
     const q = { ...req.query } as Record<string, string>;
     const signature = q.signature;
-    if (!signature || !q.shop) throw new UnauthorizedException('Falta la firma del proxy');
+    if (!q.shop) throw new UnauthorizedException('Falta la tienda');
+
+    // Tiendas conectadas desde Figui: el widget llama directo (sin App Proxy)
+    // con la clave pública de la tienda.
+    if (!signature && q.k) {
+      if (!isValidStorefrontKey(q.shop, q.k)) throw new UnauthorizedException('Clave de la tienda inválida');
+      req.shopCtx = await this.shops.byDomain(q.shop);
+      return true;
+    }
+    if (!signature) throw new UnauthorizedException('Falta la firma del proxy');
 
     const ctx = await this.shops.byDomain(q.shop);
 

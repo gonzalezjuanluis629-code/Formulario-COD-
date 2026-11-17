@@ -9,11 +9,13 @@
  * pinta llega por postMessage desde el admin, que sí está autenticado.
  */
 export function loader() {
+  // Figui también la muestra (el editor va dentro de Figui, y esta dentro del editor).
+  const figui = (process.env.FIGUI_APP_URL ?? '').split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean).join(' ');
   return new Response(HTML, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      // Solo se puede embeber desde el admin de Shopify.
-      'Content-Security-Policy': "frame-ancestors 'self' https://admin.shopify.com https://*.myshopify.com",
+      // Solo se puede embeber desde el admin de Shopify (o desde Figui).
+      'Content-Security-Policy': `frame-ancestors 'self' https://admin.shopify.com https://*.myshopify.com ${figui}`.trim(),
     },
   });
 }

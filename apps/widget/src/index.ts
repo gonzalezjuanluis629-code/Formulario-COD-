@@ -428,6 +428,9 @@ function boot() {
   autoPlace();
   document.querySelectorAll<HTMLElement>('[data-cod-form]:not([data-cod-mounted])').forEach((el) => {
     el.dataset.codMounted = '1';
+    // Código pegado en «Liquid personalizado»: los ids llegan como números.
+    if (/^\d+$/.test(el.dataset.productId ?? '')) el.dataset.productId = `gid://shopify/Product/${el.dataset.productId}`;
+    if (/^\d+$/.test(el.dataset.variantId ?? '')) el.dataset.variantId = `gid://shopify/ProductVariant/${el.dataset.variantId}`;
     // Sin producto (portada, colecciones…) no hay nada que mostrar.
     if (!/\d+$/.test(el.dataset.variantId ?? '') || !/\d+$/.test(el.dataset.productId ?? '')) { el.remove(); return; }
     void mount({

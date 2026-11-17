@@ -1,12 +1,19 @@
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-const BASE = "/apps/cod";
+var _a;
+const DIRECT = globalThis.__CODF__;
+const BASE = (_a = DIRECT == null ? void 0 : DIRECT.api) != null ? _a : "/apps/cod";
+function url(path) {
+  if (!DIRECT) return `${BASE}${path}`;
+  const q = `shop=${encodeURIComponent(DIRECT.shop)}&k=${encodeURIComponent(DIRECT.k)}`;
+  return `${BASE}${path}${path.includes("?") ? "&" : "?"}${q}`;
+}
 async function call(path, init) {
-  var _a, _b;
-  const res = await fetch(`${BASE}${path}`, {
+  var _a2, _b;
+  const res = await fetch(url(path), {
     ...init,
-    headers: { "Content-Type": "application/json", ...(_a = init == null ? void 0 : init.headers) != null ? _a : {} }
+    headers: { "Content-Type": "application/json", ...(_a2 = init == null ? void 0 : init.headers) != null ? _a2 : {} }
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: "Error de red" }));
@@ -31,12 +38,12 @@ const api = {
     const body = JSON.stringify({ formId, event, sessionId, field: field != null ? field : null, ts: Date.now() });
     try {
       if (navigator.sendBeacon) {
-        navigator.sendBeacon(`${BASE}/track${location.search}`, new Blob([body], { type: "application/json" }));
-        return;
+        const sent = DIRECT ? navigator.sendBeacon(url("/track"), new Blob([body], { type: "text/plain" })) : navigator.sendBeacon(`${BASE}/track${location.search}`, new Blob([body], { type: "application/json" }));
+        if (sent) return;
       }
     } catch {
     }
-    void fetch(`${BASE}/track`, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true });
+    void fetch(url("/track"), { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true });
   }
 };
 const ANIMATION_SPEEDS = { slow: 1.6, normal: 1, fast: 0.6 };
@@ -96,8 +103,8 @@ ${a("ripple")}::after{animation-delay:calc(1.2s * var(--anim-speed, 1))}
 `;
 }
 function buttonBackground(b) {
-  var _a, _b;
-  return b.bgType === "gradient" ? `linear-gradient(${(_a = b.gradientAngle) != null ? _a : 135}deg, ${b.bg}, ${(_b = b.bg2) != null ? _b : b.bg})` : b.bg;
+  var _a2, _b;
+  return b.bgType === "gradient" ? `linear-gradient(${(_a2 = b.gradientAngle) != null ? _a2 : 135}deg, ${b.bg}, ${(_b = b.bg2) != null ? _b : b.bg})` : b.bg;
 }
 function buttonShadow(b) {
   const c = b.shadowColor || "#000000";
@@ -114,7 +121,7 @@ function buttonShadow(b) {
   }
 }
 function tokensToCss(t) {
-  var _a;
+  var _a2;
   const shadow = { none: "none", sm: "0 1px 3px rgba(0,0,0,.08)", md: "0 4px 20px rgba(0,0,0,.12)", lg: "0 10px 40px rgba(0,0,0,.18)" }[t.shadow];
   const gap = { compact: "11px", normal: "15px", relaxed: "20px" }[t.spacing];
   return `
@@ -143,7 +150,7 @@ function tokensToCss(t) {
     --cod-save-color:${t.offerCard.saveColor};
     --cod-apply-color:${t.applyColor};
     --cod-btn-shadow:${buttonShadow(t.submit)};
-    --anim-speed:${ANIMATION_SPEEDS[(_a = t.submit.animationSpeed) != null ? _a : "normal"]};
+    --anim-speed:${ANIMATION_SPEEDS[(_a2 = t.submit.animationSpeed) != null ? _a2 : "normal"]};
     --cod-btn-color:${t.submit.color};
     --cod-btn-ready:${t.submit.readyBg || t.readyColor};
     --cod-shadow:${shadow};
@@ -176,8 +183,8 @@ function validateField(f, value) {
 function isVisible(f, values) {
   if (!f.visible) return false;
   return f.conditions.every((c) => {
-    var _a;
-    const v = (_a = values[c.field]) != null ? _a : "";
+    var _a2;
+    const v = (_a2 = values[c.field]) != null ? _a2 : "";
     switch (c.op) {
       case "eq":
         return v === String(c.value);
@@ -320,14 +327,14 @@ function mountLocation(wrap, config, state, onChange) {
     }
   }
   async function reverse(lat, lng) {
-    var _a;
+    var _a2;
     const addrEl = wrap.querySelector(".cod-loc-addr");
     const coordsEl = wrap.querySelector(".cod-loc-coords");
     coordsEl.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
     addrEl.textContent = "Buscando dirección…";
     try {
       const r = await api.reverse(lat, lng);
-      addrEl.textContent = (_a = r.formatted) != null ? _a : "Ubicación marcada";
+      addrEl.textContent = (_a2 = r.formatted) != null ? _a2 : "Ubicación marcada";
       if (r.provinceCode) state.values.provinceCode = r.provinceCode;
       if (r.city) state.values.city = r.city;
       if (r.district) state.values.sector = r.district;
@@ -422,25 +429,25 @@ const discounts = {
 const shipping = {
   name: "shipping",
   apply(d, ctx) {
-    var _a;
+    var _a2;
     const goods = d.subtotalCents - d.discountCents + d.addonsCents;
     const free = d.freeShipping || ctx.freeShippingOverCents !== null && goods >= ctx.freeShippingOverCents;
-    const base = (_a = ctx.provinceShippingCents) != null ? _a : ctx.defaultShippingCents;
+    const base = (_a2 = ctx.provinceShippingCents) != null ? _a2 : ctx.defaultShippingCents;
     d.shippingCents = free ? 0 : base;
   }
 };
 const addons = {
   name: "addons",
   apply(d, ctx) {
-    var _a;
-    d.addonsCents = (_a = ctx.addonsCents) != null ? _a : 0;
+    var _a2;
+    d.addonsCents = (_a2 = ctx.addonsCents) != null ? _a2 : 0;
   }
 };
 const codFee = {
   name: "cod-fee",
   apply(d, ctx) {
-    var _a;
-    d.codFeeCents = (_a = ctx.codFeeCents) != null ? _a : 0;
+    var _a2;
+    d.codFeeCents = (_a2 = ctx.codFeeCents) != null ? _a2 : 0;
   }
 };
 const PIPELINE = [subtotal, quantityOffers, discounts, addons, shipping, codFee];
@@ -469,13 +476,13 @@ function quote(ctx) {
 }
 const money = (cents, currency = "DOP") => `${currency === "DOP" ? "RD$" : currency} ${(cents / 100).toLocaleString("en-US")}`;
 function renderOffers(host, config, state, onChange) {
-  var _a;
+  var _a2;
   const list = [...config.offers].sort((a, b) => a.minQty - b.minQty);
   if (!list.some((o) => o.minQty > 1)) return;
   const unit = config.product.unitPriceCents;
   const cur = config.settings.currency;
   const style = config.tokens.offerCard;
-  const base = (_a = list.find((o) => o.minQty === 1)) != null ? _a : {
+  const base = (_a2 = list.find((o) => o.minQty === 1)) != null ? _a2 : {
     id: "base",
     type: "QUANTITY",
     minQty: 1,
@@ -548,17 +555,17 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-X0RJujMw.js").then(({ renderAddons }) => {
+    void import("./addons-foJDentC.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
   form.addEventListener("submit", (e) => {
-    var _a;
+    var _a2;
     e.preventDefault();
     const errors = state.validate();
     if (Object.keys(errors).length) {
       for (const [key, msg] of Object.entries(errors)) showError(root, key, msg);
-      (_a = root.querySelector(".cod-invalid")) == null ? void 0 : _a.scrollIntoView({ behavior: "smooth", block: "center" });
+      (_a2 = root.querySelector(".cod-invalid")) == null ? void 0 : _a2.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     handlers.onSubmit();
@@ -756,8 +763,8 @@ function renderField(f, config, state, onChange) {
     onChange();
   });
   input.addEventListener("blur", () => {
-    var _a;
-    const err = validateField(f, (_a = state.values[f.key]) != null ? _a : "");
+    var _a2;
+    const err = validateField(f, (_a2 = state.values[f.key]) != null ? _a2 : "");
     if (err) setError(wrap, err);
   });
   return wrap;
@@ -766,7 +773,7 @@ let raf = 0;
 function update(root, state) {
   if (raf) return;
   raf = requestAnimationFrame(() => {
-    var _a;
+    var _a2;
     raf = 0;
     const visible = new Set(state.visibleFields().map((f) => f.key));
     root.querySelectorAll(".cod-field").forEach((el) => {
@@ -780,12 +787,12 @@ function update(root, state) {
     if (bar) {
       const required = state.visibleFields().filter((f) => f.required);
       const done = required.filter((f) => {
-        var _a2;
-        return !validateField(f, (_a2 = state.values[f.key]) != null ? _a2 : "");
+        var _a3;
+        return !validateField(f, (_a3 = state.values[f.key]) != null ? _a3 : "");
       }).length;
       const pct = required.length ? done / required.length * 100 : 0;
       bar.style.width = `${pct}%`;
-      (_a = root.querySelector(".cod-submit")) == null ? void 0 : _a.classList.toggle("cod-ready", pct === 100);
+      (_a2 = root.querySelector(".cod-submit")) == null ? void 0 : _a2.classList.toggle("cod-ready", pct === 100);
     }
   });
 }
@@ -803,8 +810,8 @@ function clearError(wrap) {
   const e = wrap.querySelector(".cod-err");
   if (e) e.textContent = "";
 }
-function videoEmbed(url) {
-  const u = (url || "").trim();
+function videoEmbed(url2) {
+  const u = (url2 || "").trim();
   if (!u) return "";
   const yt = /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/.exec(u);
   if (yt) return `<div class="cod-video"><iframe src="https://www.youtube-nocookie.com/embed/${yt[1]}" allow="encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
@@ -1069,7 +1076,7 @@ ${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 `;
 async function mount(opts) {
-  var _a;
+  var _a2;
   const host = opts.container;
   const shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
@@ -1082,7 +1089,7 @@ async function mount(opts) {
   try {
     config = await api.config(opts.productId, opts.variantId);
   } catch (e) {
-    if (((_a = window.Shopify) == null ? void 0 : _a.designMode) && !host.dataset.floating) {
+    if (((_a2 = window.Shopify) == null ? void 0 : _a2.designMode) && !host.dataset.floating) {
       const notFound = e instanceof ApiError && e.status === 404;
       root.innerHTML = `<div style="padding:12px;border:1.5px dashed #b5b5b5;border-radius:10px;color:#666;font:14px/1.4 system-ui;text-align:center"><b>Formulario COD</b><br>${notFound ? "Este producto no tiene un formulario asignado. En la app, abre el formulario → Ajustes → «¿En qué productos se muestra?» y elige este producto o todos." : "No se pudo cargar el formulario. Revisa que la app esté instalada y vuelve a intentarlo."}</div>`;
       return;
@@ -1101,7 +1108,7 @@ ${config.tokens.customCss}`;
   };
   const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-iPpYspdH.js");
+    const { renderTrigger } = await import("./trigger-CaGIARKb.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1133,8 +1140,8 @@ function inlineHosts() {
   return [...document.querySelectorAll("[data-cod-form]")].filter((el) => el.dataset.floating !== "true");
 }
 function findInline(kind) {
-  var _a;
-  return (_a = inlineHosts().find((el) => el.isConnected && el.dataset.codRendered === kind && el.getClientRects().length > 0)) != null ? _a : null;
+  var _a2;
+  return (_a2 = inlineHosts().find((el) => el.isConnected && el.dataset.codRendered === kind && el.getClientRects().length > 0)) != null ? _a2 : null;
 }
 function hideWhileInlineVisible(floatingHost) {
   if (!("IntersectionObserver" in window)) return;
@@ -1261,10 +1268,10 @@ class FormState {
   }
   /** Devuelve los errores por campo. Vacío = válido. */
   validate() {
-    var _a;
+    var _a2;
     const errors = {};
     for (const f of this.visibleFields()) {
-      const err = validateField(f, (_a = this.values[f.key]) != null ? _a : "");
+      const err = validateField(f, (_a2 = this.values[f.key]) != null ? _a2 : "");
       if (err) errors[f.key] = err;
     }
     return errors;
@@ -1305,7 +1312,7 @@ async function submit(root, config, state) {
   }
 }
 function showConfirmation(root, res) {
-  var _a;
+  var _a2;
   const goWhatsapp = res.redirectTarget === "whatsapp" && !!res.whatsappUrl;
   const willRedirect = goWhatsapp || res.redirectTarget === "thankyou";
   const dest = goWhatsapp ? res.whatsappUrl : res.redirectUrl;
@@ -1323,7 +1330,7 @@ function showConfirmation(root, res) {
       ${goWhatsapp ? `<a class="cod-wa-btn" href="${res.whatsappUrl}" target="_blank" rel="noopener">
              Continuar por WhatsApp</a>` : ""}
     </div>`;
-  (_a = root.querySelector(".cod-done")) == null ? void 0 : _a.scrollIntoView({ behavior: "smooth", block: "center" });
+  (_a2 = root.querySelector(".cod-done")) == null ? void 0 : _a2.scrollIntoView({ behavior: "smooth", block: "center" });
   if (willRedirect) {
     window.setTimeout(() => {
       window.location.assign(dest);
@@ -1331,7 +1338,7 @@ function showConfirmation(root, res) {
   }
 }
 function firePurchasePixel(p) {
-  var _a;
+  var _a2;
   const value = p.valueCents / 100;
   try {
     if (p.metaPixelId) {
@@ -1359,7 +1366,7 @@ function firePurchasePixel(p) {
     }
     if (p.tiktokPixelId) {
       const w = window;
-      (_a = w.ttq) == null ? void 0 : _a.track("CompletePayment", { currency: p.currency, value, event_id: p.eventId });
+      (_a2 = w.ttq) == null ? void 0 : _a2.track("CompletePayment", { currency: p.currency, value, event_id: p.eventId });
     }
   } catch {
   }
@@ -1371,12 +1378,12 @@ function autoPlace() {
   const manualShown = () => inlineHosts().some((el) => !el.dataset.codAuto && el.isConnected && el.getClientRects().length > 0);
   if (manualShown()) document.querySelectorAll("[data-cod-auto]").forEach((el) => el.remove());
   document.querySelectorAll("[data-cod-autoplace]").forEach((marker) => {
-    var _a, _b, _c;
+    var _a2, _b, _c;
     if (manualShown()) {
       marker.remove();
       return;
     }
-    const anchor = findBuyAnchor(((_a = marker.dataset.variantId) != null ? _a : "").replace(/\D/g, ""));
+    const anchor = findBuyAnchor(((_a2 = marker.dataset.variantId) != null ? _a2 : "").replace(/\D/g, ""));
     if (!anchor) return;
     const el = document.createElement("div");
     el.setAttribute("data-cod-form", "");
@@ -1391,14 +1398,14 @@ function autoPlace() {
 }
 const CARD = 'product-card, .card, .card-wrapper, [class*="product-card"], [class*="related"], [class*="recommend"], [id*="related"], [id*="recommend"]';
 function findBuyAnchor(variant) {
-  var _a, _b, _c;
+  var _a2, _b, _c;
   const shown = (e) => e.getClientRects().length > 0;
   const forms = [...document.querySelectorAll('form[action*="/cart/add"]')].filter((f) => !f.closest("[data-cod-form]") && shown(f) && f.querySelector('button[type="submit"], button[name="add"], input[type="submit"]'));
   const idOf = (f) => {
-    var _a2, _b2;
-    return (_b2 = (_a2 = f.querySelector('[name="id"]')) == null ? void 0 : _a2.value) != null ? _b2 : "";
+    var _a3, _b2;
+    return (_b2 = (_a3 = f.querySelector('[name="id"]')) == null ? void 0 : _a3.value) != null ? _b2 : "";
   };
-  const form = (_b = (_a = forms.find((f) => idOf(f) === variant)) != null ? _a : forms.find((f) => !f.closest(CARD) && f.closest('[id*="main"], [id*="product-information"], [id*="product-template"]'))) != null ? _b : null;
+  const form = (_b = (_a2 = forms.find((f) => idOf(f) === variant)) != null ? _a2 : forms.find((f) => !f.closest(CARD) && f.closest('[id*="main"], [id*="product-information"], [id*="product-template"]'))) != null ? _b : null;
   if (form) return (_c = form.closest("product-form, product-form-component")) != null ? _c : form;
   const price = [...document.querySelectorAll(
     'main product-price, main .product__price, main [id^="price-"], main .price, #MainContent .price'
@@ -1408,9 +1415,11 @@ function findBuyAnchor(variant) {
 function boot() {
   autoPlace();
   document.querySelectorAll("[data-cod-form]:not([data-cod-mounted])").forEach((el) => {
-    var _a, _b;
+    var _a2, _b, _c, _d;
     el.dataset.codMounted = "1";
-    if (!/\d+$/.test((_a = el.dataset.variantId) != null ? _a : "") || !/\d+$/.test((_b = el.dataset.productId) != null ? _b : "")) {
+    if (/^\d+$/.test((_a2 = el.dataset.productId) != null ? _a2 : "")) el.dataset.productId = `gid://shopify/Product/${el.dataset.productId}`;
+    if (/^\d+$/.test((_b = el.dataset.variantId) != null ? _b : "")) el.dataset.variantId = `gid://shopify/ProductVariant/${el.dataset.variantId}`;
+    if (!/\d+$/.test((_c = el.dataset.variantId) != null ? _c : "") || !/\d+$/.test((_d = el.dataset.productId) != null ? _d : "")) {
       el.remove();
       return;
     }
@@ -1432,7 +1441,7 @@ window.addEventListener("load", () => {
   if (/[?&]cod_debug=1/.test(location.search)) setTimeout(showDebug, 2500);
 });
 function showDebug() {
-  var _a;
+  var _a2;
   const shown = (e) => e.getClientRects().length > 0;
   const desc = (e) => e ? `<${e.tagName.toLowerCase()}${e.id ? "#" + e.id : ""}${e.className && typeof e.className === "string" ? "." + e.className.trim().split(/\s+/).slice(0, 2).join(".") : ""}>` : "ninguno";
   const hosts = [...document.querySelectorAll("[data-cod-form]")];
@@ -1440,11 +1449,11 @@ function showDebug() {
   const lines = [
     `Incrustación «COD Forms»: ${document.querySelector('[data-floating="true"], [data-cod-auto], [data-cod-autoplace]') ? "activa" : "NO activa o sin producto"}`,
     `Botón automático: ${document.querySelector("[data-cod-auto]") ? "puesto" : marker ? "sin sitio (no encontré «Agregar al carrito» ni el precio)" : "no pedido / quitado"}`,
-    `Sitio elegido: ${desc(findBuyAnchor(((_a = marker == null ? void 0 : marker.dataset.variantId) != null ? _a : "").replace(/\D/g, "")))}`,
+    `Sitio elegido: ${desc(findBuyAnchor(((_a2 = marker == null ? void 0 : marker.dataset.variantId) != null ? _a2 : "").replace(/\D/g, "")))}`,
     `Formularios de compra del tema: ${document.querySelectorAll('form[action*="/cart/add"]').length}`,
     ...hosts.map((h, i) => {
-      var _a2;
-      return `#${i + 1} ${h.dataset.floating ? "flotante" : h.dataset.codAuto ? "automático" : "bloque manual"} · muestra: ${(_a2 = h.dataset.codRendered) != null ? _a2 : "nada"} · visible: ${shown(h) ? "sí" : "no"} · dentro de ${desc(h.parentElement)}`;
+      var _a3;
+      return `#${i + 1} ${h.dataset.floating ? "flotante" : h.dataset.codAuto ? "automático" : "bloque manual"} · muestra: ${(_a3 = h.dataset.codRendered) != null ? _a3 : "nada"} · visible: ${shown(h) ? "sí" : "no"} · dentro de ${desc(h.parentElement)}`;
     })
   ];
   const box = document.createElement("pre");
