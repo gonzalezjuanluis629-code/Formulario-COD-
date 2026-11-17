@@ -1,3 +1,6 @@
+var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 const BASE = "/apps/cod";
 async function call(path, init) {
   var _a, _b;
@@ -658,13 +661,14 @@ function openModal(config, renderInto) {
 }
 class FormState {
   constructor(config) {
+    __publicField(this, "values", {});
+    __publicField(this, "qty", 1);
+    __publicField(this, "location", null);
+    __publicField(this, "discountCode", null);
+    __publicField(this, "acceptedAddons", []);
+    __publicField(this, "idempotencyKey");
+    __publicField(this, "startedAt", Date.now());
     this.config = config;
-    this.values = {};
-    this.qty = 1;
-    this.location = null;
-    this.discountCode = null;
-    this.acceptedAddons = [];
-    this.startedAt = Date.now();
     this.idempotencyKey = crypto.randomUUID();
     for (const f of config.fields) {
       if (f.defaultValue) this.values[f.key] = f.defaultValue;

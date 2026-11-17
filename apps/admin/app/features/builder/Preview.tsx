@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, InlineStack, Text } from '@shopify/polaris';
 import type { Field, ThemeTokens } from '@cod/contracts';
 
@@ -12,15 +12,30 @@ import type { Field, ThemeTokens } from '@cod/contracts';
 export function Preview({ fields, tokens }: { fields: Field[]; tokens: ThemeTokens }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [device, setDevice] = useState<'mobile' | 'desktop'>('mobile');
-  const [ready, setReady] = useState(false);
+  const latest = useRef({ fields, tokens });
+  latest.current = { fields, tokens };
+
+  // El iframe se puede cargar ANTES de que React hidrate la página (viene en el
+  // HTML del servidor), así que no basta con onLoad: el iframe avisa con
+  // 'cod:preview-ready' y, además, enviamos los datos en cada cambio. Si el
+  // iframe aún no escucha, el aviso de "listo" vuelve a pedir los datos.
+  const post = useCallback(() => {
+    ref.current?.contentWindow?.postMessage(
+      { type: 'cod:preview', ...latest.current },
+      window.location.origin,
+    );
+  }, []);
 
   useEffect(() => {
-    if (!ready) return;
-    ref.current?.contentWindow?.postMessage(
-      { type: 'cod:preview', fields, tokens },
-      '*', // el iframe es nuestro y va en srcdoc; no hay origen al que restringir
-    );
-  }, [fields, tokens, ready]);
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== ref.current?.contentWindow) return;
+      if (e.data?.type === 'cod:preview-ready') post();
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [post]);
+
+  useEffect(() => { post(); }, [fields, tokens, post]);
 
   return (
     <Card padding="300">
@@ -40,7 +55,7 @@ export function Preview({ fields, tokens }: { fields: Field[]; tokens: ThemeToke
         <iframe
           ref={ref}
           title="Vista previa del formulario"
-          onLoad={() => setReady(true)}
+          onLoad={post}
           src="/preview"
           style={{
             width: device === 'mobile' ? 380 : '100%',

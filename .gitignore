@@ -7,3 +7,5 @@ build/
 .turbo/
 *.log
 .shopify/
+.react-router/
+apps/admin/public/widget/

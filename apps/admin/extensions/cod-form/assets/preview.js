@@ -1,4 +1,4 @@
-import { C as CSS, t as tokensToCss, F as FormState, r as renderForm } from "./index-CIBHaCia.js";
+import { C as CSS, t as tokensToCss, F as FormState, r as renderForm } from "./index-DFeKKUsi.js";
 function renderPreview(host, fields, tokens) {
   var _a;
   host.textContent = "";
@@ -38,9 +38,36 @@ ${tokens.customCss}`;
       currency: "DOP",
       freeShippingOverCents: 35e4,
       defaultShippingCents: 25e3,
-      showOrderSummaryToCustomer: false
+      shippingByProvince: {},
+      codFeeCents: 0,
+      codFeeLabel: "Recargo contra entrega",
+      showOrderSummaryToCustomer: false,
+      confirmation: {
+        title: "¡Pedido confirmado!",
+        message: "Te contactamos por WhatsApp para coordinar la entrega.",
+        redirectTarget: "none",
+        whatsapp: { enabled: false, phone: "", messageTemplate: "" }
+      },
+      antifraud: {
+        holdHighRisk: false,
+        riskThreshold: 50,
+        maxOrdersPerPhonePerDay: 0,
+        turnstileSiteKey: "",
+        turnstileSecret: ""
+      },
+      tracking: {
+        metaPixelId: "",
+        metaCapiToken: "",
+        metaTestCode: "",
+        tiktokPixelId: "",
+        tiktokToken: "",
+        ga4MeasurementId: "",
+        ga4ApiSecret: "",
+        purchaseEventName: "Purchase"
+      }
     },
     offers: [],
+    addons: [],
     product: { variantId: "preview", title: "Producto de ejemplo", unitPriceCents: 189e3, image: null }
   };
   const state = new FormState(config);

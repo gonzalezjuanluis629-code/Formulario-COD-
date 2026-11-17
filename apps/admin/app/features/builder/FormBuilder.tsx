@@ -147,6 +147,7 @@ export function FormBuilder({
             )}
 
             <DndContext
+              id="form-builder-dnd"
               sensors={sensors}
               collisionDetection={closestCenter}
               onDragStart={handleStart}
@@ -261,14 +262,14 @@ function RowChrome({
         <InlineStack gap="100">
           <Button
             size="micro" variant="tertiary"
-            onClick={(e) => { (e as unknown as Event).stopPropagation(); onDuplicate?.(); }}
+            onClick={(...args: unknown[]) => { (args[0] as Event | undefined)?.stopPropagation(); onDuplicate?.(); }}
             accessibilityLabel="Duplicar"
           >
             ⧉
           </Button>
           <Button
             size="micro" variant="tertiary" tone="critical"
-            onClick={(e) => { (e as unknown as Event).stopPropagation(); onRemove?.(); }}
+            onClick={(...args: unknown[]) => { (args[0] as Event | undefined)?.stopPropagation(); onRemove?.(); }}
             accessibilityLabel="Eliminar"
           >
             ✕

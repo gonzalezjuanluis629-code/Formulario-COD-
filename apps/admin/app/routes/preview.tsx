@@ -34,11 +34,16 @@ const HTML = `<!DOCTYPE html>
   import { renderPreview } from '/widget/preview.js';
 
   window.addEventListener('message', (e) => {
+    if (e.source !== parent || e.origin !== location.origin) return;
     if (e.data?.type !== 'cod:preview') return;
-    renderPreview(document.getElementById('root'), e.data.fields, e.data.tokens);
+    try {
+      renderPreview(document.getElementById('root'), e.data.fields, e.data.tokens);
+    } catch (err) {
+      console.error('[preview]', err);
+    }
   });
 
-  // Avisamos al builder de que ya podemos recibir datos.
-  parent.postMessage({ type: 'cod:preview-ready' }, '*');
+  // Avisamos al builder de que ya podemos recibir datos (él responde con los campos).
+  parent.postMessage({ type: 'cod:preview-ready' }, location.origin);
 </script>
 </body></html>`;

@@ -2,6 +2,7 @@ import {
   Badge, BlockStack, Button, Card, EmptyState, Form as PForm, IndexTable, InlineStack,
   Layout, Modal, Page, Select, Text, TextField,
 } from '@shopify/polaris';
+import { IntentButton } from '../components/IntentButton';
 import { useState } from 'react';
 import { Form, useLoaderData, useSubmit } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
@@ -168,12 +169,12 @@ export default function Offers() {
                       <IndexTable.Cell>
                         <Form method="post" style={{ display: 'flex', gap: 6 }}>
                           <input type="hidden" name="id" value={o.id} />
-                          <Button size="micro" name="intent" value="offer:toggle" submit>
+                          <IntentButton size="micro" intent="offer:toggle">
                             {o.active ? 'Pausar' : 'Activar'}
-                          </Button>
-                          <Button size="micro" tone="critical" variant="tertiary" name="intent" value="offer:delete" submit>
+                          </IntentButton>
+                          <IntentButton size="micro" tone="critical" variant="tertiary" intent="offer:delete">
                             Eliminar
-                          </Button>
+                          </IntentButton>
                         </Form>
                       </IndexTable.Cell>
                     </IndexTable.Row>
@@ -229,12 +230,12 @@ export default function Offers() {
                       <IndexTable.Cell>
                         <Form method="post" style={{ display: 'flex', gap: 6 }}>
                           <input type="hidden" name="id" value={a.id} />
-                          <Button size="micro" name="intent" value="addon:toggle" submit>
+                          <IntentButton size="micro" intent="addon:toggle">
                             {a.active ? 'Pausar' : 'Activar'}
-                          </Button>
-                          <Button size="micro" tone="critical" variant="tertiary" name="intent" value="addon:delete" submit>
+                          </IntentButton>
+                          <IntentButton size="micro" tone="critical" variant="tertiary" intent="addon:delete">
                             Eliminar
-                          </Button>
+                          </IntentButton>
                         </Form>
                       </IndexTable.Cell>
                     </IndexTable.Row>
@@ -277,9 +278,9 @@ export default function Offers() {
                     <IndexTable.Cell>
                       <Form method="post">
                         <input type="hidden" name="id" value={d.id} />
-                        <Button size="micro" tone="critical" variant="tertiary" name="intent" value="discount:delete" submit>
+                        <IntentButton size="micro" tone="critical" variant="tertiary" intent="discount:delete">
                           Eliminar
-                        </Button>
+                        </IntentButton>
                       </Form>
                     </IndexTable.Cell>
                   </IndexTable.Row>

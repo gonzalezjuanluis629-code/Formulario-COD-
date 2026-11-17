@@ -83,7 +83,7 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
 
   const accessToken = decrypt(shop.id, Buffer.from(shop.accessTokenEnc));
   const pii = JSON.parse(decrypt(shop.id, Buffer.from(sub.customerDataEnc!))) as Pii;
-  const totals = sub.totals as Totals;
+  const totals = sub.totals as unknown as Totals;
   const items = sub.items as { variantId: string; qty: number }[];
   const addr = profile.toShopifyAddress(pii.address);
 

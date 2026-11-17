@@ -84,7 +84,7 @@ async function ensureDefaults(shopId: string) {
   });
 
   const version = await db.formVersion.create({
-    data: { formId: form.id, version: 1, schema: DEFAULT_FIELDS, publishedAt: new Date() },
+    data: { formId: form.id, version: 1, schema: DEFAULT_FIELDS as object, publishedAt: new Date() },
   });
 
   await db.form.update({ where: { id: form.id }, data: { currentVersionId: version.id } });

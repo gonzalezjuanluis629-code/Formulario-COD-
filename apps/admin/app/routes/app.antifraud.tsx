@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Badge, BlockStack, Button, Card, EmptyState, IndexTable, InlineStack, Modal, Page, Select, Text, TextField,
 } from '@shopify/polaris';
+import { IntentButton } from '../components/IntentButton';
 import { Form, useLoaderData, useSubmit } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import * as crypto from 'node:crypto';
@@ -92,9 +93,9 @@ export default function Blocklist() {
                 <IndexTable.Cell>
                   <Form method="post">
                     <input type="hidden" name="id" value={e.id} />
-                    <Button size="micro" tone="critical" variant="tertiary" name="intent" value="remove" submit>
+                    <IntentButton size="micro" tone="critical" variant="tertiary" intent="remove">
                       Quitar
-                    </Button>
+                    </IntentButton>
                   </Form>
                 </IndexTable.Cell>
               </IndexTable.Row>

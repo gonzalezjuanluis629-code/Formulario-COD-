@@ -1,4 +1,5 @@
 import { Badge, Button, Card, IndexTable, Page, Text, Banner, InlineStack, Tabs } from '@shopify/polaris';
+import { IntentButton } from '../components/IntentButton';
 import { useState } from 'react';
 import { Form, useLoaderData, useSearchParams } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
@@ -210,30 +211,24 @@ export default function Orders() {
                   {o.status === 'FAILED' && (
                     <Form method="post">
                       <input type="hidden" name="id" value={o.id} />
-                      <Button size="micro" variant="primary" name="intent" value="retry" submit>
+                      <IntentButton size="micro" variant="primary" intent="retry">
                         Reintentar
-                      </Button>
+                      </IntentButton>
                     </Form>
                   )}
                   {o.status === 'HELD' && (
                     <Form method="post" style={{ display: 'flex', gap: 6 }}>
                       <input type="hidden" name="id" value={o.id} />
-                      <Button size="micro" variant="primary" name="intent" value="approve" submit>
+                      <IntentButton size="micro" variant="primary" intent="approve">
                         Aprobar
-                      </Button>
-                      <Button size="micro" tone="critical" variant="tertiary" name="intent" value="reject" submit>
+                      </IntentButton>
+                      <IntentButton size="micro" tone="critical" variant="tertiary" intent="reject">
                         Rechazar
-                      </Button>
-                      <Button size="micro" tone="critical" variant="tertiary"
-                        name="intent" value="reject" submit
-                        onClick={(e) => {
-                          const f = (e.currentTarget as HTMLElement).closest('form');
-                          const inp = document.createElement('input');
-                          inp.type = 'hidden'; inp.name = 'blockPhone'; inp.value = '1';
-                          f?.appendChild(inp);
-                        }}>
+                      </IntentButton>
+                      <IntentButton size="micro" tone="critical" variant="tertiary"
+                        intent="reject" extra={{ blockPhone: '1' }}>
                         Rechazar y bloquear
-                      </Button>
+                      </IntentButton>
                     </Form>
                   )}
                 </IndexTable.Cell>
