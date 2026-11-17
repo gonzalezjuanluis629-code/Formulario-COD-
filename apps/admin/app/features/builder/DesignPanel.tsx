@@ -92,6 +92,7 @@ export function DesignPanel({
           )}
           <ButtonFill b={t.submit} onChange={setSubmit} />
           <Color label="Color del texto" value={t.submit.color} onChange={(v) => setSubmit({ color: v })} />
+          <ButtonShadow b={t.submit} onChange={setSubmit} />
           <Color label="Color cuando está todo completo" value={t.submit.readyBg} onChange={(v) => setSubmit({ readyBg: v })} />
           <RangeSlider label="Alto" output suffix={<Px v={t.submit.height} />} min={38} max={72}
             value={t.submit.height} onChange={(v) => setSubmit({ height: v as number })} />
@@ -113,6 +114,7 @@ export function DesignPanel({
           <TextField label="Texto del botón" value={t.trigger.text} onChange={(v) => setTrigger({ text: v })} autoComplete="off" />
           <ButtonFill b={t.trigger} onChange={setTrigger} />
           <Color label="Color del texto" value={t.trigger.color} onChange={(v) => setTrigger({ color: v })} />
+          <ButtonShadow b={t.trigger} onChange={setTrigger} />
           <Choice label="Ancho" value={t.trigger.width === '100%' ? '100%' : 'auto'}
             onChange={(v) => setTrigger({ width: v })} options={[['auto', 'Ajustado'], ['100%', 'Completo']]} />
           <RangeSlider label="Alto" output suffix={<Px v={t.trigger.height} />} min={36} max={96}
@@ -187,6 +189,22 @@ function ButtonFill({ b, onChange }: { b: Fill; onChange: (p: Partial<Fill>) => 
             min={0} max={360} step={15} value={b.gradientAngle} onChange={(v) => onChange({ gradientAngle: v as number })} />
           <div style={{ height: 14, borderRadius: 7, background: preview, border: '1px solid #e3e3e3' }} />
         </>
+      )}
+    </BlockStack>
+  );
+}
+
+type ShadowProps = { shadow: 'none' | 'sm' | 'md' | 'lg'; shadowColor: string };
+
+/** Sombra del botón: intensidad y color. Se combina con cualquier animación. */
+function ButtonShadow({ b, onChange }: { b: ShadowProps; onChange: (p: Partial<ShadowProps>) => void }) {
+  return (
+    <BlockStack gap="200">
+      <Choice label="Sombra" value={b.shadow} onChange={(v) => onChange({ shadow: v as ShadowProps['shadow'] })}
+        options={[['none', 'Sin'], ['sm', 'Suave'], ['md', 'Media'], ['lg', 'Fuerte']]} />
+      {b.shadow !== 'none' && (
+        <Color label="Color de la sombra" help="Negro para una sombra clásica, o el color del botón para un efecto de luz"
+          value={b.shadowColor} onChange={(v) => onChange({ shadowColor: v })} />
       )}
     </BlockStack>
   );

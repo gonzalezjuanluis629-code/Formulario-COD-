@@ -1,5 +1,5 @@
-import { C as CSS, t as tokensToCss, F as FormState, q as quote, r as renderForm } from "./index-uESjr13O.js";
-import { renderTrigger } from "./trigger-A2koWsFc.js";
+import { C as CSS, t as tokensToCss, F as FormState, q as quote, r as renderForm } from "./index-Vei6VjF_.js";
+import { renderTrigger } from "./trigger-DksEpz2G.js";
 let lastSelected = null;
 let lastFormKey = "";
 let lastTriggerKey = "";
@@ -38,7 +38,6 @@ ${PREVIEW_CSS}`;
     tokens.submit.text,
     tokens.submit.iconType,
     tokens.submit.icon,
-    tokens.submit.animation,
     tokens.submit.priceDisplay
   ]);
   let root = shadow.querySelector(".cod-root");
@@ -50,6 +49,13 @@ ${PREVIEW_CSS}`;
     if (root) shadow.replaceChild(next, root);
     else shadow.appendChild(next);
     root = next;
+  }
+  const btn = root.querySelector(".cod-submit");
+  if (btn) {
+    const cls = `cod-submit-anim-${tokens.submit.animation}`;
+    if (!btn.classList.contains(cls)) {
+      btn.className = btn.className.replace(/\bcod-submit-anim-\S+/g, "").trim() + " " + cls;
+    }
   }
   markSelection(root, fields, (_b = opts.selectedKey) != null ? _b : null);
 }

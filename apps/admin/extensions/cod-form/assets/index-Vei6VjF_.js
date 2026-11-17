@@ -99,6 +99,20 @@ function buttonBackground(b) {
   var _a, _b;
   return b.bgType === "gradient" ? `linear-gradient(${(_a = b.gradientAngle) != null ? _a : 135}deg, ${b.bg}, ${(_b = b.bg2) != null ? _b : b.bg})` : b.bg;
 }
+function buttonShadow(b) {
+  const c = b.shadowColor || "#000000";
+  const mix = (pct) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
+  switch (b.shadow) {
+    case "sm":
+      return `drop-shadow(0 2px 3px ${mix(30)})`;
+    case "md":
+      return `drop-shadow(0 6px 10px ${mix(32)})`;
+    case "lg":
+      return `drop-shadow(0 12px 20px ${mix(38)}) drop-shadow(0 3px 5px ${mix(20)})`;
+    default:
+      return "drop-shadow(0 0 0 transparent)";
+  }
+}
 function tokensToCss(t) {
   var _a;
   const shadow = { none: "none", sm: "0 1px 3px rgba(0,0,0,.08)", md: "0 4px 20px rgba(0,0,0,.12)", lg: "0 10px 40px rgba(0,0,0,.18)" }[t.shadow];
@@ -120,6 +134,7 @@ function tokensToCss(t) {
     --cod-btn-size:${t.submit.fontSize}px;
     --cod-btn-bg:${buttonBackground(t.submit)};
     --cod-btn-solid:${t.submit.bg};
+    --cod-btn-shadow:${buttonShadow(t.submit)};
     --anim-speed:${ANIMATION_SPEEDS[(_a = t.submit.animationSpeed) != null ? _a : "normal"]};
     --cod-btn-color:${t.submit.color};
     --cod-btn-ready:${t.submit.readyBg || t.readyColor};
@@ -455,7 +470,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-CccQiQJy.js").then(({ renderAddons }) => {
+    void import("./addons-DjhChVZt.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -865,6 +880,7 @@ const CSS = `
 .cod-submit{width:100%;margin-top:14px;height:var(--cod-btn-height);display:flex;align-items:center;
   justify-content:center;gap:8px;background:var(--cod-btn-bg);color:var(--cod-btn-color);border:0;
   border-radius:var(--cod-btn-radius);font:inherit;font-size:var(--cod-btn-size);font-weight:700;cursor:pointer;
+  filter:var(--cod-btn-shadow,none);
   transition:background .18s var(--cod-ease),transform .12s var(--cod-ease)}
 .cod-submit:active{transform:scale(.985)}
 .cod-submit.cod-ready{background:var(--cod-btn-ready)}
@@ -984,7 +1000,7 @@ ${config.tokens.customCss}`;
     });
   };
   if (host.dataset.mode === "popup") {
-    const { renderTrigger } = await import("./trigger-A2koWsFc.js");
+    const { renderTrigger } = await import("./trigger-DksEpz2G.js");
     root.innerHTML = "";
     renderTrigger(root, config.tokens.trigger, () => openModal(config, renderInto));
     return;
@@ -1213,9 +1229,10 @@ export {
   ANIMATION_SPEEDS as A,
   CSS as C,
   FormState as F,
-  buttonAnimationCss as a,
+  buttonShadow as a,
   buttonBackground as b,
-  mount as c,
+  buttonAnimationCss as c,
+  mount as d,
   money as m,
   quote as q,
   renderForm as r,
