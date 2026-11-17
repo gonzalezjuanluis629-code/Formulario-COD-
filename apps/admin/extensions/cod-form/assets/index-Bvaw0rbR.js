@@ -508,7 +508,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-DD8yDkXq.js").then(({ renderAddons }) => {
+    void import("./addons-Db-FCZFz.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1055,13 +1055,20 @@ ${config.tokens.customCss}`;
   };
   const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-CUM0O--5.js");
+    const { renderTrigger } = await import("./trigger-BUv3oFOE.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
-    if (host.dataset.floating === "true") {
-      host.style.cssText = "position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;display:flex;justify-content:center;";
+    const floating = host.dataset.floating === "true";
+    host.dataset.codRendered = "button";
+    if (floating) {
+      host.style.cssText = "position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;display:flex;justify-content:center;transition:opacity .25s ease,transform .25s ease;";
+      hideWhileInlineVisible(host);
     }
-    renderTrigger(root, config.tokens.trigger, () => openModal(shadow, config, renderInto));
+    renderTrigger(root, config.tokens.trigger, () => {
+      const inlineForm = floating ? findInline("form") : null;
+      if (inlineForm) inlineForm.scrollIntoView({ behavior: "smooth", block: "start" });
+      else openModal(shadow, config, renderInto);
+    });
     try {
       api.track(config.formId, "view", config.formVersionId);
     } catch {
@@ -1069,11 +1076,46 @@ ${config.tokens.customCss}`;
     return;
   }
   root.innerHTML = "";
+  host.dataset.codRendered = "form";
   renderInto(root);
   try {
     api.track(config.formId, "view", config.formVersionId);
   } catch {
   }
+}
+function inlineHosts() {
+  return [...document.querySelectorAll("[data-cod-form]")].filter((el) => el.dataset.floating !== "true");
+}
+function findInline(kind) {
+  var _a;
+  return (_a = inlineHosts().find((el) => el.isConnected && el.dataset.codRendered === kind)) != null ? _a : null;
+}
+function hideWhileInlineVisible(floatingHost) {
+  if (!("IntersectionObserver" in window)) return;
+  const visible = /* @__PURE__ */ new Set();
+  const apply = () => {
+    const hide = visible.size > 0;
+    floatingHost.style.opacity = hide ? "0" : "1";
+    floatingHost.style.transform = hide ? "translateY(120%)" : "none";
+    floatingHost.style.pointerEvents = hide ? "none" : "auto";
+    floatingHost.setAttribute("aria-hidden", String(hide));
+  };
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting && e.target.isConnected) visible.add(e.target);
+      else visible.delete(e.target);
+    }
+    apply();
+  }, { threshold: 0.15 });
+  const watched = /* @__PURE__ */ new WeakSet();
+  const scan = () => inlineHosts().forEach((el) => {
+    if (!watched.has(el)) {
+      watched.add(el);
+      io.observe(el);
+    }
+  });
+  scan();
+  new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
 }
 function openModal(shadow, config, renderInto) {
   const overlay = document.createElement("div");
@@ -1277,7 +1319,12 @@ function escapeHtml(s) {
 }
 function boot() {
   document.querySelectorAll("[data-cod-form]:not([data-cod-mounted])").forEach((el) => {
+    var _a, _b;
     el.dataset.codMounted = "1";
+    if (!/\d+$/.test((_a = el.dataset.variantId) != null ? _a : "") || !/\d+$/.test((_b = el.dataset.productId) != null ? _b : "")) {
+      el.remove();
+      return;
+    }
     void mount({
       productId: el.dataset.productId,
       variantId: el.dataset.variantId,
