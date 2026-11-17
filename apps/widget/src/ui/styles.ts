@@ -12,6 +12,9 @@ export const CSS = `
 .cod-root{font-family:var(--cod-font);font-size:var(--cod-size);color:var(--cod-text);
   background:var(--cod-surface);border-radius:var(--cod-radius);box-shadow:var(--cod-shadow);
   padding:18px;-webkit-tap-highlight-color:transparent}
+/* Modo botón: solo el botón «Comprar ahora», sin la tarjeta del formulario alrededor. */
+.cod-root.cod-root-trigger{background:none;box-shadow:none;padding:4px 0;display:flex;justify-content:center}
+.cod-root-trigger .cod-trigger[style*="width:100%"]{width:100%}
 
 .cod-skeleton{display:grid;gap:10px}
 .cod-skeleton span{height:42px;border-radius:var(--cod-radius);

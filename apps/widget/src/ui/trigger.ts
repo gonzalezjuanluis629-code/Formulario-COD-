@@ -13,7 +13,9 @@ import { ANIMATION_SPEEDS, buttonAnimationCss } from './animations';
  * "Pago contra entrega" → … Esto sube la confianza sin ocupar espacio extra.
  */
 export function renderTrigger(host: HTMLElement, cfg: TriggerButton, onClick: () => void): void {
-  injectStylesOnce();
+  // El botón puede vivir dentro del Shadow DOM del formulario (tienda) o fuera
+  // (vista previa): los estilos se ponen donde está el botón, no siempre en <head>.
+  injectStylesOnce(host.getRootNode() as Document | ShadowRoot);
 
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -65,10 +67,11 @@ export function renderTrigger(host: HTMLElement, cfg: TriggerButton, onClick: ()
   }
 }
 
-let stylesInjected = false;
-function injectStylesOnce(): void {
-  if (stylesInjected) return;
-  stylesInjected = true;
+const styledRoots = new WeakSet<Node>();
+function injectStylesOnce(root: Document | ShadowRoot): void {
+  const target = root instanceof ShadowRoot ? root : document;
+  if (styledRoots.has(target)) return;
+  styledRoots.add(target);
 
   const style = document.createElement('style');
   style.textContent = `
@@ -91,7 +94,7 @@ function injectStylesOnce(): void {
 
     ${buttonAnimationCss('cod-trigger', 'var(--t-solid)')}
   `;
-  document.head.appendChild(style);
+  if (target instanceof ShadowRoot) target.appendChild(style); else document.head.appendChild(style);
 }
 
 const escapeHtml = (s: string) =>

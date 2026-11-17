@@ -56,10 +56,20 @@ export async function mount(opts: MountOptions): Promise<void> {
 
   // Modo popup: el botón "Comprar ahora" abre el formulario en un modal.
   // Modo embebido (por defecto): el formulario va directo en la página.
-  if (host.dataset.mode === 'popup') {
+  // Manda el bloque del tema si lo fija; si no, lo que se eligió en el panel.
+  const mode = host.dataset.mode === 'popup' || host.dataset.mode === 'embedded'
+    ? host.dataset.mode
+    : config.displayMode === 'POPUP' ? 'popup' : 'embedded';
+  if (mode === 'popup') {
     const { renderTrigger } = await import('./ui/trigger');
     root.innerHTML = '';
-    renderTrigger(root, config.tokens.trigger, () => openModal(config, renderInto));
+    root.classList.add('cod-root-trigger');
+    if (host.dataset.floating === 'true') {
+      // Botón flotante (App Embed): fijo abajo, siempre a mano en el móvil.
+      host.style.cssText = 'position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;display:flex;justify-content:center;';
+    }
+    renderTrigger(root, config.tokens.trigger, () => openModal(shadow, config, renderInto));
+    try { api.track(config.formId, 'view', config.formVersionId); } catch { /* nunca bloquea */ }
     return;
   }
 
@@ -70,7 +80,7 @@ export async function mount(opts: MountOptions): Promise<void> {
 }
 
 /** Modal para el modo popup. El formulario se monta fresco cada apertura. */
-function openModal(config: WidgetConfig, renderInto: (el: HTMLElement) => void): void {
+function openModal(shadow: ShadowRoot, config: WidgetConfig, renderInto: (el: HTMLElement) => void): void {
   const overlay = document.createElement('div');
   overlay.className = 'cod-modal-overlay';
 
@@ -78,7 +88,8 @@ function openModal(config: WidgetConfig, renderInto: (el: HTMLElement) => void):
   modal.className = 'cod-modal';
   modal.innerHTML = `<button class="cod-modal-close" aria-label="Cerrar">✕</button><div class="cod-modal-body"></div>`;
   overlay.appendChild(modal);
-  document.body.appendChild(overlay);
+  // Dentro del Shadow DOM: así el modal y el formulario llevan sus estilos.
+  shadow.appendChild(overlay);
   document.body.style.overflow = 'hidden';
 
   requestAnimationFrame(() => overlay.classList.add('cod-open'));
@@ -94,7 +105,10 @@ function openModal(config: WidgetConfig, renderInto: (el: HTMLElement) => void):
     if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); }
   });
 
-  renderInto(modal.querySelector<HTMLElement>('.cod-modal-body')!);
+  const formRoot = document.createElement('div');
+  formRoot.className = 'cod-root';
+  modal.querySelector<HTMLElement>('.cod-modal-body')!.appendChild(formRoot);
+  renderInto(formRoot);
 }
 
 export interface QuoteInput {

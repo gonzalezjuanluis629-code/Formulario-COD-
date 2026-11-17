@@ -104,6 +104,7 @@ function buildForm(root: HTMLElement, fields: Field[], tokens: ThemeTokens, opts
   const config: WidgetConfig = {
     formId: 'preview',
     formVersionId: 'preview',
+    displayMode: 'EMBEDDED',
     fields,
     tokens,
     location: {

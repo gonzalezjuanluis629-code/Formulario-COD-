@@ -78,6 +78,7 @@ export class FormsService {
     return {
       formId: form.id,
       formVersionId: version.id,
+      displayMode: form.displayMode === 'POPUP' ? 'POPUP' : 'EMBEDDED',
       fields: version.schema as WidgetConfig['fields'],
       tokens: ThemeTokensSchema.parse(themeTokens ?? {}),
       location: LocationConfigSchema.parse(
