@@ -93,9 +93,20 @@ export function mountLocation(
     const gpsBtn = wrap.querySelector<HTMLElement>('[data-mode="gps"]')!;
     gpsBtn.classList.add('cod-locating');
 
+    let pos: GeolocationPosition;
     try {
-      const pos = await getPosition();
+      pos = await getPosition();
+    } catch (e) {
+      // Sin ubicación no se bloquea a nadie: se pasa solo al modo escrito,
+      // pero diciendo POR QUÉ (y cómo arreglarlo).
+      await setMode('manual');
+      errEl.textContent = await whyNoLocation(e as GeolocationPositionError);
+      errEl.classList.add('cod-soft');
+      gpsBtn.classList.remove('cod-locating');
+      return;
+    }
 
+    try {
       // El mapa solo se descarga AHORA. El bundle base no lo paga.
       const { createMap } = await import('./map');
 
@@ -122,15 +133,16 @@ export function mountLocation(
         capturedAt: new Date().toISOString(),
       };
       map.setAccuracy(pos.coords.accuracy);
+    } catch {
+      // Si el mapa no carga, la ubicación GPS igual vale.
+      state.location = {
+        lat: pos.coords.latitude, lng: pos.coords.longitude,
+        accuracyMeters: Math.round(pos.coords.accuracy), source: 'GPS', capturedAt: new Date().toISOString(),
+      };
+    } finally {
       setValue('gps');
       void reverse(pos.coords.latitude, pos.coords.longitude);
       onChange();
-    } catch {
-      // Sin ubicación no se bloquea a nadie: se pasa solo al modo escrito.
-      await setMode('manual');
-      errEl.textContent = 'Sin acceso a tu ubicación. Escribe tu dirección aquí abajo.';
-      errEl.classList.add('cod-soft');
-    } finally {
       gpsBtn.classList.remove('cod-locating');
     }
   }
@@ -163,6 +175,28 @@ export function mountLocation(
     btn.textContent = on ? 'Guardar ubicación' : 'Editar ubicación';
     btn.classList.toggle('cod-saving', on);
   });
+}
+
+/** Mensaje claro según la causa real (el navegador a veces niega sin preguntar). */
+async function whyNoLocation(e: GeolocationPositionError | Error | undefined): Promise<string> {
+  const tail = ' Mientras, escribe tu dirección aquí abajo.';
+  const inFrame = (() => { try { return window.top !== window.self; } catch { return true; } })();
+  const policy = (document as Document & { featurePolicy?: { allowsFeature(f: string): boolean } }).featurePolicy;
+  if (inFrame && policy && !policy.allowsFeature('geolocation')) {
+    return 'La vista previa del editor no permite pedir la ubicación. Pruébalo en la tienda (botón «Ver tienda»).' + tail;
+  }
+  if (!navigator.geolocation || !window.isSecureContext) return 'Este navegador no permite usar la ubicación.' + tail;
+  const code = (e as GeolocationPositionError | undefined)?.code;
+  if (code === 1) {
+    let state = '';
+    try { state = (await navigator.permissions.query({ name: 'geolocation' })).state; } catch { /* sin API */ }
+    return (state === 'denied'
+      ? 'La ubicación está bloqueada para esta tienda. Actívala tocando el candado junto a la dirección de la página.'
+      : 'No se dio permiso para usar tu ubicación.') + tail;
+  }
+  if (code === 2) return 'No se pudo saber tu ubicación. Revisa que la ubicación esté activada en tu teléfono o computadora.' + tail;
+  if (code === 3) return 'La ubicación tardó demasiado. Inténtalo otra vez.' + tail;
+  return 'Sin acceso a tu ubicación.' + tail;
 }
 
 function getPosition(): Promise<GeolocationPosition> {
