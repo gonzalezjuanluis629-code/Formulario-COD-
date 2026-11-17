@@ -383,6 +383,10 @@ export const QuoteRequestSchema = z.object({
   addonIds: z.array(z.string()).default([]),
   /** Si viene, se cobra TODO el carrito (variantId/qty se ignoran). */
   cart: z.array(CartLineSchema).min(1).max(50).optional(),
+  /** Token del carrito de la tienda: el servidor lee ese carrito y cobra SU total. */
+  cartToken: z.string().max(300).optional(),
+  /** Total del carrito que vio el cliente (solo si el servidor no puede leerlo). */
+  cartTotalCents: z.number().int().min(0).optional(),
 });
 export type QuoteRequest = z.infer<typeof QuoteRequestSchema>;
 
@@ -415,6 +419,8 @@ export const SubmitRequestSchema = z.object({
   acceptedAddons: z.array(AcceptedAddonSchema).default([]),
   /** Pedido desde el carrito: todas sus líneas (variantId/qty se ignoran). */
   cart: z.array(CartLineSchema).min(1).max(50).optional(),
+  cartToken: z.string().max(300).optional(),
+  cartTotalCents: z.number().int().min(0).optional(),
   /** Valores de los campos dinámicos, indexados por `key`. */
   fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
   location: LocationSchema.nullable(),

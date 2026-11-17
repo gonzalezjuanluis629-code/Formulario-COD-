@@ -25,6 +25,16 @@ export class QuoteService {
   ) {}
 
   async compute(ctx: ShopContext, dto: QuoteRequest): Promise<QuoteResponse> {
+    return (await this.computeDetailed(ctx, dto)).quote;
+  }
+
+  /**
+   * Cotización + las líneas que se cobran. Desde el carrito: se cobra el TOTAL
+   * DEL CARRITO de la tienda (con sus descuentos y combos), leído por el
+   * servidor con el token del carrito; el formulario no aplica ofertas propias.
+   */
+  async computeDetailed(ctx: ShopContext, dto: QuoteRequest): Promise<{ quote: QuoteResponse; lines: CartLine[]; cartVerified: boolean }> {
+    let cartVerified = true;
     const settings = { ...ShopSettingsSchema.parse(ctx.settings ?? {}), ...(ctx.currency ? { currency: ctx.currency } : {}) };
     const lines = orderLines(dto);
 
@@ -50,7 +60,15 @@ export class QuoteService {
     };
 
     const [only] = lines;
-    if (lines.length === 1 && only) {
+    if (dto.cart?.length) {
+      const c = await this.cartTotals(ctx, dto, lines);
+      lines.splice(0, lines.length, ...c.lines);
+      cartVerified = c.verified;
+      qty = 1;
+      byProduct = c.byProduct;
+      unitPriceCents = c.originalCents;
+      lineOffers = { discountCents: c.discountCents, freeShipping: false, label: c.discountCents > 0 ? 'Descuento del carrito' : null };
+    } else if (lines.length === 1 && only) {
       qty = only.qty;
       const v = await this.variant(ctx, only.variantId);
       unitPriceCents = v.priceCents;
@@ -90,7 +108,7 @@ export class QuoteService {
         ? settings.shippingByProvince[province]
         : null;
 
-    return runPricing({
+    const quote = runPricing({
       qty,
       unitPriceCents,
       currency: settings.currency,
@@ -104,6 +122,70 @@ export class QuoteService {
       lineOffers,
       addonsCents,
     });
+    return { quote, lines, cartVerified };
+  }
+
+  /**
+   * El carrito de la tienda: primero se lee de la propia tienda con su token
+   * (precio de verdad, con los descuentos que la tienda le aplica). Si la tienda
+   * no responde, se usa el total que vio el cliente solo si es razonable (entre
+   * el 40 % y el 100 % de los precios reales); si no, los precios reales.
+   */
+  private async cartTotals(ctx: ShopContext, dto: QuoteRequest, lines: CartLine[]): Promise<{
+    lines: CartLine[]; byProduct: { productId: string; cents: number }[]; originalCents: number; discountCents: number; verified: boolean;
+  }> {
+    const shopCart = dto.cartToken ? await this.readShopCart(ctx, dto.cartToken).catch(() => null) : null;
+    if (shopCart && shopCart.items.length) {
+      const original = shopCart.items.reduce((s, i) => s + i.original_line_price, 0);
+      const total = Math.max(0, Math.min(shopCart.total_price, original));
+      return {
+        lines: mergeLines(shopCart.items.map((i) => ({ variantId: `gid://shopify/ProductVariant/${i.variant_id}`, qty: i.quantity }))),
+        byProduct: shopCart.items.map((i) => ({ productId: `gid://shopify/Product/${i.product_id}`, cents: i.original_line_price })),
+        originalCents: original,
+        discountCents: original - total,
+        verified: true,
+      };
+    }
+    const priced = await this.cartPrices(ctx, lines);
+    const original = priced.reduce((s, l) => s + l.unitCents * l.qty, 0);
+    const seen = dto.cartTotalCents;
+    const discount = seen != null && seen >= original * 0.4 && seen <= original ? original - seen : 0;
+    return {
+      lines,
+      byProduct: priced.map((l) => ({ productId: l.productId, cents: l.unitCents * l.qty })),
+      originalCents: original,
+      discountCents: discount,
+      verified: false,
+    };
+  }
+
+  /** El carrito del cliente leído en la tienda (API del carrito con su token). */
+  private async readShopCart(ctx: ShopContext, token: string): Promise<{
+    token: string; total_price: number; items: { variant_id: number; product_id: number; quantity: number; original_line_price: number; final_line_price: number }[];
+  } | null> {
+    if (!/^[A-Za-z0-9._~?=&%-]{8,300}$/.test(token)) return null;
+    const base = process.env.STOREFRONT_BASE_OVERRIDE || await this.primaryUrl(ctx);
+    const res = await fetch(`${base.replace(/\/+$/, '')}/cart.js`, {
+      headers: { Cookie: `cart=${token}`, Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; CODForm/1.0)' },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const cart = await res.json().catch(() => null) as { token?: string; total_price?: number; items?: unknown[] } | null;
+    if (!cart || typeof cart.total_price !== 'number' || !Array.isArray(cart.items)) return null;
+    // Debe ser EL MISMO carrito (si no, la tienda devolvió uno nuevo y vacío).
+    if (!cart.token || cart.token.split('?')[0] !== token.split('?')[0]) return null;
+    return cart as never;
+  }
+
+  private primaryUrls = new Map<string, string>();
+  private async primaryUrl(ctx: ShopContext): Promise<string> {
+    const hit = this.primaryUrls.get(ctx.shopId);
+    if (hit) return hit;
+    const d = await this.admin.graphql<{ shop: { primaryDomain: { url: string } | null } }>(ctx, 'query { shop { primaryDomain { url } } }');
+    const url = d.shop.primaryDomain?.url || `https://${ctx.domain}`;
+    this.primaryUrls.set(ctx.shopId, url);
+    return url;
   }
 
   /** Cada línea del carrito con el precio real de su variante en Shopify (× cantidad). */
@@ -140,8 +222,12 @@ const VARIANT_GID = (id: string) => (/^\d+$/.test(id) ? `gid://shopify/ProductVa
  */
 export function orderLines(dto: { variantId: string; qty: number; cart?: CartLine[] }): CartLine[] {
   if (!dto.cart?.length) return [{ variantId: VARIANT_GID(dto.variantId), qty: dto.qty }];
+  return mergeLines(dto.cart);
+}
+
+function mergeLines(cart: CartLine[]): CartLine[] {
   const merged = new Map<string, number>();
-  for (const l of dto.cart) {
+  for (const l of cart) {
     const id = VARIANT_GID(l.variantId);
     merged.set(id, (merged.get(id) ?? 0) + l.qty);
   }

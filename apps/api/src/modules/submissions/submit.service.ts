@@ -95,7 +95,7 @@ export class SubmitService {
     );
 
     /* 6b ─ RECÁLCULO. Lo que el cliente diga que cuesta nos da igual. */
-    const totals = await this.quote.compute(ctx, {
+    const detailed = await this.quote.computeDetailed(ctx, {
       formId: dto.formId,
       variantId: dto.variantId,
       qty: dto.qty,
@@ -103,7 +103,16 @@ export class SubmitService {
       discountCode: dto.discountCode ?? null,
       addonIds: dto.acceptedAddons.map((a: { id: string }) => a.id),
       cart: dto.cart?.length ? lines : undefined,
+      cartToken: dto.cartToken,
+      cartTotalCents: dto.cartTotalCents,
     });
+    const totals = detailed.quote;
+    // Desde el carrito, las líneas son las del carrito real de la tienda.
+    if (dto.cart?.length) lines.splice(0, lines.length, ...detailed.lines);
+    if (!detailed.cartVerified) {
+      // No se pudo leer el carrito en la tienda: se usó el total que vio el cliente.
+      risk.flags.push('CART_TOTAL_UNVERIFIED');
+    }
 
     if (dto.clientTotals && dto.clientTotals.totalCents !== totals.totalCents) {
       // No bloquea: el precio bueno es el nuestro. Pero queda marcado.

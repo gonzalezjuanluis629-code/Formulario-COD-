@@ -37,7 +37,7 @@ export const api = {
   config: (productId: string, variantId: string) =>
     call<WidgetConfig>(`/form?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`),
 
-  quote: (body: { formId: string; variantId: string; qty: number; province?: string | null; discountCode?: string | null; addonIds?: string[]; cart?: { variantId: string; qty: number }[] }) =>
+  quote: (body: { formId: string; variantId: string; qty: number; province?: string | null; discountCode?: string | null; addonIds?: string[]; cart?: { variantId: string; qty: number }[]; cartToken?: string; cartTotalCents?: number }) =>
     call<QuoteResponse>('/quote', { method: 'POST', body: JSON.stringify(body) }),
 
   /** La API key de Google no toca jamás el navegador. */
@@ -69,14 +69,19 @@ export type ShopCartLine = { variantId: string; productId: string; qty: number }
 const shopRoot = () => ((window as { Shopify?: { routes?: { root?: string } } }).Shopify?.routes?.root ?? '/').replace(/\/?$/, '/');
 
 export async function readCart(): Promise<ShopCartLine[]> {
-  const res = await fetch(`${shopRoot()}cart.js`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+  return (await readCartFull()).lines;
+}
+
+/** El carrito con su token y su total (con los descuentos que le aplica la tienda). */
+export async function readCartFull(): Promise<{ lines: ShopCartLine[]; token: string; totalCents: number }> {
+  const res = await fetch(`${shopRoot()}cart.js`, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error('cart');
-  const cart = (await res.json()) as { items?: { variant_id: number; product_id: number; quantity: number }[] };
-  return (cart.items ?? []).filter((i) => i.quantity > 0).slice(0, 50).map((i) => ({
+  const cart = (await res.json()) as { token?: string; total_price?: number; items?: { variant_id: number; product_id: number; quantity: number }[] };
+  return { token: cart.token ?? '', totalCents: cart.total_price ?? 0, lines: (cart.items ?? []).filter((i) => i.quantity > 0).slice(0, 50).map((i) => ({
     variantId: `gid://shopify/ProductVariant/${i.variant_id}`,
     productId: `gid://shopify/Product/${i.product_id}`,
     qty: Math.min(i.quantity, 99),
-  }));
+  })) };
 }
 
 /** Tras pedir por el formulario, el carrito se vacía (si no, el cliente lo vería lleno). */
