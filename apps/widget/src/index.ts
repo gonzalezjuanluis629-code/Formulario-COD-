@@ -751,9 +751,12 @@ if (DIRECT?.cartButton) {
     // Ya está abierto: el tema a veces «pulsa» el botón solo varias veces; no se
     // vuelve a abrir (se perdería lo que el cliente está escribiendo).
     if (document.querySelector('[data-cod-modal]')) return;
-    // En la página del carrito o desde el carrito: TODO el carrito.
+    // En la página del carrito o con el carrito lateral abierto (un botón de otra
+    // app puede quedar ENCIMA del carrito): TODO el carrito.
     // Botón de Releasit en la página de un producto: el formulario de ese producto.
-    if (cartBtn || onCartPage() || !openProductForm()) void openCartForm();
+    const fromCart = !!cartBtn || onCartPage() || overlayOpen()
+      || !!el?.closest?.('#pd-cart, .pd-panel, cart-drawer, cart-notification, [id*="CartDrawer"], [class*="cart-drawer"]');
+    if (fromCart || !openProductForm()) void openCartForm();
   }, true);
   // Llegó a la página del carrito para pagar contra entrega (/cart?pd_cod=1).
   if (/\/cart\/?$/.test(location.pathname) && /[?&](pd_)?cod=1\b/.test(location.search)) {
