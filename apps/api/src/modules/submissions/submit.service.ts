@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
-import type { SubmitRequest, SubmitResponse } from '@cod/contracts';
+import type { SubmitRequest, SubmitResponse, Field } from '@cod/contracts';
 import { ShopSettingsSchema } from '@cod/contracts';
 import { getCountryProfile, type NormalizedAddress } from '@cod/geo';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -132,6 +132,9 @@ export class SubmitService {
       email: (dto.fields.email as string) || null,
       address,
       note: (dto.fields.note as string) || null,
+      // Lo que llenó el cliente, con el nombre EXACTO de cada campo del formulario
+      // (va a «Detalles adicionales» del pedido en Shopify).
+      answers: await this.answers(dto),
     });
 
     /* 8 ─ Persistir + (quizá) encolar.
@@ -193,6 +196,8 @@ export class SubmitService {
     this.log.log(
       `Submission ${submission.id} ${hold ? 'RETENIDA' : 'aceptada'} (riesgo ${risk.score})`,
     );
+    // Aviso al worker: el pedido se crea en Shopify al instante (sin esperar su ronda).
+    if (!hold) void this.redis.client.publish('cod:outbox', submission.id).catch(() => undefined);
 
     /* 9 ─ Respondemos YA. El pedido en Shopify lo crea el worker. */
     const firstName = String(dto.fields.firstName ?? dto.fields.fullName ?? '').split(' ')[0] ?? '';
@@ -257,6 +262,46 @@ export class SubmitService {
       .trim();
     const digits = phone.replace(/\D/g, '');
     return `https://wa.me/${digits}?text=${encodeURIComponent(msg)}`;
+  }
+
+  /**
+   * Respuestas del formulario como «Nombre del campo: valor», en el orden del
+   * formulario. Las opciones de listas se guardan con su texto, no su código.
+   */
+  private async answers(dto: SubmitRequest): Promise<{ label: string; value: string }[]> {
+    const version = await this.prisma.formVersion.findUnique({ where: { id: dto.formVersionId }, select: { schema: true } }).catch(() => null);
+    const schema = Array.isArray(version?.schema) ? (version!.schema as Field[]) : [];
+    // «location» guarda el modo (GPS / escrita): la dirección y el mapa van aparte.
+    const SKIP = new Set(['heading', 'subheading', 'richtext', 'divider', 'html', 'image', 'video', 'map', 'file', 'discount', 'location']);
+    const out: { label: string; value: string }[] = [];
+    const used = new Set<string>();
+    const text = (v: unknown) => (v == null ? '' : typeof v === 'boolean' ? (v ? 'Sí' : '') : String(v)).trim();
+    const plain = (h: string) => h.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+    for (const f of [...schema].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))) {
+      if (SKIP.has(f.type)) continue;
+      used.add(f.key);
+      let value = text(dto.fields[f.key]);
+      if (f.type === 'checkbox' && !f.options?.length) value = value === 'true' || value === 'on' || value === 'Sí' ? 'Sí' : '';
+      if (!value || value === 'false') continue;
+      if (f.options?.length) {
+        const parts = value.split(',').map((x) => x.trim());
+        value = parts.map((p) => f.options.find((o) => o.value === p)?.label ?? p).join(', ');
+      }
+      // Casillas sin título: su texto («Confirmo que recibiré mi pedido.») es el nombre.
+      const label = (f.label || plain(f.content || '') || f.placeholder || f.key).replace(/\s*\*\s*$/, '').trim().slice(0, 120);
+      out.push({ label, value: value.slice(0, 500) });
+    }
+    // Lo que el bloque de dirección/ubicación escribe aparte (provincia, dirección…).
+    const EXTRA: Record<string, string> = {
+      province: 'Provincia', city: 'Ciudad', municipality: 'Municipio', sector: 'Sector',
+      address: 'Dirección', street: 'Calle', number: 'Número', reference: 'Referencia', postalCode: 'Código postal',
+    };
+    for (const [key, label] of Object.entries(EXTRA)) {
+      if (used.has(key)) continue;
+      const value = text(dto.fields[key]);
+      if (value && !out.some((a) => a.value === value)) out.push({ label, value: value.slice(0, 500) });
+    }
+    return out;
   }
 
   private declaredProvince(dto: SubmitRequest): string | null {
