@@ -479,6 +479,7 @@ function renderOffers(host, config, state, onChange) {
   var _a2;
   const list = [...config.offers].sort((a, b) => a.minQty - b.minQty);
   if (!list.some((o) => o.minQty > 1)) return;
+  if (state.pageManagesQty) return;
   const unit = config.product.unitPriceCents;
   const cur = config.settings.currency;
   const style = config.tokens.offerCard;
@@ -555,7 +556,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-DyWVhpwm.js").then(({ renderAddons }) => {
+    void import("./addons-DKa9cpMU.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1111,6 +1112,7 @@ ${config.tokens.customCss}`;
       state.qty = fromPage.qty;
       state.qtyFromPage = true;
     }
+    if (fromPage == null ? void 0 : fromPage.managed) state.pageManagesQty = true;
     renderForm(mountRoot, config, state, {
       onSubmit: () => submit(mountRoot, config, state)
     });
@@ -1126,7 +1128,7 @@ ${config.tokens.customCss}`;
   };
   const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-DPsfZ6A3.js");
+    const { renderTrigger } = await import("./trigger-D5OU60kI.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1228,6 +1230,8 @@ class FormState {
     __publicField(this, "qty", 1);
     /** La cantidad la eligió el cliente en la página (oferta o selector del tema). */
     __publicField(this, "qtyFromPage", false);
+    /** La página tiene su propia caja de ofertas: el formulario no las repite. */
+    __publicField(this, "pageManagesQty", false);
     __publicField(this, "qtyListeners", []);
     __publicField(this, "location", null);
     __publicField(this, "discountCode", null);
