@@ -665,6 +665,11 @@ export function pageQuantity(variantId: string): number | null {
  * oculto): entonces manda siempre, también cuando el cliente elige 1.
  */
 export function pageQuantityInfo(variantId: string): { qty: number; managed: boolean } | null {
+  // 1) La caja de ofertas del tema («1 unidad · 2 unidades · 3 unidades» con
+  //    precios): la opción marcada manda. No depende de campos escondidos de
+  //    otras apps (antes solo funcionaba porque otra app dejaba uno).
+  const fromBox = offerBoxQty();
+  if (fromBox) return { qty: fromBox, managed: true };
   const variant = variantId.replace(/\D/g, '');
   const forms = [...document.querySelectorAll<HTMLFormElement>('form[action*="/cart/add"]')]
     .filter((f) => !f.closest('[data-cod-form]') && !f.closest(CARD) && f.querySelector('[name="quantity"]'));
@@ -676,6 +681,30 @@ export function pageQuantityInfo(variantId: string): { qty: number; managed: boo
   const q = Math.floor(Number(input?.value));
   if (!input || !Number.isFinite(q) || q < 1 || q > 99) return null;
   return { qty: q, managed: input instanceof HTMLInputElement && input.type === 'hidden' };
+}
+
+/** Opción (radio) de una caja de ofertas: cantidad numérica con un precio en su etiqueta. */
+function offerRadio(el: Element | null): HTMLInputElement | null {
+  if (!(el instanceof HTMLInputElement) || el.type !== 'radio' || !/^\d{1,2}$/.test(el.value)) return null;
+  if (el.closest('[data-cod-form], [data-cod-modal]')) return null;
+  const label = el.closest('label') ?? (el.id ? document.querySelector(`label[for="${window.CSS.escape(el.id)}"]`) : null) ?? el.parentElement;
+  return label && /(RD\s?\$|US\s?\$|\$|€|£)\s?\d/.test(label.textContent ?? '') ? el : null;
+}
+
+/** La última oferta que el cliente marcó en la página (o la marcada de inicio). */
+let lastOfferQty: number | null = null;
+document.addEventListener('change', (e) => {
+  const r = offerRadio(e.target as Element);
+  if (r?.checked) lastOfferQty = Number(r.value);
+}, true);
+
+function offerBoxQty(): number | null {
+  if (lastOfferQty && lastOfferQty >= 1 && lastOfferQty <= 50) return lastOfferQty;
+  const checked = [...document.querySelectorAll<HTMLInputElement>('input[type="radio"]:checked')]
+    .map(offerRadio).filter((r): r is HTMLInputElement => !!r && !r.closest(CARD));
+  const r = checked.find((x) => (x.closest('label') ?? x).getClientRects().length > 0) ?? checked[0];
+  const q = r ? Number(r.value) : 0;
+  return q >= 1 && q <= 50 ? q : null;
 }
 
 /** Tarjetas de «productos relacionados», carruseles, etc.: nunca son el sitio. */
@@ -691,6 +720,11 @@ function findBuyAnchor(variant: string): HTMLElement | null {
     ?? forms.find((f) => !f.closest(CARD) && f.closest('[id*="main"], [id*="product-information"], [id*="product-template"]'))
     ?? null;
   if (form) return form.closest<HTMLElement>('product-form, product-form-component') ?? form;
+  // Sin formulario de compra (temas que usaban otra app): debajo de la caja de ofertas.
+  const radio = [...document.querySelectorAll('input[type="radio"]')].map(offerRadio)
+    .find((r) => r && !r.closest(CARD) && shown(r.closest('label') ?? r));
+  const box = radio?.closest<HTMLElement>('[data-pd-offers]') ?? radio?.closest<HTMLElement>('fieldset, [role="radiogroup"]');
+  if (box) return box;
   // Sin botón de compra (p. ej. producto agotado en algunos temas): debajo del precio.
   const price = [...document.querySelectorAll<HTMLElement>(
     'main product-price, main .product__price, main [id^="price-"], main .price, #MainContent .price',
