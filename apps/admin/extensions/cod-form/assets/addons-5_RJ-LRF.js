@@ -1,4 +1,4 @@
-import { m as money } from "./index-CCgsoCAs.js";
+import { m as money } from "./index-oS3cpOni.js";
 function renderAddons(host, config, state, onChange) {
   var _a;
   const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty);
@@ -14,21 +14,31 @@ function renderAddons(host, config, state, onChange) {
   }
   host.appendChild(wrap);
 }
+function richTitle(a) {
+  return esc(a.title).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\{precio\}/gi, `<b>${money(a.priceCents)}</b>`);
+}
+function cardStyle(a) {
+  const st = a.style;
+  const border = st.border === "none" ? "border:2px solid transparent" : `border:2px ${st.border} ${st.borderColor}`;
+  return `${border};background:${st.bg}`;
+}
+function priceTag(a, cls) {
+  if (/\{precio\}/i.test(a.title) || !(a.priceCents > 0)) return "";
+  return `<span class="${cls}">${a.compareAtCents ? `<s>${money(a.compareAtCents)}</s>` : ""}${money(a.priceCents)}</span>`;
+}
 function renderBump(a, state, onChange) {
   const el = document.createElement("label");
   el.className = "cod-bump";
+  el.setAttribute("style", cardStyle(a));
   el.innerHTML = `
     <input type="checkbox">
     <span class="cod-bump-box"></span>
-    ${a.image ? `<img class="cod-bump-img" src="${esc(a.image)}" alt="">` : ""}
     <span class="cod-bump-text">
-      <b>${esc(a.title)}</b>
+      <span class="cod-bump-title">${richTitle(a)}</span>
       ${a.description ? `<small>${esc(a.description)}</small>` : ""}
+      ${priceTag(a, "cod-bump-price")}
     </span>
-    <span class="cod-bump-price">
-      ${a.compareAtCents ? `<s>${money(a.compareAtCents)}</s>` : ""}
-      ${money(a.priceCents)}
-    </span>`;
+    ${a.image ? `<img class="cod-bump-img" src="${esc(a.image)}" alt="" loading="lazy">` : ""}`;
   el.querySelector("input").addEventListener("change", (e) => {
     toggleAddon(state, a, e.target.checked);
     el.classList.toggle("cod-bump-on", e.target.checked);
@@ -39,15 +49,13 @@ function renderBump(a, state, onChange) {
 function renderUpsell(a, downsell, state, onChange) {
   const el = document.createElement("div");
   el.className = "cod-upsell";
+  el.setAttribute("style", cardStyle(a));
   el.innerHTML = `
-    ${a.image ? `<img class="cod-upsell-img" src="${esc(a.image)}" alt="">` : ""}
+    ${a.image ? `<img class="cod-upsell-img" src="${esc(a.image)}" alt="" loading="lazy">` : ""}
     <div class="cod-upsell-body">
-      <b>${esc(a.title)}</b>
+      <span class="cod-bump-title">${richTitle(a)}</span>
       ${a.description ? `<small>${esc(a.description)}</small>` : ""}
-      <span class="cod-upsell-price">
-        ${a.compareAtCents ? `<s>${money(a.compareAtCents)}</s>` : ""}
-        ${money(a.priceCents)}
-      </span>
+      ${priceTag(a, "cod-upsell-price")}
     </div>
     <button type="button" class="cod-upsell-add">Añadir</button>`;
   const btn = el.querySelector(".cod-upsell-add");

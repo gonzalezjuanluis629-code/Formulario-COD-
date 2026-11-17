@@ -135,6 +135,12 @@ function tokensToCss(t) {
     --cod-btn-bg:${buttonBackground(t.submit)};
     --cod-btn-solid:${t.submit.bg};
     --cod-apply-bg:${t.applyBg};
+    --cod-offer-accent:${t.offerCard.accent};
+    --cod-badge-from:${t.offerCard.badgeFrom};
+    --cod-badge-to:${t.offerCard.badgeTo};
+    --cod-badge-color:${t.offerCard.badgeColor};
+    --cod-save-bg:${t.offerCard.saveBg};
+    --cod-save-color:${t.offerCard.saveColor};
     --cod-apply-color:${t.applyColor};
     --cod-btn-shadow:${buttonShadow(t.submit)};
     --anim-speed:${ANIMATION_SPEEDS[(_a = t.submit.animationSpeed) != null ? _a : "normal"]};
@@ -336,39 +342,6 @@ function getPosition() {
   });
 }
 const esc$2 = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-function renderOffers(host, config, state, onChange) {
-  const offers = [...config.offers].filter((o) => o.minQty > 1).sort((a, b) => a.minQty - b.minQty);
-  if (!offers.length) return;
-  const options = [
-    { qty: 1, title: "1 unidad", badge: "", label: "" },
-    ...offers.map((o) => ({
-      qty: o.minQty,
-      title: `${o.minQty} unidades`,
-      badge: o.discountBps > 0 ? `−${trimPct(o.discountBps / 100)} %` : o.freeShipping ? "Envío gratis" : "",
-      label: o.label
-    }))
-  ];
-  const wrap = document.createElement("div");
-  wrap.className = "cod-offers";
-  wrap.setAttribute("role", "radiogroup");
-  wrap.setAttribute("aria-label", "Cantidad");
-  wrap.innerHTML = options.map((o) => `
-    <button type="button" class="cod-offer" role="radio" aria-checked="${o.qty === state.qty}" data-qty="${o.qty}">
-      <span class="cod-offer-dot"></span>
-      <span class="cod-offer-text"><b>${esc$1(o.title)}</b>${o.label && o.label !== o.title ? `<small>${esc$1(o.label)}</small>` : ""}</span>
-      ${o.badge ? `<span class="cod-offer-badge">${esc$1(o.badge)}</span>` : ""}
-    </button>`).join("");
-  wrap.querySelectorAll(".cod-offer").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.qty = Number(btn.dataset.qty) || 1;
-      wrap.querySelectorAll(".cod-offer").forEach((b) => b.setAttribute("aria-checked", String(b === btn)));
-      onChange();
-    });
-  });
-  host.appendChild(wrap);
-}
-const trimPct = (n) => Number.isInteger(n) ? String(n) : n.toFixed(1);
-const esc$1 = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const subtotal = {
   name: "subtotal",
   apply(d, ctx) {
@@ -380,7 +353,11 @@ const quantityOffers = {
   apply(d, ctx) {
     const match = ctx.offers.filter((o) => ctx.qty >= o.minQty).sort((a, b) => b.minQty - a.minQty)[0];
     if (!match) return;
-    if (match.discountBps > 0) {
+    if (match.bundlePriceCents != null && ctx.unitPriceCents > 0) {
+      const full = ctx.unitPriceCents * match.minQty;
+      const rate = full > 0 ? Math.max(0, 1 - match.bundlePriceCents / full) : 0;
+      d.discountCents += Math.round(d.subtotalCents * rate);
+    } else if (match.discountBps > 0) {
       d.discountCents += Math.round(d.subtotalCents * match.discountBps / 1e4);
     }
     if (match.freeShipping) d.freeShipping = true;
@@ -451,6 +428,65 @@ function quote(ctx) {
   };
 }
 const money = (cents, currency = "DOP") => `${currency === "DOP" ? "RD$" : currency} ${(cents / 100).toLocaleString("en-US")}`;
+function renderOffers(host, config, state, onChange) {
+  var _a;
+  const list = [...config.offers].sort((a, b) => a.minQty - b.minQty);
+  if (!list.some((o) => o.minQty > 1)) return;
+  const unit = config.product.unitPriceCents;
+  const cur = config.settings.currency;
+  const style = config.tokens.offerCard;
+  const base = (_a = list.find((o) => o.minQty === 1)) != null ? _a : {
+    id: "base",
+    type: "QUANTITY",
+    minQty: 1,
+    discountBps: 0,
+    freeShipping: false,
+    label: "1 unidad",
+    title: "",
+    subtitle: "",
+    badge: "",
+    bundlePriceCents: null,
+    preselected: false
+  };
+  const cards = [base, ...list.filter((o) => o.minQty > 1)];
+  const pre = cards.find((o) => o.preselected);
+  if (pre && state.qty === 1) state.qty = pre.minQty;
+  const wrap = document.createElement("div");
+  wrap.className = "cod-offers";
+  wrap.setAttribute("role", "radiogroup");
+  wrap.setAttribute("aria-label", "Cantidad");
+  wrap.innerHTML = cards.map((o) => {
+    const full = unit * o.minQty;
+    const price = o.bundlePriceCents != null ? o.bundlePriceCents : Math.round(full * (1 - o.discountBps / 1e4));
+    const save = full > 0 && price < full ? Math.round((1 - price / full) * 100) : 0;
+    const title = o.title || (o.minQty === 1 ? "1 unidad" : `${o.minQty} unidades`);
+    return `
+    <button type="button" class="cod-offer${o.badge ? " cod-offer-has-badge" : ""}" role="radio"
+      aria-checked="${o.minQty === state.qty}" data-qty="${o.minQty}">
+      ${o.badge ? `<span class="cod-offer-ribbon">${esc$1(o.badge)}</span>` : ""}
+      <span class="cod-offer-dot"></span>
+      <span class="cod-offer-text">
+        <b>${esc$1(title)}</b>
+        ${o.subtitle ? `<small>${esc$1(o.subtitle)}</small>` : ""}
+        ${style.showSave && save > 0 ? `<span class="cod-offer-save">Ahorras ${save}%</span>` : ""}
+        ${o.freeShipping ? '<span class="cod-offer-save">Envío gratis</span>' : ""}
+      </span>
+      ${unit > 0 ? `<span class="cod-offer-price">
+        <b>${money(price, cur)}</b>
+        ${style.showCompare && save > 0 ? `<s>${money(full, cur)}</s>` : ""}
+      </span>` : ""}
+    </button>`;
+  }).join("");
+  wrap.querySelectorAll(".cod-offer").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.qty = Number(btn.dataset.qty) || 1;
+      wrap.querySelectorAll(".cod-offer").forEach((b) => b.setAttribute("aria-checked", String(b === btn)));
+      onChange();
+    });
+  });
+  host.appendChild(wrap);
+}
+const esc$1 = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 function renderForm(root, config, state, handlers) {
   root.innerHTML = `
     <form class="cod-form" novalidate>
@@ -472,7 +508,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-C_JViecY.js").then(({ renderAddons }) => {
+    void import("./addons-5_RJ-LRF.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -915,38 +951,51 @@ ${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
 .cod-done small{font-size:11px;color:var(--cod-muted)}
 
 /* ── Order bumps / upsells / downsells ── */
-.cod-offers{display:grid;gap:8px;margin-bottom:14px}
-.cod-offer{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;text-align:left;
-  border:1.5px solid var(--cod-border);border-radius:var(--cod-radius);background:var(--cod-field);
-  color:var(--cod-text);font:inherit;cursor:pointer;transition:border-color .2s var(--cod-ease),background .2s var(--cod-ease)}
-.cod-offer[aria-checked="true"]{border-color:var(--cod-brand);background:#fff;box-shadow:0 0 0 3px rgba(0,0,0,.05)}
-.cod-offer-dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--cod-border);flex-shrink:0;position:relative}
-.cod-offer[aria-checked="true"] .cod-offer-dot{border-color:var(--cod-brand)}
-.cod-offer[aria-checked="true"] .cod-offer-dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--cod-brand)}
-.cod-offer-text{flex:1;display:flex;flex-direction:column;gap:1px}
-.cod-offer-text b{font-size:13px}.cod-offer-text small{font-size:11px;color:var(--cod-muted)}
-.cod-offer-badge{font-size:11px;font-weight:700;color:#fff;background:var(--cod-ok);padding:3px 8px;border-radius:99px;white-space:nowrap}
+.cod-offers{display:grid;gap:12px;margin-bottom:16px}
+.cod-offer{position:relative;display:flex;align-items:center;gap:12px;width:100%;padding:14px 14px;text-align:left;
+  border:1.5px solid var(--cod-border);border-radius:calc(var(--cod-radius) + 6px);background:#fff;
+  color:var(--cod-text);font:inherit;cursor:pointer;
+  transition:border-color .2s var(--cod-ease),box-shadow .2s var(--cod-ease),transform .15s var(--cod-ease)}
+.cod-offer:active{transform:scale(.99)}
+.cod-offer-has-badge{margin-top:8px}
+.cod-offer[aria-checked="true"]{border:2px solid var(--cod-offer-accent);
+  box-shadow:0 0 0 7px color-mix(in srgb,var(--cod-offer-accent) 16%,transparent)}
+.cod-offer-ribbon{position:absolute;top:-12px;right:16px;padding:4px 12px;border-radius:99px;
+  background:linear-gradient(90deg,var(--cod-badge-from),var(--cod-badge-to));color:var(--cod-badge-color);
+  font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.cod-offer-dot{width:22px;height:22px;border-radius:50%;border:2px solid #a9b0b8;flex-shrink:0;position:relative;background:#fff}
+.cod-offer[aria-checked="true"] .cod-offer-dot{border-color:var(--cod-offer-accent)}
+.cod-offer[aria-checked="true"] .cod-offer-dot::after{content:'';position:absolute;inset:4px;border-radius:50%;background:var(--cod-offer-accent)}
+.cod-offer-text{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.cod-offer-text b{font-size:15px;font-weight:800}
+.cod-offer-text small{font-size:12px;color:var(--cod-muted)}
+.cod-offer-save{display:inline-block;margin-top:4px;padding:3px 9px;border-radius:99px;background:var(--cod-save-bg);
+  color:var(--cod-save-color);font-size:11px;font-weight:800}
+.cod-offer-price{display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;line-height:1.1}
+.cod-offer-price b{font-size:17px;font-weight:800}
+.cod-offer-price s{font-size:12px;color:var(--cod-muted);margin-top:3px}
 .cod-addons{display:grid;gap:9px;margin-top:4px}
-.cod-bump{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;
-  border:1.5px dashed var(--cod-brand);border-radius:var(--cod-radius);background:var(--cod-field);
-  transition:background .18s var(--cod-ease),border-color .18s var(--cod-ease)}
-.cod-bump-on{background:color-mix(in srgb,var(--cod-ok) 8%,#fff);border-style:solid;border-color:var(--cod-ok)}
-.cod-bump input{position:absolute;opacity:0;width:0}
-.cod-bump-box{flex-shrink:0;width:20px;height:20px;border:2px solid var(--cod-border);border-radius:6px;
-  background:#fff;position:relative;transition:background .2s,border-color .2s}
+.cod-bump{position:relative;display:flex;align-items:center;gap:12px;padding:14px 14px;cursor:pointer;
+  border-radius:var(--cod-radius);transition:transform .15s var(--cod-ease),box-shadow .2s var(--cod-ease)}
+.cod-bump:active{transform:scale(.99)}
+.cod-bump-on{box-shadow:0 0 0 3px color-mix(in srgb,var(--cod-ok) 22%,transparent)}
+.cod-bump input{position:absolute;opacity:0;width:0;height:0}
+.cod-bump-box{flex-shrink:0;width:22px;height:22px;border:2px solid #9a9a9a;border-radius:6px;background:#fff;position:relative;
+  transition:background .2s,border-color .2s}
 .cod-bump input:checked+.cod-bump-box{background:var(--cod-ok);border-color:var(--cod-ok)}
 .cod-bump input:checked+.cod-bump-box::after{content:'';position:absolute;left:6px;top:2px;width:5px;height:10px;
   border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}
-.cod-bump-img{width:38px;height:38px;object-fit:cover;border-radius:7px;flex-shrink:0}
+.cod-bump-img{width:56px;height:56px;object-fit:contain;border-radius:8px;flex-shrink:0}
 .cod-bump-text{flex:1;min-width:0}
-.cod-bump-text b{display:block;font-size:13px;line-height:1.3}
-.cod-bump-text small{display:block;font-size:11.5px;color:var(--cod-muted);margin-top:1px}
-.cod-bump-price{font-weight:700;font-size:13.5px;white-space:nowrap;flex-shrink:0}
-.cod-bump-price s{color:var(--cod-muted);font-weight:400;margin-right:4px;font-size:11.5px}
+.cod-bump-title{display:block;font-size:13.5px;line-height:1.35;color:var(--cod-text)}
+.cod-bump-title b{font-weight:800}
+.cod-bump-text small,.cod-upsell-body small{display:block;font-size:12px;color:var(--cod-muted);margin-top:2px;line-height:1.35}
+.cod-bump-price,.cod-upsell-price{display:inline-block;margin-top:3px;font-weight:800;font-size:13.5px;white-space:nowrap}
+.cod-bump-price s,.cod-upsell-price s{color:var(--cod-muted);font-weight:400;margin-right:5px;font-size:12px}
 
-.cod-upsell{display:flex;align-items:center;gap:11px;padding:11px 12px;border:1.5px solid var(--cod-border);
+.cod-upsell{display:flex;align-items:center;gap:11px;padding:12px 13px;
   border-radius:var(--cod-radius);background:var(--cod-surface);animation:cod-in .3s var(--cod-ease) both}
-.cod-upsell-on{border-color:var(--cod-ok);background:color-mix(in srgb,var(--cod-ok) 6%,#fff)}
+.cod-upsell-on{box-shadow:0 0 0 3px color-mix(in srgb,var(--cod-ok) 22%,transparent)}
 .cod-upsell-img{width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0}
 .cod-upsell-body{flex:1;min-width:0}
 .cod-upsell-body b{display:block;font-size:13.5px;line-height:1.3}
@@ -1002,7 +1051,7 @@ ${config.tokens.customCss}`;
     });
   };
   if (host.dataset.mode === "popup") {
-    const { renderTrigger } = await import("./trigger-5lHK5Vd5.js");
+    const { renderTrigger } = await import("./trigger-OXOUZ-hE.js");
     root.innerHTML = "";
     renderTrigger(root, config.tokens.trigger, () => openModal(config, renderInto));
     return;

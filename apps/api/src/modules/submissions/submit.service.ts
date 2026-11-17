@@ -144,7 +144,9 @@ export class SubmitService {
           cartHash,
           items: [
             { variantId: dto.variantId, qty: dto.qty },
-            ...resolvedAddons.lineItems, // order bumps / upsells como líneas extra
+            ...resolvedAddons.lineItems, // extras con producto (con su precio cobrado)
+            // Cargos sin producto (p. ej. «Envío express»): van como línea de envío.
+            ...resolvedAddons.charges.map((c) => ({ charge: true, title: c.title, priceCents: c.priceCents, qty: 1 })),
           ],
           appliedOffers: resolvedAddons.accepted as unknown as object,
           totals: totals as unknown as object,

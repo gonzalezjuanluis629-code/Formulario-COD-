@@ -27,15 +27,23 @@ export class AddonsService {
   }
 
   /**
-   * Convierte los addons ACEPTADOS por el cliente en líneas de pedido,
-   * verificando contra Shopify que la variante existe y a qué precio.
-   * Devuelve también el total en centavos, que alimenta el pricing.
+   * Convierte los extras ACEPTADOS por el cliente en líneas del pedido.
+   * - Con producto: se cobra el precio especial configurado en el panel (si lo
+   *   hay) o, si no, el precio real de la variante en Shopify.
+   * - Sin producto (cargo, p. ej. «Envío express»): se cobra el precio del panel.
+   * El precio NUNCA sale del navegador: solo de la configuración del servidor.
    */
   async resolve(
     ctx: ShopContext,
     acceptedIds: string[],
-  ): Promise<{ lineItems: { variantId: string; qty: number }[]; totalCents: number; accepted: AcceptedAddon[] }> {
-    if (!acceptedIds.length) return { lineItems: [], totalCents: 0, accepted: [] };
+  ): Promise<{
+    lineItems: { variantId: string; qty: number; priceCents: number }[];
+    charges: { title: string; priceCents: number }[];
+    totalCents: number;
+    accepted: (AcceptedAddon & { title: string; priceCents: number })[];
+  }> {
+    const empty = { lineItems: [], charges: [], totalCents: 0, accepted: [] };
+    if (!acceptedIds.length) return empty;
 
     const rows = await this.prisma.offer.findMany({
       where: {
@@ -46,16 +54,21 @@ export class AddonsService {
     });
 
     const addons = rows.map((r) => AddonSchema.parse({ id: r.id, ...(r.payload as object) }));
-    const lineItems: { variantId: string; qty: number }[] = [];
-    const accepted: AcceptedAddon[] = [];
-    let totalCents = 0;
+    const out: Awaited<ReturnType<AddonsService['resolve']>> = { lineItems: [], charges: [], totalCents: 0, accepted: [] };
 
     for (const a of addons) {
-      const price = await this.variantPrice(ctx, a.variantId);
-      if (price === null) continue; // variante borrada o sin stock: se ignora, no rompe el pedido
-      lineItems.push({ variantId: a.variantId, qty: a.qty });
-      accepted.push({ id: a.id, variantId: a.variantId, qty: a.qty });
-      totalCents += price * a.qty;
+      let price: number | null;
+      if (a.variantId) {
+        price = a.priceCents > 0 ? a.priceCents : await this.variantPrice(ctx, a.variantId);
+        if (price === null) continue; // variante borrada: se ignora, no rompe el pedido
+        out.lineItems.push({ variantId: a.variantId, qty: a.qty, priceCents: price });
+      } else {
+        if (!(a.priceCents > 0)) continue;
+        price = a.priceCents;
+        out.charges.push({ title: plainTitle(a.title), priceCents: price * a.qty });
+      }
+      out.accepted.push({ id: a.id, variantId: a.variantId, qty: a.qty, title: plainTitle(a.title), priceCents: price });
+      out.totalCents += price * a.qty;
 
       // Métrica de take-rate.
       await this.prisma.offer.update({
@@ -63,8 +76,7 @@ export class AddonsService {
         data: { accepts: { increment: 1 }, revenue: { increment: (price * a.qty) / 100 } },
       }).catch(() => undefined);
     }
-
-    return { lineItems, totalCents, accepted };
+    return out;
   }
 
   private async variantPrice(ctx: ShopContext, variantId: string): Promise<number | null> {
@@ -78,4 +90,9 @@ export class AddonsService {
       return null;
     }
   }
+}
+
+/** «Agrega una **ESTACIÓN** por {precio}» → «Agrega una ESTACIÓN» (para el pedido de Shopify). */
+function plainTitle(t: string): string {
+  return t.replace(/\*\*/g, '').replace(/\s*(por solo|por)?\s*\{precio\}/gi, '').trim() || 'Extra';
 }

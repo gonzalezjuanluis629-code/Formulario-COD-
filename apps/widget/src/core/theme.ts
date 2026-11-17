@@ -49,6 +49,12 @@ export function tokensToCss(t: ThemeTokens): string {
     --cod-btn-bg:${buttonBackground(t.submit)};
     --cod-btn-solid:${t.submit.bg};
     --cod-apply-bg:${t.applyBg};
+    --cod-offer-accent:${t.offerCard.accent};
+    --cod-badge-from:${t.offerCard.badgeFrom};
+    --cod-badge-to:${t.offerCard.badgeTo};
+    --cod-badge-color:${t.offerCard.badgeColor};
+    --cod-save-bg:${t.offerCard.saveBg};
+    --cod-save-color:${t.offerCard.saveColor};
     --cod-apply-color:${t.applyColor};
     --cod-btn-shadow:${buttonShadow(t.submit)};
     --anim-speed:${ANIMATION_SPEEDS[t.submit.animationSpeed ?? 'normal']};

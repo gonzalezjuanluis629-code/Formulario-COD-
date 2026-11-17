@@ -1,4 +1,4 @@
-import type { Field, ThemeTokens, WidgetConfig } from '@cod/contracts';
+import type { Addon, Field, Offer, ThemeTokens, WidgetConfig } from '@cod/contracts';
 import { tokensToCss } from './core/theme';
 import { renderForm } from './ui/form';
 import { CSS } from './ui/styles';
@@ -13,7 +13,16 @@ export interface PreviewOptions {
   showTrigger?: boolean;
   /** Se llama al hacer clic en un campo de la vista previa. */
   onSelect?: (key: string) => void;
+  /** Ofertas por cantidad y extras a mostrar (los del panel). */
+  offers?: Offer[];
+  addons?: Addon[];
+  /** Precio del producto de ejemplo, en centavos. */
+  unitPriceCents?: number;
+  /** Zona a la que llevar la vista (al editar ofertas o extras). */
+  focus?: 'offers' | 'addons' | null;
 }
+
+let lastFocus: string | null = null;
 
 /* Estado entre renders: la vista previa se actualiza por partes para no «pestañear». */
 let lastSelected: string | null = null;
@@ -59,13 +68,14 @@ export function renderPreview(host: HTMLElement, fields: Field[], tokens: ThemeT
 
   // 2) Los campos y textos se redibujan SOLO si cambiaron, y sin animación de entrada.
   const formKey = JSON.stringify([fields, tokens.progressBar, tokens.submit.text, tokens.submit.iconType,
-    tokens.submit.icon, tokens.submit.priceDisplay]);
+    tokens.submit.icon, tokens.submit.priceDisplay, tokens.offerCard.showCompare, tokens.offerCard.showSave,
+    opts.offers ?? [], opts.addons ?? [], opts.unitPriceCents ?? 0]);
   let root = shadow.querySelector<HTMLElement>('.cod-root');
   if (formKey !== lastFormKey || !root) {
     lastFormKey = formKey;
     const next = document.createElement('div');
     next.className = root ? 'cod-root cod-static' : 'cod-root';
-    buildForm(next, fields, tokens);
+    buildForm(next, fields, tokens, opts);
     if (root) shadow.replaceChild(next, root); else shadow.appendChild(next);
     root = next;
   }
@@ -79,11 +89,18 @@ export function renderPreview(host: HTMLElement, fields: Field[], tokens: ThemeT
     }
   }
 
+  // Lleva la vista a las ofertas o a los extras cuando se están editando.
+  if (opts.focus && opts.focus !== lastFocus) {
+    const target = root.querySelector(opts.focus === 'offers' ? '.cod-offers-slot' : '.cod-addons-slot');
+    window.setTimeout(() => target?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 250);
+  }
+  lastFocus = opts.focus ?? null;
+
   // 3) Selección: solo cambia el resaltado.
   markSelection(root, fields, opts.selectedKey ?? null);
 }
 
-function buildForm(root: HTMLElement, fields: Field[], tokens: ThemeTokens): void {
+function buildForm(root: HTMLElement, fields: Field[], tokens: ThemeTokens, opts: PreviewOptions): void {
   const config: WidgetConfig = {
     formId: 'preview',
     formVersionId: 'preview',
@@ -116,9 +133,9 @@ function buildForm(root: HTMLElement, fields: Field[], tokens: ThemeTokens): voi
         ga4MeasurementId: '', ga4ApiSecret: '', purchaseEventName: 'Purchase',
       },
     },
-    offers: [],
-    addons: [],
-    product: { variantId: 'preview', title: 'Producto de ejemplo', unitPriceCents: 189000, image: null },
+    offers: opts.offers ?? [],
+    addons: opts.addons ?? [],
+    product: { variantId: 'preview', title: 'Producto de ejemplo', unitPriceCents: opts.unitPriceCents || 189000, image: null },
   };
 
   const state = new FormState(config);
@@ -131,6 +148,10 @@ function buildForm(root: HTMLElement, fields: Field[], tokens: ThemeTokens): voi
     defaultShippingCents: config.settings.defaultShippingCents,
     freeShippingOverCents: config.settings.freeShippingOverCents,
     codFeeCents: 0,
+    addonsCents: state.acceptedAddons.reduce((sum, x) => {
+      const a = config.addons.find((y) => y.id === x.id);
+      return sum + (a ? a.priceCents * a.qty : 0);
+    }, 0),
     discount: r.discountCode
       ? { code: r.discountCode.toUpperCase(), source: 'APP', label: 'Ejemplo', kind: 'PERCENTAGE', valueBps: 1000 }
       : null,

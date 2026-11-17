@@ -4,7 +4,7 @@ import {
 } from '@shopify/polaris';
 import { useFetcher, useLoaderData, useNavigate, useSearchParams } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
-import { FieldSchema, ThemeTokensSchema, type Field, type ThemeTokens } from '@cod/contracts';
+import { AddonSchema, FieldSchema, OfferSchema, ThemeTokensSchema, type Field, type ThemeTokens } from '@cod/contracts';
 import { requireShop } from '../lib/shop.server';
 import { db } from '../db.server';
 import { FieldList } from '../features/builder/FieldList';
@@ -31,6 +31,14 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   });
   const current = form.versions.find((v) => v.id === form.currentVersionId) ?? form.versions[0]!;
   const theme = await themeFor(shop.id, form.themeId);
+  // Ofertas y extras activos, para que la vista previa muestre el formulario completo.
+  const offerRows = await db.offer.findMany({ where: { shopId: shop.id, active: true }, orderBy: { priority: 'desc' } });
+  const offers = offerRows.filter((r) => r.type === 'QUANTITY')
+    .map((r) => OfferSchema.safeParse({ id: r.id, label: r.name, type: 'QUANTITY', ...(r.payload as object) }))
+    .flatMap((r) => (r.success ? [r.data] : []));
+  const addons = offerRows.filter((r) => r.type !== 'QUANTITY')
+    .map((r) => AddonSchema.safeParse({ id: r.id, ...(r.payload as object) }))
+    .flatMap((r) => (r.success ? [r.data] : []));
 
   return {
     form: {
@@ -42,6 +50,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     fields: current.schema as Field[],
     themeId: theme.id,
     tokens: ThemeTokensSchema.parse(theme.tokens ?? {}),
+    offers, addons,
     versions: form.versions.map((v) => ({ id: v.id, version: v.version, publishedAt: v.publishedAt })),
     currentVersion: current.version,
   };
@@ -320,6 +329,8 @@ export default function FormEditor() {
               selectedKey={tab === 'fields' ? selected : null}
               onSelect={selectFromPreview}
               showTrigger={tab === 'design' && designOpen === 'trigger'}
+              offers={data.offers}
+              addons={data.addons}
             />
           </div>
         </div>

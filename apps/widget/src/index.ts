@@ -108,7 +108,7 @@ export class FormState {
   qty = 1;
   location: SubmitRequest['location'] = null;
   discountCode: string | null = null;
-  acceptedAddons: { id: string; variantId: string; qty: number }[] = [];
+  acceptedAddons: { id: string; variantId: string | null; qty: number }[] = [];
   readonly idempotencyKey: string;
 
   /** Última cotización del servidor (precio real, descuento validado). */

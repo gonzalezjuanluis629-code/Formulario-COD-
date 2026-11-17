@@ -200,6 +200,17 @@ export const ThemeTokensSchema = z.object({
   animations: z.boolean().default(true),
   progressBar: z.boolean().default(true),
   progressColor: z.string().default('#16a34a'),
+  /** Tarjetas de ofertas por cantidad. */
+  offerCard: z.object({
+    accent: z.string().default('#4f6b94'),
+    badgeFrom: z.string().default('#4f6b94'),
+    badgeTo: z.string().default('#8fb06e'),
+    badgeColor: z.string().default('#ffffff'),
+    saveBg: z.string().default('#e3ecd9'),
+    saveColor: z.string().default('#3f6b2a'),
+    showCompare: z.boolean().default(true),
+    showSave: z.boolean().default(true),
+  }).default({}),
   /** Botón «Aplicar» del código de descuento. */
   applyBg: z.string().default('#111111'),
   applyColor: z.string().default('#ffffff'),
@@ -264,6 +275,15 @@ export const OfferSchema = z.object({
   discountBps: z.number().int().min(0).max(10000).default(0),
   freeShipping: z.boolean().default(false),
   label: z.string(),
+  /** Tarjeta: «2 unidades» / «20 cebos · casa completa». */
+  title: z.string().default(''),
+  subtitle: z.string().default(''),
+  /** Cinta destacada, p. ej. «MÁS VENDIDO». Vacío = sin cinta. */
+  badge: z.string().default(''),
+  /** Precio fijo del paquete (en vez de %). Null = usa discountBps. */
+  bundlePriceCents: z.number().int().min(0).nullable().default(null),
+  /** Esta tarjeta viene marcada al abrir el formulario. */
+  preselected: z.boolean().default(false),
 });
 export type Offer = z.infer<typeof OfferSchema>;
 
@@ -276,7 +296,8 @@ export type Offer = z.infer<typeof OfferSchema>;
 export const AddonSchema = z.object({
   id: z.string(),
   kind: z.enum(['ORDER_BUMP', 'UPSELL', 'DOWNSELL']),
-  variantId: z.string(),          // gid://shopify/ProductVariant/…
+  /** gid://shopify/ProductVariant/… — null = cargo extra sin producto (p. ej. «Envío express»). */
+  variantId: z.string().nullable().default(null),
   title: z.string(),
   description: z.string().default(''),
   image: z.string().nullable().default(null),
@@ -288,13 +309,19 @@ export const AddonSchema = z.object({
   replacesId: z.string().nullable().default(null),
   /** Se muestra solo si el carrito supera este umbral (0 = siempre). */
   minCartCents: z.number().int().default(0),
+  /** Aspecto de la tarjeta. El título admite **negritas** y {precio}. */
+  style: z.object({
+    border: z.enum(['dashed', 'solid', 'none']).default('dashed'),
+    borderColor: z.string().default('#94b07f'),
+    bg: z.string().default('#f7faf3'),
+  }).default({}),
 });
 export type Addon = z.infer<typeof AddonSchema>;
 
 /** Lo que el cliente aceptó, para enviarlo con el pedido. */
 export const AcceptedAddonSchema = z.object({
   id: z.string(),
-  variantId: z.string(),
+  variantId: z.string().nullable(),
   qty: z.number().int().min(1),
 });
 export type AcceptedAddon = z.infer<typeof AcceptedAddonSchema>;

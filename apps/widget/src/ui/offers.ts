@@ -1,35 +1,59 @@
-import type { WidgetConfig } from '@cod/contracts';
+import type { Offer, WidgetConfig } from '@cod/contracts';
+import { money } from '@cod/pricing';
 import type { FormState } from '../index';
 
 /**
- * Selector de cantidad con las ofertas del panel ("Compra 2 y ahorra 10 %").
- * Sin totales: el cliente ve la cantidad y el beneficio, nunca el resumen.
- * El descuento real lo calcula SIEMPRE el servidor al enviar.
+ * Tarjetas de cantidad: «1 unidad · RD$1,799» / «2 unidades · RD$2,950 (tachado
+ * RD$3,598) · Ahorras 18 % · MÁS VENDIDO». El precio que se ve es una estimación
+ * con el precio del producto; el que se cobra lo recalcula SIEMPRE el servidor.
  */
 export function renderOffers(host: HTMLElement, config: WidgetConfig, state: FormState, onChange: () => void): void {
-  const offers = [...config.offers].filter((o) => o.minQty > 1).sort((a, b) => a.minQty - b.minQty);
-  if (!offers.length) return;
+  const list = [...config.offers].sort((a, b) => a.minQty - b.minQty);
+  if (!list.some((o) => o.minQty > 1)) return;
 
-  const options = [
-    { qty: 1, title: '1 unidad', badge: '', label: '' },
-    ...offers.map((o) => ({
-      qty: o.minQty,
-      title: `${o.minQty} unidades`,
-      badge: o.discountBps > 0 ? `−${trimPct(o.discountBps / 100)} %` : o.freeShipping ? 'Envío gratis' : '',
-      label: o.label,
-    })),
-  ];
+  const unit = config.product.unitPriceCents;
+  const cur = config.settings.currency;
+  const style = config.tokens.offerCard;
+
+  // La de 1 unidad: si el comerciante la configuró, se usa; si no, una básica.
+  const base: Offer = list.find((o) => o.minQty === 1) ?? {
+    id: 'base', type: 'QUANTITY', minQty: 1, discountBps: 0, freeShipping: false, label: '1 unidad',
+    title: '', subtitle: '', badge: '', bundlePriceCents: null, preselected: false,
+  };
+  const cards = [base, ...list.filter((o) => o.minQty > 1)];
+
+  const pre = cards.find((o) => o.preselected);
+  if (pre && state.qty === 1) state.qty = pre.minQty;
 
   const wrap = document.createElement('div');
   wrap.className = 'cod-offers';
   wrap.setAttribute('role', 'radiogroup');
   wrap.setAttribute('aria-label', 'Cantidad');
-  wrap.innerHTML = options.map((o) => `
-    <button type="button" class="cod-offer" role="radio" aria-checked="${o.qty === state.qty}" data-qty="${o.qty}">
+
+  wrap.innerHTML = cards.map((o) => {
+    const full = unit * o.minQty;
+    const price = o.bundlePriceCents != null
+      ? o.bundlePriceCents
+      : Math.round(full * (1 - o.discountBps / 10000));
+    const save = full > 0 && price < full ? Math.round((1 - price / full) * 100) : 0;
+    const title = o.title || (o.minQty === 1 ? '1 unidad' : `${o.minQty} unidades`);
+    return `
+    <button type="button" class="cod-offer${o.badge ? ' cod-offer-has-badge' : ''}" role="radio"
+      aria-checked="${o.minQty === state.qty}" data-qty="${o.minQty}">
+      ${o.badge ? `<span class="cod-offer-ribbon">${esc(o.badge)}</span>` : ''}
       <span class="cod-offer-dot"></span>
-      <span class="cod-offer-text"><b>${esc(o.title)}</b>${o.label && o.label !== o.title ? `<small>${esc(o.label)}</small>` : ''}</span>
-      ${o.badge ? `<span class="cod-offer-badge">${esc(o.badge)}</span>` : ''}
-    </button>`).join('');
+      <span class="cod-offer-text">
+        <b>${esc(title)}</b>
+        ${o.subtitle ? `<small>${esc(o.subtitle)}</small>` : ''}
+        ${style.showSave && save > 0 ? `<span class="cod-offer-save">Ahorras ${save}%</span>` : ''}
+        ${o.freeShipping ? '<span class="cod-offer-save">Envío gratis</span>' : ''}
+      </span>
+      ${unit > 0 ? `<span class="cod-offer-price">
+        <b>${money(price, cur)}</b>
+        ${style.showCompare && save > 0 ? `<s>${money(full, cur)}</s>` : ''}
+      </span>` : ''}
+    </button>`;
+  }).join('');
 
   wrap.querySelectorAll<HTMLButtonElement>('.cod-offer').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -42,6 +66,5 @@ export function renderOffers(host: HTMLElement, config: WidgetConfig, state: For
   host.appendChild(wrap);
 }
 
-const trimPct = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));

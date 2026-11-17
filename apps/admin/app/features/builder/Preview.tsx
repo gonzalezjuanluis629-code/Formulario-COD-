@@ -1,26 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ButtonGroup, Button, InlineStack, Text } from '@shopify/polaris';
 import { DesktopIcon, MobileIcon } from '@shopify/polaris-icons';
-import type { Field, ThemeTokens } from '@cod/contracts';
+import type { Addon, Field, Offer, ThemeTokens } from '@cod/contracts';
 
 /**
  * Vista previa REAL: el mismo widget de la tienda dentro de un iframe.
  * Recibe campos y diseño en cada cambio, resalta el campo seleccionado y avisa
  * al editor cuando se hace clic en un campo (para editarlo).
  */
+const EMPTY_O: Offer[] = [];
+const EMPTY_A: Addon[] = [];
+
 export function Preview({
-  fields, tokens, selectedKey = null, onSelect, showTrigger = false,
+  fields, tokens, selectedKey = null, onSelect, showTrigger = false, offers = EMPTY_O, addons = EMPTY_A, unitPriceCents = 0,
+  hint = 'Haz clic en un campo de la vista previa para editarlo.', focus = null,
 }: {
   fields: Field[];
   tokens: ThemeTokens;
   selectedKey?: string | null;
   onSelect?: (key: string) => void;
   showTrigger?: boolean;
+  offers?: Offer[];
+  addons?: Addon[];
+  unitPriceCents?: number;
+  hint?: string;
+  focus?: 'offers' | 'addons' | null;
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [device, setDevice] = useState<'mobile' | 'desktop'>('mobile');
-  const latest = useRef({ fields, tokens, selectedKey, showTrigger });
-  latest.current = { fields, tokens, selectedKey, showTrigger };
+  const latest = useRef({ fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus });
+  latest.current = { fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus };
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
@@ -40,7 +49,7 @@ export function Preview({
     return () => window.removeEventListener('message', onMessage);
   }, [post]);
 
-  useEffect(() => { post(); }, [fields, tokens, selectedKey, showTrigger, post]);
+  useEffect(() => { post(); }, [fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus, post]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -73,7 +82,7 @@ export function Preview({
       </div>
       <div style={{ padding: '8px 14px', borderTop: '1px solid #e3e3e3', background: '#fff' }}>
         <Text as="p" variant="bodySm" tone="subdued">
-          Haz clic en un campo de la vista previa para editarlo.
+          {hint}
         </Text>
       </div>
     </div>
