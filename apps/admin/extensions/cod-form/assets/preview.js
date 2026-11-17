@@ -1,28 +1,58 @@
-import { C as CSS, t as tokensToCss, F as FormState, r as renderForm } from "./index-CbiRYi_h.js";
-import { renderTrigger } from "./trigger-B2THza9S.js";
+import { C as CSS, t as tokensToCss, F as FormState, r as renderForm } from "./index-KHX-EjvW.js";
+import { renderTrigger } from "./trigger-Bb6O3sy_.js";
 let lastSelected = null;
+let lastFormKey = "";
+let lastTriggerKey = "";
+let currentOnSelect;
 const PREVIEW_CSS = `
 .cod-field{position:relative;cursor:pointer;border-radius:8px;transition:box-shadow .15s}
 .cod-field:hover{box-shadow:0 0 0 2px rgba(0,91,211,.25)}
 .cod-field.cod-selected{box-shadow:0 0 0 2px #005bd3}
 .cod-field.cod-selected.cod-hidden{display:block;opacity:.6}
+.cod-static .cod-field{animation:none}
 .cod-field.cod-selected::before{content:attr(data-label);position:absolute;top:-9px;right:6px;z-index:2;
   background:#005bd3;color:#fff;font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px}`;
 function renderPreview(host, fields, tokens, opts = {}) {
-  var _a;
-  host.textContent = "";
+  var _a, _b;
+  currentOnSelect = opts.onSelect;
   renderTriggerPreview(host, tokens, !!opts.showTrigger);
+  const firstTime = !host.shadowRoot;
   const shadow = (_a = host.shadowRoot) != null ? _a : host.attachShadow({ mode: "open" });
-  shadow.innerHTML = "";
-  const style = document.createElement("style");
-  style.textContent = `:host{${tokensToCss(tokens)}}
+  if (firstTime) {
+    host.textContent = "";
+    shadow.appendChild(document.createElement("style"));
+    shadow.addEventListener("pointerdown", (e) => {
+      const el = e.target.closest(".cod-field[data-key]");
+      if (el) currentOnSelect == null ? void 0 : currentOnSelect(el.dataset.key);
+    });
+  }
+  const style = shadow.querySelector("style");
+  const css = `:host{${tokensToCss(tokens)}}
 ${CSS}
 ${tokens.customCss}
 ${PREVIEW_CSS}`;
-  shadow.appendChild(style);
-  const root = document.createElement("div");
-  root.className = "cod-root";
-  shadow.appendChild(root);
+  if (style.textContent !== css) style.textContent = css;
+  const formKey = JSON.stringify([
+    fields,
+    tokens.progressBar,
+    tokens.submit.text,
+    tokens.submit.iconType,
+    tokens.submit.icon,
+    tokens.submit.animation
+  ]);
+  let root = shadow.querySelector(".cod-root");
+  if (formKey !== lastFormKey || !root) {
+    lastFormKey = formKey;
+    const next = document.createElement("div");
+    next.className = root ? "cod-root cod-static" : "cod-root";
+    buildForm(next, fields, tokens);
+    if (root) shadow.replaceChild(next, root);
+    else shadow.appendChild(next);
+    root = next;
+  }
+  markSelection(root, fields, (_b = opts.selectedKey) != null ? _b : null);
+}
+function buildForm(root, fields, tokens) {
   const config = {
     formId: "preview",
     formVersionId: "preview",
@@ -97,33 +127,31 @@ ${PREVIEW_CSS}`;
         </div>`;
     }
   });
-  wireSelection(root, fields, opts);
 }
-function wireSelection(root, fields, opts) {
-  var _a, _b;
+function markSelection(root, fields, selectedKey) {
+  var _a;
   const names = new Map(fields.map((f) => [f.key, f.label || f.content || f.key]));
   root.querySelectorAll(".cod-field[data-key]").forEach((el) => {
     var _a2;
-    const key = el.dataset.key;
-    el.dataset.label = ((_a2 = names.get(key)) != null ? _a2 : "").slice(0, 40);
-    if (key === opts.selectedKey) el.classList.add("cod-selected");
-    el.addEventListener("pointerdown", () => {
-      var _a3;
-      return (_a3 = opts.onSelect) == null ? void 0 : _a3.call(opts, key);
-    });
+    el.dataset.label = ((_a2 = names.get(el.dataset.key)) != null ? _a2 : "").slice(0, 40);
+    el.classList.toggle("cod-selected", el.dataset.key === selectedKey);
   });
-  if (opts.selectedKey && opts.selectedKey !== lastSelected) {
+  if (selectedKey && selectedKey !== lastSelected) {
     (_a = root.querySelector(".cod-selected")) == null ? void 0 : _a.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
-  lastSelected = (_b = opts.selectedKey) != null ? _b : null;
+  lastSelected = selectedKey;
 }
 function renderTriggerPreview(host, tokens, show) {
   var _a;
   let box = document.getElementById("cod-trigger-preview");
   if (!show) {
     box == null ? void 0 : box.remove();
+    lastTriggerKey = "";
     return;
   }
+  const key = JSON.stringify(tokens.trigger);
+  if (box && key === lastTriggerKey) return;
+  lastTriggerKey = key;
   if (!box) {
     box = document.createElement("div");
     box.id = "cod-trigger-preview";

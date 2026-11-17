@@ -71,6 +71,10 @@ export const TriggerButtonSchema = z.object({
   descriptionFontSize: z.number().min(9).max(18).default(12),
   bg: z.string().default('#111111'),
   color: z.string().default('#ffffff'),
+  /** Fondo: color sólido o degradado entre `bg` y `bg2`. */
+  bgType: z.enum(['solid', 'gradient']).default('solid'),
+  bg2: z.string().default('#4f46e5'),
+  gradientAngle: z.number().int().min(0).max(360).default(135),
   radius: z.number().int().min(0).max(60).default(60),
   /** Icono: un emoji/carácter, o una URL de imagen si iconType === 'image'. */
   iconType: z.enum(['none', 'emoji', 'image']).default('emoji'),
@@ -82,7 +86,7 @@ export const TriggerButtonSchema = z.object({
     'Pago contra entrega',
   ]),
   descriptionIntervalMs: z.number().int().min(1000).max(10000).default(3000),
-  animation: z.enum(['none', 'pulse', 'shine', 'bounce']).default('pulse'),
+  animation: z.enum(['none', 'pulse', 'shine', 'bounce', 'shake']).default('pulse'),
 });
 export type TriggerButton = z.infer<typeof TriggerButtonSchema>;
 
@@ -94,11 +98,15 @@ export const SubmitButtonSchema = z.object({
   radius: z.number().int().min(0).max(40).default(12),
   bg: z.string().default('#111111'),
   color: z.string().default('#ffffff'),
+  /** Fondo: color sólido o degradado entre `bg` y `bg2`. */
+  bgType: z.enum(['solid', 'gradient']).default('solid'),
+  bg2: z.string().default('#4f46e5'),
+  gradientAngle: z.number().int().min(0).max(360).default(135),
   /** Color al que cambia cuando el formulario está completo. */
   readyBg: z.string().default('#16a34a'),
   iconType: z.enum(['none', 'emoji']).default('none'),
   icon: z.string().default('→'),
-  animation: z.enum(['none', 'pulse', 'shine']).default('none'),
+  animation: z.enum(['none', 'pulse', 'shine', 'bounce', 'shake']).default('none'),
 });
 export type SubmitButton = z.infer<typeof SubmitButtonSchema>;
 

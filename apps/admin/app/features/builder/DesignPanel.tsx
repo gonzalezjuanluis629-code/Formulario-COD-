@@ -79,7 +79,7 @@ export function DesignPanel({
       {section('submit', 'Botón «Finalizar pedido»', ButtonIcon, (
         <>
           <TextField label="Texto del botón" value={t.submit.text} onChange={(v) => setSubmit({ text: v })} autoComplete="off" />
-          <Color label="Color del botón" value={t.submit.bg} onChange={(v) => setSubmit({ bg: v })} />
+          <ButtonFill b={t.submit} onChange={setSubmit} />
           <Color label="Color del texto" value={t.submit.color} onChange={(v) => setSubmit({ color: v })} />
           <Color label="Color cuando está todo completo" value={t.submit.readyBg} onChange={(v) => setSubmit({ readyBg: v })} />
           <RangeSlider label="Alto" output suffix={<Px v={t.submit.height} />} min={38} max={72}
@@ -89,7 +89,7 @@ export function DesignPanel({
           <RangeSlider label="Esquinas" output suffix={<Px v={t.submit.radius} />} min={0} max={40}
             value={t.submit.radius} onChange={(v) => setSubmit({ radius: v as number })} />
           <Choice label="Animación" value={t.submit.animation} onChange={(v) => setSubmit({ animation: v as SubmitButton['animation'] })}
-            options={[['none', 'Ninguna'], ['pulse', 'Latido'], ['shine', 'Brillo']]} />
+            options={ANIMS} />
         </>
       ))}
 
@@ -99,7 +99,7 @@ export function DesignPanel({
             Solo se usa si el formulario se abre en una ventana al pulsar un botón. Lo ves arriba en la vista previa.
           </Text>
           <TextField label="Texto del botón" value={t.trigger.text} onChange={(v) => setTrigger({ text: v })} autoComplete="off" />
-          <Color label="Color del botón" value={t.trigger.bg} onChange={(v) => setTrigger({ bg: v })} />
+          <ButtonFill b={t.trigger} onChange={setTrigger} />
           <Color label="Color del texto" value={t.trigger.color} onChange={(v) => setTrigger({ color: v })} />
           <Choice label="Ancho" value={t.trigger.width === '100%' ? '100%' : 'auto'}
             onChange={(v) => setTrigger({ width: v })} options={[['auto', 'Ajustado'], ['100%', 'Completo']]} />
@@ -122,7 +122,7 @@ export function DesignPanel({
               helpText="Súbela en Contenido → Archivos de Shopify y pega su enlace." />
           )}
           <Choice label="Animación" value={t.trigger.animation} onChange={(v) => setTrigger({ animation: v as TriggerButton['animation'] })}
-            options={[['none', 'Ninguna'], ['pulse', 'Latido'], ['shine', 'Brillo'], ['bounce', 'Rebote']]} />
+            options={ANIMS} />
           <Divider />
           <Text as="h3" variant="headingSm">Frases que rotan bajo el texto</Text>
           {t.trigger.descriptions.map((d, i) => (
@@ -150,6 +150,30 @@ export function DesignPanel({
             multiline={4} autoComplete="off" helpText="Solo si sabes CSS. No afecta al resto de tu tienda." />
         </>
       ))}
+    </BlockStack>
+  );
+}
+
+const ANIMS = [['none', 'Ninguna'], ['pulse', 'Latido'], ['bounce', 'Rebote'], ['shake', 'Vibrar'], ['shine', 'Brillo']] as const;
+
+type Fill = { bg: string; bgType: 'solid' | 'gradient'; bg2: string; gradientAngle: number };
+
+/** Fondo del botón: un color o un degradado de dos colores. */
+function ButtonFill({ b, onChange }: { b: Fill; onChange: (p: Partial<Fill>) => void }) {
+  const preview = b.bgType === 'gradient' ? `linear-gradient(${b.gradientAngle}deg, ${b.bg}, ${b.bg2})` : b.bg;
+  return (
+    <BlockStack gap="200">
+      <Choice label="Fondo del botón" value={b.bgType} onChange={(v) => onChange({ bgType: v as Fill['bgType'] })}
+        options={[['solid', 'Un color'], ['gradient', 'Degradado']]} />
+      <Color label={b.bgType === 'gradient' ? 'Color inicial' : 'Color del botón'} value={b.bg} onChange={(v) => onChange({ bg: v })} />
+      {b.bgType === 'gradient' && (
+        <>
+          <Color label="Color final" value={b.bg2} onChange={(v) => onChange({ bg2: v })} />
+          <RangeSlider label="Dirección del degradado" output suffix={<Text as="span" variant="bodySm" tone="subdued">{b.gradientAngle}°</Text>}
+            min={0} max={360} step={15} value={b.gradientAngle} onChange={(v) => onChange({ gradientAngle: v as number })} />
+          <div style={{ height: 14, borderRadius: 7, background: preview, border: '1px solid #e3e3e3' }} />
+        </>
+      )}
     </BlockStack>
   );
 }

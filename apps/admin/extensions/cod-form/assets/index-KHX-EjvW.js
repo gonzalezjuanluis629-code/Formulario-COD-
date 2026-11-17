@@ -39,6 +39,10 @@ const api = {
     void fetch(`${BASE}/track`, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true });
   }
 };
+function buttonBackground(b) {
+  var _a, _b;
+  return b.bgType === "gradient" ? `linear-gradient(${(_a = b.gradientAngle) != null ? _a : 135}deg, ${b.bg}, ${(_b = b.bg2) != null ? _b : b.bg})` : b.bg;
+}
 function tokensToCss(t) {
   const shadow = { none: "none", sm: "0 1px 3px rgba(0,0,0,.08)", md: "0 4px 20px rgba(0,0,0,.12)", lg: "0 10px 40px rgba(0,0,0,.18)" }[t.shadow];
   const gap = { compact: "11px", normal: "15px", relaxed: "20px" }[t.spacing];
@@ -57,7 +61,8 @@ function tokensToCss(t) {
     --cod-btn-radius:${t.submit.radius}px;
     --cod-btn-height:${t.submit.height}px;
     --cod-btn-size:${t.submit.fontSize}px;
-    --cod-btn-bg:${t.submit.bg};
+    --cod-btn-bg:${buttonBackground(t.submit)};
+    --cod-btn-solid:${t.submit.bg};
     --cod-btn-color:${t.submit.color};
     --cod-btn-ready:${t.submit.readyBg || t.readyColor};
     --cod-shadow:${shadow};
@@ -629,13 +634,19 @@ const CSS = `
 .cod-submit.cod-ready{background:var(--cod-btn-ready)}
 .cod-submit:disabled{opacity:.75;cursor:default}
 .cod-submit-icon{font-size:1.1em;line-height:1}
-.cod-submit-anim-pulse.cod-ready{animation:cod-sub-pulse 1.8s ease-in-out infinite}
-@keyframes cod-sub-pulse{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}50%{box-shadow:0 0 0 5px rgba(22,163,74,.18)}}
-.cod-submit-anim-shine{position:relative;overflow:hidden}
-.cod-submit-anim-shine::after{content:"";position:absolute;inset:0;
-  background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.3) 50%,transparent 70%);
-  transform:translateX(-100%);animation:cod-sub-shine 3s ease-in-out infinite}
-@keyframes cod-sub-shine{0%,60%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.cod-submit{position:relative;overflow:hidden}
+.cod-submit-anim-pulse{animation:cod-sub-pulse 1.6s ease-in-out infinite}
+@keyframes cod-sub-pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(0,0,0,.25)}
+  50%{transform:scale(1.03);box-shadow:0 0 0 9px rgba(0,0,0,0)}}
+.cod-submit-anim-bounce{animation:cod-sub-bounce 1.4s cubic-bezier(.28,.84,.42,1) infinite}
+@keyframes cod-sub-bounce{0%,55%,100%{transform:translateY(0)}25%{transform:translateY(-6px)}40%{transform:translateY(0)}47%{transform:translateY(-2px)}}
+.cod-submit-anim-shake{animation:cod-sub-shake 2.6s ease-in-out infinite}
+@keyframes cod-sub-shake{0%,70%,100%{transform:rotate(0)}74%{transform:rotate(-2deg)}78%{transform:rotate(2deg)}
+  82%{transform:rotate(-1.5deg)}86%{transform:rotate(1.5deg)}90%{transform:rotate(-.5deg)}94%{transform:rotate(.5deg)}}
+.cod-submit-anim-shine::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.5) 50%,transparent 75%);
+  transform:translateX(-100%);animation:cod-sub-shine 2.4s ease-in-out infinite}
+@keyframes cod-sub-shine{0%,50%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
 .cod-spinner{display:none;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);
   border-top-color:#fff;border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-loading .cod-spinner{display:block}
@@ -749,7 +760,7 @@ ${config.tokens.customCss}`;
     });
   };
   if (host.dataset.mode === "popup") {
-    const { renderTrigger } = await import("./trigger-B2THza9S.js");
+    const { renderTrigger } = await import("./trigger-Bb6O3sy_.js");
     root.innerHTML = "";
     renderTrigger(root, config.tokens.trigger, () => openModal(config, renderInto));
     return;
@@ -933,6 +944,7 @@ window.CodForm = { mount };
 export {
   CSS as C,
   FormState as F,
+  buttonBackground as b,
   mount as m,
   renderForm as r,
   tokensToCss as t
