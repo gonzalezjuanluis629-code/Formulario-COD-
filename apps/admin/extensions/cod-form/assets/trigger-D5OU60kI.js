@@ -1,4 +1,4 @@
-import { A as ANIMATION_SPEEDS, b as buttonBackground, a as buttonShadow, c as buttonAnimationCss } from "./index-CpXog7J9.js";
+import { A as ANIMATION_SPEEDS, b as buttonBackground, a as buttonShadow, c as buttonAnimationCss } from "./index-DpZegNRe.js";
 function renderTrigger(host, cfg, onClick) {
   var _a;
   injectStylesOnce(host.getRootNode());

@@ -60,6 +60,7 @@ export async function mount(opts: MountOptions): Promise<void> {
     // el formulario empieza con esa cantidad y la sigue mientras esté abierto.
     const fromPage = pageQuantityInfo(config.product.variantId);
     if (fromPage && (fromPage.qty > 1 || fromPage.managed)) { state.qty = fromPage.qty; state.qtyFromPage = true; }
+    if (fromPage?.managed) state.pageManagesQty = true;
     renderForm(mountRoot, config, state, {
       onSubmit: () => submit(mountRoot, config, state),
     });
@@ -188,6 +189,8 @@ export class FormState {
   qty = 1;
   /** La cantidad la eligió el cliente en la página (oferta o selector del tema). */
   qtyFromPage = false;
+  /** La página tiene su propia caja de ofertas: el formulario no las repite. */
+  pageManagesQty = false;
   private qtyListeners: ((q: number) => void)[] = [];
   location: SubmitRequest['location'] = null;
   discountCode: string | null = null;
