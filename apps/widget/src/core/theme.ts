@@ -1,4 +1,12 @@
 import type { ThemeTokens } from '@cod/contracts';
+import { ANIMATION_SPEEDS } from '../ui/animations';
+
+/** Fondo CSS de un botón: color sólido o degradado. */
+export function buttonBackground(b: { bg: string; bgType?: 'solid' | 'gradient'; bg2?: string; gradientAngle?: number }): string {
+  return b.bgType === 'gradient'
+    ? `linear-gradient(${b.gradientAngle ?? 135}deg, ${b.bg}, ${b.bg2 ?? b.bg})`
+    : b.bg;
+}
 
 /**
  * Los design tokens del panel → CSS custom properties.
@@ -23,7 +31,9 @@ export function tokensToCss(t: ThemeTokens): string {
     --cod-btn-radius:${t.submit.radius}px;
     --cod-btn-height:${t.submit.height}px;
     --cod-btn-size:${t.submit.fontSize}px;
-    --cod-btn-bg:${t.submit.bg};
+    --cod-btn-bg:${buttonBackground(t.submit)};
+    --cod-btn-solid:${t.submit.bg};
+    --anim-speed:${ANIMATION_SPEEDS[t.submit.animationSpeed ?? 'normal']};
     --cod-btn-color:${t.submit.color};
     --cod-btn-ready:${t.submit.readyBg || t.readyColor};
     --cod-shadow:${shadow};

@@ -45,6 +45,9 @@ export class DiscountsService {
 
       const d = data.codeDiscountNodeByCode?.codeDiscount;
       if (!d || d.status !== 'ACTIVE') return null;
+      if (d.__typename === 'DiscountCodeFreeShipping') {
+        return { code, source: 'SHOPIFY', label: d.title ?? code, kind: 'FREE_SHIPPING' };
+      }
 
       const v = d.customerGets?.value as
         | { percentage?: number; amount?: { amount: string } }

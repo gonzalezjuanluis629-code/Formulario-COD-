@@ -246,6 +246,14 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
     },
   });
 
+  // Código de descuento propio del panel: cuenta un uso (para respetar el límite de usos).
+  if (totals.appliedDiscount?.source === 'APP' && totals.appliedDiscount.code) {
+    await prisma.discount.updateMany({
+      where: { shopId: shop.id, code: totals.appliedDiscount.code },
+      data: { usageCount: { increment: 1 } },
+    }).catch(() => undefined);
+  }
+
   // Evento de conversión server-side (Meta CAPI / TikTok / GA4). Va por el outbox
   // para que un fallo de la API de Meta no afecte a la creación del pedido, y se
   // reintente solo. El eventId = submissionId, compartido con el píxel del navegador.
@@ -304,7 +312,7 @@ interface Totals {
   codFeeCents?: number;
   totalCents: number;
   appliedOffer?: string | null;
-  appliedDiscount?: { code: string } | null;
+  appliedDiscount?: { code: string; source?: 'SHOPIFY' | 'APP' } | null;
 }
 
 const MUTATION = /* GraphQL */ `

@@ -5,6 +5,8 @@
  *
  * Vive dentro del Shadow DOM: no puede ensuciar el tema, ni el tema a él.
  */
+import { buttonAnimationCss } from "./animations";
+
 export const CSS = `
 *,*::before,*::after{box-sizing:border-box}
 .cod-root{font-family:var(--cod-font);font-size:var(--cod-size);color:var(--cod-text);
@@ -70,6 +72,14 @@ export const CSS = `
 .cod-subheading{margin:0;font-size:1em;font-weight:600;color:var(--cod-muted)}
 .cod-divider{border:0;border-top:1px solid var(--cod-border);margin:4px 0}
 .cod-img{display:block;max-width:100%;height:auto;border-radius:var(--cod-radius)}
+.cod-submit-price{font-weight:600;opacity:.92;white-space:nowrap;margin-left:-3px}
+.cod-discount{display:flex;gap:8px}
+.cod-discount input{flex:1;min-width:0;text-transform:uppercase}
+.cod-discount input:disabled{opacity:.7}
+.cod-discount-btn{flex-shrink:0;padding:0 16px;border:0;border-radius:var(--cod-radius);background:var(--cod-text);
+  color:var(--cod-surface);font:inherit;font-weight:600;font-size:13px;cursor:pointer}
+.cod-discount-btn:disabled{opacity:.6;cursor:default}
+.cod-discount-ok{display:block;margin-top:5px;font-size:12px;font-weight:600;color:var(--cod-ok)}
 .cod-choices{display:grid;gap:7px}
 .cod-field .cod-choice{display:flex;align-items:center;gap:9px;margin:0;padding:10px 12px;cursor:pointer;
   font-size:13px;font-weight:500;border:1.5px solid var(--cod-border);border-radius:var(--cod-radius);background:var(--cod-field)}
@@ -147,13 +157,7 @@ export const CSS = `
 .cod-submit.cod-ready{background:var(--cod-btn-ready)}
 .cod-submit:disabled{opacity:.75;cursor:default}
 .cod-submit-icon{font-size:1.1em;line-height:1}
-.cod-submit-anim-pulse.cod-ready{animation:cod-sub-pulse 1.8s ease-in-out infinite}
-@keyframes cod-sub-pulse{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}50%{box-shadow:0 0 0 5px rgba(22,163,74,.18)}}
-.cod-submit-anim-shine{position:relative;overflow:hidden}
-.cod-submit-anim-shine::after{content:"";position:absolute;inset:0;
-  background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.3) 50%,transparent 70%);
-  transform:translateX(-100%);animation:cod-sub-shine 3s ease-in-out infinite}
-@keyframes cod-sub-shine{0%,60%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+${buttonAnimationCss('cod-submit', 'var(--cod-btn-solid)')}
 .cod-spinner{display:none;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);
   border-top-color:#fff;border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-loading .cod-spinner{display:block}
