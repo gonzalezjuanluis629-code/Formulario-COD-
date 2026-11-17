@@ -95,7 +95,7 @@ function inlineHosts(): HTMLElement[] {
 }
 
 function findInline(kind: 'form' | 'button'): HTMLElement | null {
-  return inlineHosts().find((el) => el.isConnected && el.dataset.codRendered === kind) ?? null;
+  return inlineHosts().find((el) => el.isConnected && el.dataset.codRendered === kind && el.getClientRects().length > 0) ?? null;
 }
 
 /**
@@ -107,6 +107,7 @@ function hideWhileInlineVisible(floatingHost: HTMLElement): void {
   if (!('IntersectionObserver' in window)) return;
   const visible = new Set<Element>();
   const apply = () => {
+    for (const el of visible) if (!el.isConnected) visible.delete(el);
     const hide = visible.size > 0;
     floatingHost.style.opacity = hide ? '0' : '1';
     floatingHost.style.transform = hide ? 'translateY(120%)' : 'none';
@@ -121,7 +122,7 @@ function hideWhileInlineVisible(floatingHost: HTMLElement): void {
     apply();
   }, { threshold: 0.15 });
   const watched = new WeakSet<Element>();
-  const scan = () => inlineHosts().forEach((el) => { if (!watched.has(el)) { watched.add(el); io.observe(el); } });
+  const scan = () => { inlineHosts().forEach((el) => { if (!watched.has(el)) { watched.add(el); io.observe(el); } }); apply(); };
   scan();
   // Por si el tema añade el bloque después (carga diferida, editor del tema).
   new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
@@ -371,7 +372,52 @@ declare global {
   interface Window { CodForm?: { mount: typeof mount } }
 }
 
+/**
+ * Botón fijo automático: lo pone justo debajo del «Agregar al carrito» del
+ * tema (como las apps COD conocidas), sin que el comerciante tenga que añadir
+ * un bloque. Si ya puso un bloque a mano, no se duplica.
+ */
+function autoPlace(): void {
+  // Si el comerciante puso su propio bloque, manda ese: fuera el automático.
+  if (inlineHosts().some((el) => !el.dataset.codAuto)) document.querySelectorAll('[data-cod-auto]').forEach((el) => el.remove());
+  document.querySelectorAll<HTMLElement>('[data-cod-autoplace]').forEach((marker) => {
+    if (inlineHosts().some((el) => !el.dataset.codAuto)) { marker.remove(); return; }
+    const anchor = findBuyAnchor((marker.dataset.variantId ?? '').replace(/\D/g, ''));
+    if (!anchor) return; // se reintenta cuando el tema termine de cargar
+    const el = document.createElement('div');
+    el.setAttribute('data-cod-form', '');
+    el.dataset.mode = 'popup';
+    el.dataset.codAuto = '1';
+    el.dataset.productId = marker.dataset.productId ?? '';
+    el.dataset.variantId = marker.dataset.variantId ?? '';
+    el.style.margin = '10px 0';
+    anchor.insertAdjacentElement('afterend', el);
+    marker.remove();
+  });
+}
+
+/** Tarjetas de «productos relacionados», carruseles, etc.: nunca son el sitio. */
+const CARD = 'product-card, .card, .card-wrapper, [class*="product-card"], [class*="related"], [class*="recommend"], [id*="related"], [id*="recommend"]';
+
+function findBuyAnchor(variant: string): HTMLElement | null {
+  const shown = (e: Element) => e.getClientRects().length > 0;
+  const forms = [...document.querySelectorAll<HTMLFormElement>('form[action*="/cart/add"]')].filter((f) =>
+    !f.closest('[data-cod-form]') && shown(f)
+    && f.querySelector('button[type="submit"], button[name="add"], input[type="submit"]'));
+  const idOf = (f: HTMLFormElement) => (f.querySelector<HTMLInputElement | HTMLSelectElement>('[name="id"]')?.value ?? '');
+  const form = forms.find((f) => idOf(f) === variant)
+    ?? forms.find((f) => !f.closest(CARD) && f.closest('[id*="main"], [id*="product-information"], [id*="product-template"]'))
+    ?? null;
+  if (form) return form.closest<HTMLElement>('product-form, product-form-component') ?? form;
+  // Sin botón de compra (p. ej. producto agotado en algunos temas): debajo del precio.
+  const price = [...document.querySelectorAll<HTMLElement>(
+    'main product-price, main .product__price, main [id^="price-"], main .price, #MainContent .price',
+  )].find((e) => shown(e) && !e.closest(`[data-cod-form], ${CARD}`));
+  return price ?? null;
+}
+
 function boot() {
+  autoPlace();
   document.querySelectorAll<HTMLElement>('[data-cod-form]:not([data-cod-mounted])').forEach((el) => {
     el.dataset.codMounted = '1';
     // Sin producto (portada, colecciones…) no hay nada que mostrar.
@@ -389,6 +435,7 @@ if (document.readyState === 'loading') {
 } else {
   boot();
 }
+window.addEventListener('load', () => { autoPlace(); boot(); });
 
 // Editor del tema (y temas que cargan secciones después): al añadir o recargar
 // una sección, su bloque aparece al momento, sin recargar la página.

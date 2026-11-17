@@ -508,7 +508,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-2K9Wx-Cj.js").then(({ renderAddons }) => {
+    void import("./addons-CDoaoszg.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1055,7 +1055,7 @@ ${config.tokens.customCss}`;
   };
   const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-VQGf-y6j.js");
+    const { renderTrigger } = await import("./trigger-BpY6_IGN.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1088,12 +1088,13 @@ function inlineHosts() {
 }
 function findInline(kind) {
   var _a;
-  return (_a = inlineHosts().find((el) => el.isConnected && el.dataset.codRendered === kind)) != null ? _a : null;
+  return (_a = inlineHosts().find((el) => el.isConnected && el.dataset.codRendered === kind && el.getClientRects().length > 0)) != null ? _a : null;
 }
 function hideWhileInlineVisible(floatingHost) {
   if (!("IntersectionObserver" in window)) return;
   const visible = /* @__PURE__ */ new Set();
   const apply = () => {
+    for (const el of visible) if (!el.isConnected) visible.delete(el);
     const hide = visible.size > 0;
     floatingHost.style.opacity = hide ? "0" : "1";
     floatingHost.style.transform = hide ? "translateY(120%)" : "none";
@@ -1108,12 +1109,15 @@ function hideWhileInlineVisible(floatingHost) {
     apply();
   }, { threshold: 0.15 });
   const watched = /* @__PURE__ */ new WeakSet();
-  const scan = () => inlineHosts().forEach((el) => {
-    if (!watched.has(el)) {
-      watched.add(el);
-      io.observe(el);
-    }
-  });
+  const scan = () => {
+    inlineHosts().forEach((el) => {
+      if (!watched.has(el)) {
+        watched.add(el);
+        io.observe(el);
+      }
+    });
+    apply();
+  };
   scan();
   new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
 }
@@ -1317,7 +1321,45 @@ function firePurchasePixel(p) {
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
+function autoPlace() {
+  if (inlineHosts().some((el) => !el.dataset.codAuto)) document.querySelectorAll("[data-cod-auto]").forEach((el) => el.remove());
+  document.querySelectorAll("[data-cod-autoplace]").forEach((marker) => {
+    var _a, _b, _c;
+    if (inlineHosts().some((el2) => !el2.dataset.codAuto)) {
+      marker.remove();
+      return;
+    }
+    const anchor = findBuyAnchor(((_a = marker.dataset.variantId) != null ? _a : "").replace(/\D/g, ""));
+    if (!anchor) return;
+    const el = document.createElement("div");
+    el.setAttribute("data-cod-form", "");
+    el.dataset.mode = "popup";
+    el.dataset.codAuto = "1";
+    el.dataset.productId = (_b = marker.dataset.productId) != null ? _b : "";
+    el.dataset.variantId = (_c = marker.dataset.variantId) != null ? _c : "";
+    el.style.margin = "10px 0";
+    anchor.insertAdjacentElement("afterend", el);
+    marker.remove();
+  });
+}
+const CARD = 'product-card, .card, .card-wrapper, [class*="product-card"], [class*="related"], [class*="recommend"], [id*="related"], [id*="recommend"]';
+function findBuyAnchor(variant) {
+  var _a, _b, _c;
+  const shown = (e) => e.getClientRects().length > 0;
+  const forms = [...document.querySelectorAll('form[action*="/cart/add"]')].filter((f) => !f.closest("[data-cod-form]") && shown(f) && f.querySelector('button[type="submit"], button[name="add"], input[type="submit"]'));
+  const idOf = (f) => {
+    var _a2, _b2;
+    return (_b2 = (_a2 = f.querySelector('[name="id"]')) == null ? void 0 : _a2.value) != null ? _b2 : "";
+  };
+  const form = (_b = (_a = forms.find((f) => idOf(f) === variant)) != null ? _a : forms.find((f) => !f.closest(CARD) && f.closest('[id*="main"], [id*="product-information"], [id*="product-template"]'))) != null ? _b : null;
+  if (form) return (_c = form.closest("product-form, product-form-component")) != null ? _c : form;
+  const price = [...document.querySelectorAll(
+    'main product-price, main .product__price, main [id^="price-"], main .price, #MainContent .price'
+  )].find((e) => shown(e) && !e.closest(`[data-cod-form], ${CARD}`));
+  return price != null ? price : null;
+}
 function boot() {
+  autoPlace();
   document.querySelectorAll("[data-cod-form]:not([data-cod-mounted])").forEach((el) => {
     var _a, _b;
     el.dataset.codMounted = "1";
@@ -1337,6 +1379,10 @@ if (document.readyState === "loading") {
 } else {
   boot();
 }
+window.addEventListener("load", () => {
+  autoPlace();
+  boot();
+});
 let bootQueued = false;
 const queueBoot = () => {
   if (bootQueued) return;
