@@ -11,6 +11,15 @@ import { productInfo } from '../lib/products.server';
 import { newField } from '../lib/defaults';
 import { db } from '../db.server';
 import { Preview } from '../features/builder/Preview';
+import {
+  PersonIcon, PhoneIcon, EmailIcon, HomeIcon, LocationIcon, NoteIcon, CheckboxIcon, ListBulletedIcon,
+  ChevronUpIcon, ChevronDownIcon, DeleteIcon, XIcon, PlusIcon, CheckIcon, ViewIcon, HideIcon, ProductIcon,
+  DeliveryIcon, CashDollarIcon, DiscountCodeIcon, CheckCircleIcon, PageIcon, ChatIcon, SaveIcon, ColorIcon,
+} from '@shopify/polaris-icons';
+
+type Ico = typeof PersonIcon;
+/** Icono del sistema (mismo trazo y tamaño en todo el editor). */
+const Ic = ({ s: S, size = 20 }: { s: Ico; size?: number }) => <S className="ef-ic" width={size} height={size} aria-hidden focusable="false" />;
 
 /**
  * EDITOR FÁCIL (Figui). Tres pasos en una pantalla y un solo botón «Guardar»:
@@ -216,15 +225,15 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result> {
 
 /* ─────────────────────────── Pantalla ─────────────────────────── */
 
-const ADD: { label: string; icon: string; make: (order: number) => Field }[] = [
-  { label: 'Nombre', icon: '👤', make: (o) => ({ ...newField('text', o), label: 'Nombre completo', placeholder: 'Tu nombre completo', required: true }) },
-  { label: 'Teléfono / WhatsApp', icon: '📱', make: (o) => ({ ...newField('phone', o), label: 'WhatsApp', placeholder: '809 000 0000', required: true }) },
-  { label: 'Correo', icon: '✉️', make: (o) => ({ ...newField('email', o), label: 'Correo', placeholder: 'tucorreo@ejemplo.com' }) },
-  { label: 'Dirección', icon: '🏠', make: (o) => ({ ...newField('textarea', o), label: 'Dirección', placeholder: 'Calle, número, sector…', required: true }) },
-  { label: 'Ciudad', icon: '🏙️', make: (o) => ({ ...newField('text', o), label: 'Ciudad', placeholder: 'Tu ciudad' }) },
-  { label: 'Nota', icon: '📝', make: (o) => ({ ...newField('textarea', o), label: 'Nota para el pedido', placeholder: 'Algo que debamos saber' }) },
-  { label: 'Casilla «Acepto»', icon: '☑️', make: (o) => ({ ...newField('checkbox', o), label: '', content: 'Confirmo que recibiré mi pedido.', required: true }) },
-  { label: 'Pregunta con opciones', icon: '🔘', make: (o) => ({ ...newField('radio', o), label: '¿Qué prefieres?', options: [{ label: 'Opción 1', value: 'opcion-1' }, { label: 'Opción 2', value: 'opcion-2' }] }) },
+const ADD: { label: string; icon: Ico; make: (order: number) => Field }[] = [
+  { label: 'Nombre', icon: PersonIcon, make: (o) => ({ ...newField('text', o), label: 'Nombre completo', placeholder: 'Tu nombre completo', required: true }) },
+  { label: 'Teléfono / WhatsApp', icon: PhoneIcon, make: (o) => ({ ...newField('phone', o), label: 'WhatsApp', placeholder: '809 000 0000', required: true }) },
+  { label: 'Correo', icon: EmailIcon, make: (o) => ({ ...newField('email', o), label: 'Correo', placeholder: 'tucorreo@ejemplo.com' }) },
+  { label: 'Dirección', icon: HomeIcon, make: (o) => ({ ...newField('textarea', o), label: 'Dirección', placeholder: 'Calle, número, sector…', required: true }) },
+  { label: 'Ciudad', icon: LocationIcon, make: (o) => ({ ...newField('text', o), label: 'Ciudad', placeholder: 'Tu ciudad' }) },
+  { label: 'Nota', icon: NoteIcon, make: (o) => ({ ...newField('textarea', o), label: 'Nota para el pedido', placeholder: 'Algo que debamos saber' }) },
+  { label: 'Casilla «Acepto»', icon: CheckboxIcon, make: (o) => ({ ...newField('checkbox', o), label: '', content: 'Confirmo que recibiré mi pedido.', required: true }) },
+  { label: 'Pregunta con opciones', icon: ListBulletedIcon, make: (o) => ({ ...newField('radio', o), label: '¿Qué prefieres?', options: [{ label: 'Opción 1', value: 'opcion-1' }, { label: 'Opción 2', value: 'opcion-2' }] }) },
 ];
 
 const KIND: Partial<Record<Field['type'], string>> = {
@@ -324,8 +333,8 @@ export default function EditorFacil() {
                 return (
                   <li key={f.key} className={`ef-field${f.visible ? '' : ' off'}`}>
                     <div className="ef-move">
-                      <button type="button" aria-label="Subir" disabled={i === 0} onClick={() => move(i, -1)}>▲</button>
-                      <button type="button" aria-label="Bajar" disabled={i === fields.length - 1} onClick={() => move(i, 1)}>▼</button>
+                      <button type="button" aria-label="Subir" disabled={i === 0} onClick={() => move(i, -1)}><Ic s={ChevronUpIcon} /></button>
+                      <button type="button" aria-label="Bajar" disabled={i === fields.length - 1} onClick={() => move(i, 1)}><Ic s={ChevronDownIcon} /></button>
                     </div>
                     <div className="ef-main">
                       <span className="ef-kind">{KIND[f.type] ?? f.type}{auto && f.conditions.length ? ' · sale si escribe la dirección' : ''}</span>
@@ -340,23 +349,23 @@ export default function EditorFacil() {
                       <div className="ef-toggles">
                         <label className={`ef-pill${f.required ? ' on' : ''}`}>
                           <input type="checkbox" checked={f.required} onChange={(e) => setField(i, { required: e.target.checked })} />
-                          {f.required ? '✓ Obligatorio' : 'Opcional'}
+                          {f.required && <Ic s={CheckIcon} size={16} />}{f.required ? 'Obligatorio' : 'Opcional'}
                         </label>
                         <label className={`ef-pill${f.visible ? ' on' : ''}`}>
                           <input type="checkbox" checked={f.visible} onChange={(e) => setField(i, { visible: e.target.checked })} />
-                          {f.visible ? '👁 Se ve' : '🚫 Oculto'}
+                          <Ic s={f.visible ? ViewIcon : HideIcon} size={16} />{f.visible ? 'Se ve' : 'Oculto'}
                         </label>
                       </div>
                     </div>
-                    <button type="button" className="ef-del" aria-label={`Quitar ${name}`} onClick={() => remove(i)}>🗑</button>
+                    <button type="button" className="ef-del" aria-label={`Quitar ${name}`} onClick={() => remove(i)}><Ic s={DeleteIcon} /></button>
                   </li>
                 );
               })}
             </ul>
-            <p className="ef-sub">➕ Añadir un dato</p>
+            <p className="ef-sub">Añadir un dato</p>
             <div className="ef-add">
               {ADD.map((a) => (
-                <button type="button" key={a.label} onClick={() => add(a.make)}><span>{a.icon}</span>{a.label}</button>
+                <button type="button" key={a.label} onClick={() => add(a.make)}><span className="ef-add-ic"><Ic s={a.icon} /></span>{a.label}</button>
               ))}
             </div>
           </section>
@@ -380,12 +389,12 @@ export default function EditorFacil() {
                   className={color.toLowerCase() === c ? 'on' : ''} style={{ background: c }} onClick={() => { setColor(c); touch(); }} />
               ))}
               <label className="ef-custom" title="Otro color">
-                <input type="color" value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#111111'} onChange={(e) => { setColor(e.target.value); touch(); }} />🎨
+                <input type="color" value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#111111'} onChange={(e) => { setColor(e.target.value); touch(); }} /><Ic s={ColorIcon} />
               </label>
             </div>
             <label className={`ef-pill big${showPrice ? ' on' : ''}`}>
               <input type="checkbox" checked={showPrice} onChange={(e) => { setShowPrice(e.target.checked); touch(); }} />
-              {showPrice ? '✓ Mostrar el total en el botón de confirmar' : 'Mostrar el total en el botón de confirmar'}
+              {showPrice && <Ic s={CheckIcon} size={16} />}Mostrar el total en el botón de confirmar
             </label>
           </section>
 
@@ -398,7 +407,7 @@ export default function EditorFacil() {
                 <div className="ef-prod-head">
                   <div><b>{p.title}</b>{p.priceCents != null && <small>Precio normal: {money(p.priceCents)} c/u</small>}</div>
                   <button type="button" className="ef-del" aria-label={`Quitar precios de ${p.title}`}
-                    onClick={() => { setProducts((l) => l.filter((_, i) => i !== pi)); touch(); }}>🗑</button>
+                    onClick={() => { setProducts((l) => l.filter((_, i) => i !== pi)); touch(); }}><Ic s={DeleteIcon} /></button>
                 </div>
                 {p.rows.map((r, ri) => {
                   const q = parseInt(r.qty, 10) || 0;
@@ -411,7 +420,7 @@ export default function EditorFacil() {
                       <span>unidades, cobra</span>
                       <div className="ef-money"><i>RD$</i><input className="ef-input" inputMode="decimal" value={r.price} aria-label="Precio total" placeholder="0" onChange={(e) => setRow(pi, ri, { price: e.target.value.replace(/[^0-9.]/g, '') })} /></div>
                       <button type="button" className="ef-x" aria-label="Quitar esta cantidad"
-                        onClick={() => { setProducts((l) => l.map((x, i) => (i !== pi ? x : { ...x, rows: x.rows.filter((_, j) => j !== ri) }))); touch(); }}>✕</button>
+                        onClick={() => { setProducts((l) => l.map((x, i) => (i !== pi ? x : { ...x, rows: x.rows.filter((_, j) => j !== ri) }))); touch(); }}><Ic s={XIcon} size={18} /></button>
                       {full != null && pay > 0 && (
                         <small className={pay < full ? 'ef-save' : 'ef-warn'}>
                           {pay < full ? `Ahorra ${money(full - pay)} (normal ${money(full)})` : `Es igual o más que el precio normal (${money(full)})`}
@@ -423,10 +432,10 @@ export default function EditorFacil() {
                 <button type="button" className="ef-link" onClick={() => {
                   const next = Math.max(1, ...p.rows.map((r) => parseInt(r.qty, 10) || 1)) + 1;
                   setProducts((l) => l.map((x, i) => (i !== pi ? x : { ...x, rows: [...x.rows, { qty: String(next), price: '' }] }))); touch();
-                }}>➕ Añadir otra cantidad</button>
+                }}><Ic s={PlusIcon} size={18} />Añadir otra cantidad</button>
               </div>
             ))}
-            <button type="button" className="ef-btn-ghost" onClick={() => void addProduct()}>🛍️ Poner precios a un producto</button>
+            <button type="button" className="ef-btn-ghost" onClick={() => void addProduct()}><Ic s={ProductIcon} />Poner precios a un producto</button>
             {data.advancedOffers > 0 && (
               <p className="ef-hint">Tienes {data.advancedOffers} oferta(s) avanzada(s) (porcentaje, varios productos…). Siguen igual; se cambian en <Link to="/figui/offers">Ofertas y descuentos</Link>.</p>
             )}
@@ -436,8 +445,8 @@ export default function EditorFacil() {
           <section className="ef-card">
             <h2><span className="ef-n">4</span> Envío</h2>
             <div className="ef-seg" role="radiogroup" aria-label="Envío">
-              <button type="button" role="radio" aria-checked={ship.mode === 'free'} className={ship.mode === 'free' ? 'on' : ''} onClick={() => upShip({ mode: 'free' })}>🚚 Envío gratis siempre</button>
-              <button type="button" role="radio" aria-checked={ship.mode === 'paid'} className={ship.mode === 'paid' ? 'on' : ''} onClick={() => upShip({ mode: 'paid' })}>💵 Cobrar envío</button>
+              <button type="button" role="radio" aria-checked={ship.mode === 'free'} className={ship.mode === 'free' ? 'on' : ''} onClick={() => upShip({ mode: 'free' })}><Ic s={DeliveryIcon} />Envío gratis siempre</button>
+              <button type="button" role="radio" aria-checked={ship.mode === 'paid'} className={ship.mode === 'paid' ? 'on' : ''} onClick={() => upShip({ mode: 'paid' })}><Ic s={CashDollarIcon} />Cobrar envío</button>
             </div>
             {ship.mode === 'paid' && (
               <>
@@ -459,21 +468,23 @@ export default function EditorFacil() {
             {coupons.map((cp, i) => (
               <div key={cp.id ?? `n${i}`} className="ef-coupon">
                 <div className="ef-row">
-                  <span>El código</span>
+                  <span className="ef-w">Código</span>
                   <input className="ef-input ef-code" value={cp.code} placeholder="BIENVENIDO10" aria-label="Código"
                     onChange={(e) => upCoupon(i, { code: e.target.value.toUpperCase().replace(/\s+/g, '') })} />
-                  <span>descuenta</span>
+                  <button type="button" className="ef-del" aria-label={`Borrar cupón ${cp.code}`} onClick={() => { setCoupons((l) => l.filter((_, j) => j !== i)); setDirty(true); }}><Ic s={DeleteIcon} /></button>
+                </div>
+                <div className="ef-row">
+                  <span className="ef-w">Descuenta</span>
                   <input className="ef-input ef-qty" inputMode="decimal" value={cp.value} aria-label="Cuánto"
                     onChange={(e) => upCoupon(i, { value: e.target.value.replace(/[^0-9.]/g, '') })} />
                   <div className="ef-seg small" role="radiogroup" aria-label="Tipo">
                     <button type="button" role="radio" aria-checked={cp.kind === 'PERCENTAGE'} className={cp.kind === 'PERCENTAGE' ? 'on' : ''} onClick={() => upCoupon(i, { kind: 'PERCENTAGE' })}>%</button>
                     <button type="button" role="radio" aria-checked={cp.kind === 'FIXED'} className={cp.kind === 'FIXED' ? 'on' : ''} onClick={() => upCoupon(i, { kind: 'FIXED' })}>RD$</button>
                   </div>
-                  <button type="button" className="ef-x" aria-label={`Borrar cupón ${cp.code}`} onClick={() => { setCoupons((l) => l.filter((_, j) => j !== i)); setDirty(true); }}>✕</button>
                 </div>
               </div>
             ))}
-            <button type="button" className="ef-btn-ghost" onClick={() => { setCoupons((l) => [...l, { id: null, code: '', kind: 'PERCENTAGE', value: '10' }]); setDirty(true); }}>🏷️ Crear un cupón</button>
+            <button type="button" className="ef-btn-ghost" onClick={() => { setCoupons((l) => [...l, { id: null, code: '', kind: 'PERCENTAGE', value: '10' }]); setDirty(true); }}><Ic s={DiscountCodeIcon} />Crear un cupón</button>
           </section>
 
           {/* 6 ─ Después del pedido */}
@@ -487,9 +498,9 @@ export default function EditorFacil() {
             </label>
             <span className="ef-label">Luego, el cliente…</span>
             <div className="ef-seg col" role="radiogroup" aria-label="Después del pedido">
-              <button type="button" role="radio" aria-checked={after.target === 'none'} className={after.target === 'none' ? 'on' : ''} onClick={() => upAfter({ target: 'none' })}>✅ Se queda viendo el mensaje</button>
-              <button type="button" role="radio" aria-checked={after.target === 'thankyou'} className={after.target === 'thankyou' ? 'on' : ''} onClick={() => upAfter({ target: 'thankyou' })}>📄 Va a tu página de gracias</button>
-              <button type="button" role="radio" aria-checked={after.target === 'whatsapp'} className={after.target === 'whatsapp' ? 'on' : ''} onClick={() => upAfter({ target: 'whatsapp' })}>💬 Te escribe por WhatsApp</button>
+              <button type="button" role="radio" aria-checked={after.target === 'none'} className={after.target === 'none' ? 'on' : ''} onClick={() => upAfter({ target: 'none' })}><Ic s={CheckCircleIcon} />Se queda viendo el mensaje</button>
+              <button type="button" role="radio" aria-checked={after.target === 'thankyou'} className={after.target === 'thankyou' ? 'on' : ''} onClick={() => upAfter({ target: 'thankyou' })}><Ic s={PageIcon} />Va a tu página de gracias</button>
+              <button type="button" role="radio" aria-checked={after.target === 'whatsapp'} className={after.target === 'whatsapp' ? 'on' : ''} onClick={() => upAfter({ target: 'whatsapp' })}><Ic s={ChatIcon} />Te escribe por WhatsApp</button>
             </div>
             {after.target === 'whatsapp' && (
               <>
@@ -503,10 +514,9 @@ export default function EditorFacil() {
             )}
           </section>
 
-          <p className="ef-adv">¿Necesitas algo más? <Link to="/figui/mas">Más opciones</Link></p>
-          <div className="ef-save-bar">
+                    <div className="ef-save-bar">
             <button type="button" className="ef-save-btn" disabled={busy} onClick={save}>
-              {busy ? 'Guardando…' : dirty ? '💾 Guardar cambios' : '✓ Todo guardado'}
+              {!busy && <Ic s={dirty ? SaveIcon : CheckIcon} />}{busy ? 'Guardando…' : dirty ? 'Guardar cambios' : 'Todo guardado'}
             </button>
           </div>
         </div>
@@ -535,6 +545,7 @@ const CSS = `
   --line:#E3E7ED;--ink:#0A1120;--muted:#667085;
   display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:18px;align-items:start;padding:16px;max-width:1240px;margin:0 auto;
   font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink)}
+.ef-ic{width:20px;height:20px;fill:currentColor;flex:none}
 .ef button{transition:transform .12s ease,box-shadow .15s ease,filter .15s ease}
 .ef button:active{transform:translateY(1px)}
 .ef-side{display:flex;flex-direction:column;gap:14px;min-width:0;padding-bottom:90px}
@@ -544,12 +555,12 @@ const CSS = `
 .ef-card h2{display:flex;align-items:center;gap:10px;margin:0 0 6px;font-size:19px;font-weight:800}
 .ef-n{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--blue-grad);box-shadow:var(--blue-glow);color:#fff;font-size:15px;flex:none}
 .ef-hint{margin:0 0 12px;color:var(--muted);font-size:14px;line-height:1.45}
-.ef-hint a,.ef-adv a{color:#1A73E8;font-weight:700}
+.ef-hint a{color:#1A73E8;font-weight:700}
 .ef-fields{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 .ef-field{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:14px;padding:10px;background:var(--soft-grad);box-shadow:var(--soft-shadow)}
 .ef-field.off{opacity:.55}
 .ef-move{display:flex;flex-direction:column;gap:5px}
-.ef-move button{width:38px;height:31px;border:1px solid var(--line);border-radius:9px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font-size:12px;cursor:pointer;color:#344054}
+.ef-move button{display:grid;place-items:center;width:38px;height:31px;border:1px solid var(--line);border-radius:9px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font-size:12px;cursor:pointer;color:#344054}
 .ef-move button:hover:not(:disabled){box-shadow:var(--soft-shadow-hover)}
 .ef-move button:disabled{opacity:.35;cursor:default;box-shadow:none}
 .ef-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
@@ -563,28 +574,29 @@ const CSS = `
 .ef-pill input{position:absolute;opacity:0;pointer-events:none}
 .ef-pill.on{background:var(--blue-grad);border-color:transparent;color:#fff;box-shadow:var(--blue-glow)}
 .ef-pill.big{margin-top:12px;padding:12px 16px;font-size:15px}
-.ef-del{border:1px solid #FECDCA;background:linear-gradient(180deg,#FFF6F5,#FEE4E2);box-shadow:0 1px 2px rgba(180,35,24,.08),inset 0 1px 0 #fff;width:40px;height:40px;border-radius:11px;font-size:17px;cursor:pointer;flex:none}
+.ef-del{display:grid;place-items:center;color:#D92D20;border:1px solid #FECDCA;background:linear-gradient(180deg,#FFF6F5,#FEE4E2);box-shadow:0 1px 2px rgba(180,35,24,.08),inset 0 1px 0 #fff;width:40px;height:40px;border-radius:11px;font-size:17px;cursor:pointer;flex:none}
 .ef-sub{margin:16px 0 8px;font-weight:800;font-size:15px}
 .ef-add{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .ef-add button{display:flex;align-items:center;gap:8px;padding:13px 12px;border:1px solid var(--line);border-radius:13px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font:inherit;font-size:15px;font-weight:600;cursor:pointer;text-align:left;color:var(--ink)}
 .ef-add button:hover{box-shadow:var(--soft-shadow-hover);border-color:#BFD5F2}
-.ef-add button span{font-size:20px}
+.ef-add-ic{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#EEF4FF;color:#1A73E8;flex:none}
 .ef-label{display:flex;flex-direction:column;gap:6px;margin:10px 0 0;font-size:14px;font-weight:700;color:#344054}
 .ef-colors{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
 .ef-colors button,.ef-custom{width:42px;height:42px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #D0D5DD,0 4px 10px -4px rgba(16,24,40,.25),inset 0 1px 0 rgba(255,255,255,.3);cursor:pointer}
 .ef-colors button.on{box-shadow:0 0 0 3px #1A73E8,0 6px 14px -4px rgba(26,115,232,.45)}
-.ef-custom{display:grid;place-items:center;background:var(--soft-grad);font-size:18px;position:relative;overflow:hidden}
+.ef-custom{display:grid;place-items:center;background:var(--soft-grad);color:#475467;position:relative;overflow:hidden}
 .ef-custom input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .ef-seg{display:flex;gap:6px;padding:5px;border-radius:14px;background:#F2F4F7;box-shadow:inset 0 1px 2px rgba(16,24,40,.08);flex-wrap:wrap}
 .ef-seg.col{flex-direction:column}
-.ef-seg button{flex:1;min-width:0;padding:11px 12px;border:0;border-radius:10px;background:transparent;font:inherit;font-size:15px;font-weight:700;color:#475467;cursor:pointer;text-align:center}
-.ef-seg.col button{text-align:left}
+.ef-seg button{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-width:0;padding:11px 12px;border:0;border-radius:10px;background:transparent;font:inherit;font-size:15px;font-weight:700;color:#475467;cursor:pointer;text-align:center}
+.ef-seg.col button{justify-content:flex-start;text-align:left}
 .ef-seg button.on{background:var(--blue-grad);color:#fff;box-shadow:var(--blue-glow)}
 .ef-seg.small{padding:3px;flex:none}
 .ef-seg.small button{padding:8px 11px;font-size:14px}
 .ef-prod,.ef-coupon{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:var(--soft-grad);box-shadow:var(--soft-shadow)}
 .ef-coupon{padding:4px 12px}
-.ef-coupon .ef-row{border-top:0}
+.ef-coupon .ef-row:first-child{border-top:0}
+.ef-w{min-width:78px}
 .ef-prod-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
 .ef-prod-head b{display:block;font-size:16px}
 .ef-prod-head small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
@@ -595,19 +607,18 @@ const CSS = `
 .ef-money:focus-within{border-color:#4F8FE0;box-shadow:0 0 0 3px rgba(79,143,224,.18)}
 .ef-money i{font-style:normal;color:#98A2B3;font-weight:600}
 .ef-money .ef-input{border:0;box-shadow:none}
-.ef-x{border:0;background:transparent;font-size:16px;color:#98A2B3;cursor:pointer;width:32px;height:32px;border-radius:8px}
+.ef-x{display:grid;place-items:center;border:0;background:transparent;font-size:16px;color:#98A2B3;cursor:pointer;width:32px;height:32px;border-radius:8px}
 .ef-x:hover{background:#F2F4F7;color:#475467}
 .ef-row small{flex-basis:100%;font-size:13px;font-weight:600}
 .ef-save{color:#067647}.ef-warn{color:#B54708}
-.ef-link{border:0;background:transparent;color:#1A73E8;font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:8px 0}
-.ef-btn-ghost{width:100%;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font:inherit;font-size:15px;font-weight:700;cursor:pointer;color:var(--ink)}
+.ef-link{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:#1A73E8;font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:8px 0}
+.ef-btn-ghost{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font:inherit;font-size:15px;font-weight:700;cursor:pointer;color:var(--ink)}
 .ef-btn-ghost:hover{box-shadow:var(--soft-shadow-hover);border-color:#BFD5F2}
-.ef-adv{margin:0;text-align:center;color:var(--muted);font-size:14px}
 .ef-save-bar{position:sticky;bottom:0;padding:12px 0;background:linear-gradient(transparent,#f1f1f1 35%);z-index:5}
-.ef-save-btn{width:100%;padding:17px;border:0;border-radius:15px;background:var(--green-grad);color:#fff;font:inherit;font-size:18px;font-weight:800;cursor:pointer;box-shadow:var(--green-glow)}
+.ef-save-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:17px;border:0;border-radius:15px;background:var(--green-grad);color:#fff;font:inherit;font-size:18px;font-weight:800;cursor:pointer;box-shadow:var(--green-glow)}
 .ef-save-btn:hover{filter:brightness(1.04)}
 .ef-save-btn:disabled{opacity:.7}
-.ef-preview{position:sticky;top:60px;height:calc(100vh - 80px);min-height:560px;border-radius:18px;overflow:hidden;border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(16,24,40,.18);background:#f1f1f1}
+.ef-preview{position:sticky;top:76px;height:calc(100vh - 92px);min-height:560px;border-radius:18px;overflow:hidden;border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(16,24,40,.18);background:#f1f1f1}
 @media (max-width: 900px){
   .ef{grid-template-columns:1fr;padding:12px}
   .ef-preview{position:relative;top:0;height:640px}
