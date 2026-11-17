@@ -88,7 +88,7 @@ export class FormsService {
       location: LocationConfigSchema.parse(
         (ctx.settings as Record<string, unknown>).location ?? {},
       ),
-      settings: this.publicSettings(ShopSettingsSchema.parse(ctx.settings ?? {})),
+      settings: this.publicSettings({ ...ShopSettingsSchema.parse(ctx.settings ?? {}), ...(ctx.currency ? { currency: ctx.currency } : {}) }),
       offers: offers.map((o) =>
         OfferSchema.parse({ id: o.id, label: o.name, type: 'QUANTITY', ...(o.payload as object) }),
       ),

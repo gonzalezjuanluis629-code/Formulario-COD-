@@ -78,7 +78,8 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
   }
 
   const shop = sub.shop;
-  const settings = ShopSettingsSchema.parse(shop.settings ?? {});
+  // La moneda SIEMPRE es la de la tienda en Shopify: si no coincide, Shopify rechaza el pedido.
+  const settings = { ...ShopSettingsSchema.parse(shop.settings ?? {}), ...(shop.currency ? { currency: shop.currency } : {}) };
   const profile = getCountryProfile(shop.countryCode);
 
   const accessToken = decrypt(shop.id, Buffer.from(shop.accessTokenEnc));

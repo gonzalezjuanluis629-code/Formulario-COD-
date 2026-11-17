@@ -1,19 +1,37 @@
 {% comment %}
   App Block (Theme App Extension).
-  El merchant lo añade desde el editor del tema. CERO modificaciones de código.
-  Nada de ScriptTag: está prohibido por Built for Shopify y ralentiza el tema.
+  El merchant lo añade desde el editor del tema en CUALQUIER sección.
+  Producto: el elegido en el bloque, o el de la sección (producto destacado…),
+  o el de la página de producto.
 {% endcomment %}
 
-<div
-  data-cod-form
-  {% if block.settings.mode != 'app' %}data-mode="{{ block.settings.mode }}"{% endif %}
-  data-product-id="gid://shopify/Product/{{ product.id }}"
-  data-variant-id="gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}"
-  {{ block.shopify_attributes }}
-></div>
+{%- liquid
+  assign p = block.settings.product
+  if p == blank
+    assign p = closest.product
+  endif
+  if p == blank
+    assign p = product
+  endif
+-%}
 
-{% comment %} defer: no bloquea el render del tema. {% endcomment %}
-<script src="{{ 'widget.js' | asset_url }}" type="module"></script>
+{%- if p != blank -%}
+  <div
+    data-cod-form
+    {% if block.settings.mode != 'app' %}data-mode="{{ block.settings.mode }}"{% endif %}
+    data-product-id="gid://shopify/Product/{{ p.id }}"
+    data-variant-id="gid://shopify/ProductVariant/{{ p.selected_or_first_available_variant.id }}"
+    style="margin: {{ block.settings.margin }}px 0"
+    {{ block.shopify_attributes }}
+  ></div>
+  <script src="{{ 'widget.js' | asset_url }}" type="module"></script>
+{%- elsif request.design_mode -%}
+  <div {{ block.shopify_attributes }}
+    style="padding:14px;border:1.5px dashed #b5b5b5;border-radius:10px;color:#666;font:14px/1.4 system-ui;text-align:center">
+    <b>Formulario COD</b><br>
+    Esta sección no tiene producto. Elige uno en «Producto» (a la derecha) o pon el bloque en la página de producto.
+  </div>
+{%- endif -%}
 
 {% schema %}
 {
@@ -22,7 +40,7 @@
   "settings": [
     {
       "type": "paragraph",
-      "content": "El diseño, los campos y las reglas se configuran desde el panel de la app COD Forms."
+      "content": "El diseño, los campos y las ofertas se configuran en la app COD Forms."
     },
     {
       "type": "select",
@@ -30,10 +48,26 @@
       "label": "Cómo se muestra",
       "options": [
         { "value": "app", "label": "Como esté en la app (Ajustes del formulario)" },
-        { "value": "embedded", "label": "Formulario completo en la página" },
-        { "value": "popup", "label": "Botón «Comprar ahora» que abre el formulario" }
+        { "value": "embedded", "label": "Formulario completo aquí" },
+        { "value": "popup", "label": "Botón «Comprar ahora» aquí (abre el formulario)" }
       ],
       "default": "app"
+    },
+    {
+      "type": "product",
+      "id": "product",
+      "label": "Producto (opcional)",
+      "info": "Déjalo vacío para usar el producto de la página."
+    },
+    {
+      "type": "range",
+      "id": "margin",
+      "label": "Espacio arriba y abajo",
+      "min": 0,
+      "max": 40,
+      "step": 2,
+      "unit": "px",
+      "default": 8
     }
   ]
 }

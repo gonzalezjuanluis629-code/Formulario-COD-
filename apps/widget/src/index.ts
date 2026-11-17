@@ -390,4 +390,21 @@ if (document.readyState === 'loading') {
   boot();
 }
 
+// Editor del tema (y temas que cargan secciones después): al añadir o recargar
+// una sección, su bloque aparece al momento, sin recargar la página.
+let bootQueued = false;
+const queueBoot = () => {
+  if (bootQueued) return;
+  bootQueued = true;
+  requestAnimationFrame(() => { bootQueued = false; boot(); });
+};
+new MutationObserver((muts) => {
+  for (const m of muts) {
+    for (const n of m.addedNodes) {
+      if (n instanceof HTMLElement && (n.matches('[data-cod-form]') || n.querySelector('[data-cod-form]'))) { queueBoot(); return; }
+    }
+  }
+}).observe(document.documentElement, { childList: true, subtree: true });
+document.addEventListener('shopify:section:load', queueBoot);
+
 window.CodForm = { mount };
