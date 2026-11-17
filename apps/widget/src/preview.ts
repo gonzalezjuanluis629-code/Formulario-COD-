@@ -133,7 +133,7 @@ function buildForm(root: HTMLElement, fields: Field[], tokens: ThemeTokens, opts
         metaPixelId: '', metaCapiToken: '', metaTestCode: '', tiktokPixelId: '', tiktokToken: '',
         ga4MeasurementId: '', ga4ApiSecret: '', purchaseEventName: 'Purchase',
       },
-      storefront: { autoPlace: true, floating: true },
+      storefront: { autoPlace: true, floating: true, cartButton: true },
     },
     offers: opts.offers ?? [],
     addons: opts.addons ?? [],

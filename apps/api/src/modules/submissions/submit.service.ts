@@ -6,7 +6,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { CryptoService } from '../../shared/crypto/crypto.service';
 import type { ShopContext } from '../../infra/shopify/shop-context.service';
-import { QuoteService } from '../quote/quote.service';
+import { QuoteService, orderLines } from '../quote/quote.service';
 import { AntifraudService } from '../antifraud/antifraud.service';
 import { AddonsService } from '../addons/addons.service';
 
@@ -74,7 +74,8 @@ export class SubmitService {
 
     /* 5 ─ Blocklist + duplicados + riesgo. */
     await this.antifraud.assertNotBlocked(ctx.shopId, { phoneHash, ipHash });
-    const cartHash = this.crypto.hash(`${dto.variantId}:${dto.qty}`);
+    const lines = orderLines(dto);
+    const cartHash = this.crypto.hash(lines.map((l) => `${l.variantId}:${l.qty}`).sort().join('|'));
     await this.antifraud.assertNotDuplicate(ctx.shopId, phoneHash, cartHash);
     await this.antifraud.assertUnderDailyLimit(
       ctx.shopId, phoneHash, settings.antifraud.maxOrdersPerPhonePerDay,
@@ -101,6 +102,7 @@ export class SubmitService {
       province: this.declaredProvince(dto),
       discountCode: dto.discountCode ?? null,
       addonIds: dto.acceptedAddons.map((a: { id: string }) => a.id),
+      cart: dto.cart?.length ? lines : undefined,
     });
 
     if (dto.clientTotals && dto.clientTotals.totalCents !== totals.totalCents) {
@@ -143,7 +145,7 @@ export class SubmitService {
           emailHash: dto.fields.email ? this.crypto.hash(String(dto.fields.email)) : null,
           cartHash,
           items: [
-            { variantId: dto.variantId, qty: dto.qty },
+            ...lines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
             ...resolvedAddons.lineItems, // extras con producto (con su precio cobrado)
             // Cargos sin producto (p. ej. «Envío express»): van como línea de envío.
             ...resolvedAddons.charges.map((c) => ({ charge: true, title: c.title, priceCents: c.priceCents, qty: 1 })),

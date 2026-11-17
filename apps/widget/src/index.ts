@@ -1,5 +1,5 @@
 import type { WidgetConfig, SubmitRequest, QuoteResponse } from '@cod/contracts';
-import { api, ApiError } from './core/api';
+import { api, ApiError, DIRECT, readCart, clearCart, type ShopCartLine } from './core/api';
 import { tokensToCss } from './core/theme';
 import { validateField, isVisible } from './core/validate';
 import { renderForm } from './ui/form';
@@ -54,7 +54,10 @@ export async function mount(opts: MountOptions): Promise<void> {
 
   style.textContent = `:host{${tokensToCss(config.tokens)}}\n${CSS}\n${config.tokens.customCss}`;
 
+  const isCart = host.dataset.cart === 'true';
+
   const renderInto = (mountRoot: HTMLElement) => {
+    if (isCart) { renderCartInto(mountRoot, config); return; }
     const state = new FormState(config);
     // Si la página ya tiene su propia oferta o selector de cantidad («2 unidades»),
     // el formulario empieza con esa cantidad y la sigue mientras esté abierto.
@@ -75,7 +78,7 @@ export async function mount(opts: MountOptions): Promise<void> {
   // Modo popup: el botón "Comprar ahora" abre el formulario en un modal.
   // Modo embebido (por defecto): el formulario va directo en la página.
   // Manda el bloque del tema si lo fija; si no, lo que se eligió en el panel.
-  const mode = host.dataset.mode === 'popup' || host.dataset.mode === 'embedded'
+  const mode = isCart ? 'popup' : host.dataset.mode === 'popup' || host.dataset.mode === 'embedded'
     ? host.dataset.mode
     : config.displayMode === 'POPUP' ? 'popup' : 'embedded';
   if (mode === 'popup') {
@@ -97,14 +100,38 @@ export async function mount(opts: MountOptions): Promise<void> {
       else openModal(shadow, config, renderInto);
     });
     try { api.track(config.formId, 'view', config.formVersionId); } catch { /* nunca bloquea */ }
+    if (!floating && !isCart) ensureFloating(host);
     return;
   }
 
   root.innerHTML = '';
   host.dataset.codRendered = 'form';
   renderInto(root);
+  ensureFloating(host);
   // Embudo: registramos la vista. sessionId estable por montaje.
   try { api.track(config.formId, 'view', config.formVersionId); } catch { /* nunca bloquea */ }
+}
+
+/**
+ * Formulario abierto desde el carrito: cobra TODO lo que hay en él. Se lee el
+ * carrito al abrir (no al cargar la página) para que esté al día.
+ */
+function renderCartInto(mountRoot: HTMLElement, config: WidgetConfig): void {
+  mountRoot.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
+  readCart().then((lines) => {
+    if (!mountRoot.isConnected) return;
+    if (!lines.length) {
+      mountRoot.innerHTML = '<div class="cod-form-error" role="alert">Tu carrito está vacío.</div>';
+      return;
+    }
+    const state = new FormState(config);
+    state.cart = lines.map((l) => ({ variantId: l.variantId, qty: l.qty }));
+    // Las tarjetas de cantidad son de un producto: en el carrito no se muestran.
+    state.pageManagesQty = true;
+    renderForm(mountRoot, config, state, { onSubmit: () => submit(mountRoot, config, state) });
+  }).catch(() => {
+    if (mountRoot.isConnected) mountRoot.innerHTML = '<div class="cod-form-error" role="alert">No pudimos leer tu carrito. Recarga la página e inténtalo de nuevo.</div>';
+  });
 }
 
 /** Formularios o botones puestos en la página (no flotantes). */
@@ -112,8 +139,32 @@ function inlineHosts(): HTMLElement[] {
   return [...document.querySelectorAll<HTMLElement>('[data-cod-form]')].filter((el) => el.dataset.floating !== 'true');
 }
 
+/** Botones o formularios fijos de un producto (no los del carrito). */
+function fixedHosts(): HTMLElement[] {
+  return inlineHosts().filter((el) => el.dataset.cart !== 'true' && el.isConnected);
+}
+
 function findInline(kind: 'form' | 'button'): HTMLElement | null {
-  return inlineHosts().find((el) => el.isConnected && el.dataset.codRendered === kind && el.getClientRects().length > 0) ?? null;
+  return fixedHosts().find((el) => el.dataset.codRendered === kind && el.getClientRects().length > 0) ?? null;
+}
+
+/**
+ * Botón flotante: SOLO en páginas donde hay un botón (o formulario) fijo, y con
+ * el mismo producto. En la portada con un botón pegado a mano también sale;
+ * en páginas sin botón fijo, no. (Tiendas conectadas desde Figui; con la app
+ * de Shopify lo pone la incrustación del tema.)
+ */
+function ensureFloating(from: HTMLElement): void {
+  if (!DIRECT?.floating || from.dataset.floating === 'true' || from.dataset.cart === 'true') return;
+  if (document.querySelector('[data-cod-form][data-floating="true"]')) return;
+  const el = document.createElement('div');
+  el.setAttribute('data-cod-form', '');
+  el.dataset.mode = 'popup';
+  el.dataset.floating = 'true';
+  el.dataset.codAutoFloat = '1';
+  el.dataset.productId = from.dataset.productId ?? '';
+  el.dataset.variantId = from.dataset.variantId ?? '';
+  document.body.appendChild(el);
 }
 
 /**
@@ -140,10 +191,19 @@ function hideWhileInlineVisible(floatingHost: HTMLElement): void {
     apply();
   }, { threshold: 0.15 });
   const watched = new WeakSet<Element>();
-  const scan = () => { inlineHosts().forEach((el) => { if (!watched.has(el)) { watched.add(el); io.observe(el); } }); apply(); };
+  let mo: MutationObserver | null = null;
+  const scan = () => {
+    // El flotante automático se va si ya no queda ningún botón fijo en la página.
+    if (floatingHost.dataset.codAutoFloat && !fixedHosts().length) {
+      floatingHost.remove(); io.disconnect(); mo?.disconnect(); return;
+    }
+    inlineHosts().forEach((el) => { if (!watched.has(el)) { watched.add(el); io.observe(el); } });
+    apply();
+  };
   scan();
   // Por si el tema añade el bloque después (carga diferida, editor del tema).
-  new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
+  mo = new MutationObserver(scan);
+  mo.observe(document.body, { childList: true, subtree: true });
 }
 
 /** Modal para el modo popup. El formulario se monta fresco cada apertura. */
@@ -198,6 +258,7 @@ function openModal(shadow: ShadowRoot, config: WidgetConfig, renderInto: (el: HT
 export interface QuoteInput {
   formId: string; variantId: string; qty: number;
   province: string | null; discountCode: string | null; addonIds: string[];
+  cart?: { variantId: string; qty: number }[];
 }
 
 /** Estado del formulario. Deliberadamente simple: sin framework, sin peso. */
@@ -208,6 +269,8 @@ export class FormState {
   qtyFromPage = false;
   /** La página tiene su propia caja de ofertas: el formulario no las repite. */
   pageManagesQty = false;
+  /** Pedido desde el carrito: todas sus líneas (si no, el producto del formulario). */
+  cart: { variantId: string; qty: number }[] | null = null;
   private qtyListeners: ((q: number) => void)[] = [];
   location: SubmitRequest['location'] = null;
   discountCode: string | null = null;
@@ -253,6 +316,7 @@ export class FormState {
       province: this.values.province || this.values.provinceCode || null,
       discountCode,
       addonIds: this.acceptedAddons.map((a) => a.id),
+      ...(this.cart ? { cart: this.cart } : {}),
     };
   }
 
@@ -311,6 +375,7 @@ async function submit(root: HTMLElement, config: WidgetConfig, state: FormState)
     discountCode: state.discountCode,
     acceptedAddons: state.acceptedAddons,
     fields: state.values,
+    ...(state.cart ? { cart: state.cart } : {}),
     location: state.location,
     startedAt: state.startedAt,
     hp: '', // honeypot: si un bot lo rellena, el backend rechaza
@@ -318,6 +383,7 @@ async function submit(root: HTMLElement, config: WidgetConfig, state: FormState)
 
   try {
     const res = await api.submit(payload);
+    if (state.cart) clearCart();
     try { api.track(config.formId, 'submit_attempt', state.idempotencyKey); } catch { /* no bloquea */ }
     showConfirmation(root, res);
   } catch (e) {
@@ -429,7 +495,8 @@ declare global {
  */
 function autoPlace(): void {
   // Si el comerciante puso su propio bloque, manda ese: fuera el automático.
-  const manualShown = () => inlineHosts().some((el) => !el.dataset.codAuto && el.isConnected && el.getClientRects().length > 0);
+  placeCartButtons();
+  const manualShown = () => fixedHosts().some((el) => !el.dataset.codAuto && el.getClientRects().length > 0);
   if (manualShown()) document.querySelectorAll('[data-cod-auto]').forEach((el) => el.remove());
   document.querySelectorAll<HTMLElement>('[data-cod-autoplace]').forEach((marker) => {
     if (manualShown()) { marker.remove(); return; }
@@ -444,6 +511,35 @@ function autoPlace(): void {
     el.style.margin = '10px 0';
     anchor.insertAdjacentElement('afterend', el);
     marker.remove();
+  });
+}
+
+/** Botones «Pagar» / «Checkout» del tema (página del carrito y carrito lateral). */
+const CHECKOUT = 'button[name="checkout"], input[name="checkout"], button#checkout, a[href$="/checkout"]';
+
+/**
+ * Botón del carrito: debajo del botón de pagar del tema, en la página del
+ * carrito y en el carrito lateral. Abre el formulario con TODO el carrito.
+ */
+function placeCartButtons(): void {
+  if (!DIRECT?.cartButton) return;
+  document.querySelectorAll<HTMLElement>(CHECKOUT).forEach((btn) => {
+    if (btn.closest('[data-cod-form], [data-cod-modal]')) return;
+    // Si el botón va en una fila (junto a otros), el nuestro va debajo de la fila.
+    const parent = btn.parentElement;
+    const row = parent && parent.tagName !== 'FORM' && getComputedStyle(parent).display.includes('flex')
+      && !getComputedStyle(parent).flexDirection.startsWith('column');
+    const anchor = row ? parent! : btn;
+    const next = anchor.nextElementSibling as HTMLElement | null;
+    if (next?.dataset.cart === 'true') return;
+    // Un solo botón nuestro por contenedor (algunos temas tienen dos «Pagar»).
+    if (anchor.parentElement?.querySelector(':scope > [data-cod-form][data-cart="true"]')) return;
+    const el = document.createElement('div');
+    el.setAttribute('data-cod-form', '');
+    el.dataset.mode = 'popup';
+    el.dataset.cart = 'true';
+    el.style.cssText = 'display:block;width:100%;margin:10px 0 0;';
+    anchor.insertAdjacentElement('afterend', el);
   });
 }
 
@@ -498,6 +594,7 @@ function boot() {
   autoPlace();
   document.querySelectorAll<HTMLElement>('[data-cod-form]:not([data-cod-mounted])').forEach((el) => {
     el.dataset.codMounted = '1';
+    if (el.dataset.cart === 'true') { void mountCart(el); return; }
     // Código pegado en «Liquid personalizado»: los ids llegan como números.
     if (/^\d+$/.test(el.dataset.productId ?? '')) el.dataset.productId = `gid://shopify/Product/${el.dataset.productId}`;
     if (/^\d+$/.test(el.dataset.variantId ?? '')) el.dataset.variantId = `gid://shopify/ProductVariant/${el.dataset.variantId}`;
@@ -509,6 +606,30 @@ function boot() {
       container: el,
     });
   });
+}
+
+/**
+ * Botón del carrito: el formulario se busca con un producto del carrito (el
+ * primero que tenga formulario). Carrito vacío: no se muestra nada.
+ */
+async function mountCart(el: HTMLElement): Promise<void> {
+  let lines: ShopCartLine[];
+  try { lines = await readCart(); } catch { el.remove(); return; }
+  if (!lines.length) { el.style.display = 'none'; return; }
+  const seen = new Set<string>();
+  for (const l of lines) {
+    if (seen.has(l.productId)) continue;
+    seen.add(l.productId);
+    try {
+      await api.config(l.productId, l.variantId);
+    } catch { continue; }
+    el.dataset.productId = l.productId;
+    el.dataset.variantId = l.variantId;
+    if (!el.isConnected) return;
+    await mount({ productId: l.productId, variantId: l.variantId, container: el });
+    return;
+  }
+  el.remove();
 }
 
 if (document.readyState === 'loading') {
@@ -553,6 +674,8 @@ new MutationObserver((muts) => {
   for (const m of muts) {
     for (const n of m.addedNodes) {
       if (n instanceof HTMLElement && (n.matches('[data-cod-form]') || n.querySelector('[data-cod-form]'))) { queueBoot(); return; }
+      // Carrito lateral que se vuelve a dibujar (al añadir un producto): su «Pagar» nuevo.
+      if (DIRECT?.cartButton && n instanceof HTMLElement && (n.matches(CHECKOUT) || n.querySelector(CHECKOUT))) { queueBoot(); return; }
     }
   }
 }).observe(document.documentElement, { childList: true, subtree: true });
