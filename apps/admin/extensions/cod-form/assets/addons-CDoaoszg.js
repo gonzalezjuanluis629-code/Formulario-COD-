@@ -1,4 +1,4 @@
-import { m as money } from "./index-dZml6Biy.js";
+import { m as money } from "./index-CcYh8gcB.js";
 function renderAddons(host, config, state, onChange) {
   var _a;
   const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty);
