@@ -91,21 +91,24 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
   const charges = allItems.filter((i) => i.charge && (i.priceCents ?? 0) > 0);
   const addr = profile.toShopifyAddress(pii.address);
 
+  // «Detalles adicionales» del pedido: lo que llenó el cliente, con el nombre
+  // exacto de cada campo del formulario, y el enlace a su ubicación en el mapa.
   const attrs: { key: string; value: string }[] = [];
-  if (pii.address.district) attrs.push({ key: 'Sector', value: pii.address.district });
-
+  const seen = new Map<string, number>();
+  const add = (key: string, value: string) => {
+    const k = key.trim().slice(0, 120) || 'Dato';
+    const n = (seen.get(k) ?? 0) + 1;
+    seen.set(k, n);
+    attrs.push({ key: n > 1 ? `${k} (${n})` : k, value });
+  };
+  if (pii.answers?.length) {
+    for (const a of pii.answers) add(a.label, a.value);
+  } else if (pii.address.district) {
+    add('Sector', pii.address.district); // pedidos de antes de guardar las respuestas
+  }
   if (sub.latitude && sub.longitude) {
     const lat = Number(sub.latitude), lng = Number(sub.longitude);
-    attrs.push(
-      { key: '_cod_lat', value: lat.toFixed(6) },
-      { key: '_cod_lng', value: lng.toFixed(6) },
-      { key: '_cod_location_source', value: sub.locationSource ?? 'NONE' },
-      { key: '_cod_captured_at', value: sub.locationCapturedAt?.toISOString() ?? '' },
-    );
-    if (sub.accuracyMeters != null) {
-      attrs.push({ key: '_cod_accuracy_m', value: String(sub.accuracyMeters) });
-    }
-    attrs.push({ key: 'Ubicación (mapa)', value: `https://maps.google.com/?q=${lat},${lng}` });
+    add('Ubicación (mapa)', `https://maps.google.com/?q=${lat},${lng}`);
   }
 
   const tags = [settings.orderTag];
@@ -314,6 +317,8 @@ function decrypt(shopId: string, blob: Buffer): string {
 }
 
 interface Pii {
+  /** Respuestas del formulario («Nombre del campo» → valor). */
+  answers?: { label: string; value: string }[];
   firstName: string;
   lastName: string;
   phoneE164: string;
