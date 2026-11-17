@@ -1,72 +1,81 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Card, InlineStack, Text } from '@shopify/polaris';
+import { ButtonGroup, Button, InlineStack, Text } from '@shopify/polaris';
+import { DesktopIcon, MobileIcon } from '@shopify/polaris-icons';
 import type { Field, ThemeTokens } from '@cod/contracts';
 
 /**
- * Vista previa REAL: renderiza el widget de verdad dentro de un iframe,
- * no una imitación. Si se ve bien aquí, se ve bien en la tienda.
- *
- * El iframe recibe los campos y los tokens por postMessage en cada cambio,
- * así que el merchant ve el resultado mientras arrastra.
+ * Vista previa REAL: el mismo widget de la tienda dentro de un iframe.
+ * Recibe campos y diseño en cada cambio, resalta el campo seleccionado y avisa
+ * al editor cuando se hace clic en un campo (para editarlo).
  */
-export function Preview({ fields, tokens }: { fields: Field[]; tokens: ThemeTokens }) {
+export function Preview({
+  fields, tokens, selectedKey = null, onSelect, showTrigger = false,
+}: {
+  fields: Field[];
+  tokens: ThemeTokens;
+  selectedKey?: string | null;
+  onSelect?: (key: string) => void;
+  showTrigger?: boolean;
+}) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [device, setDevice] = useState<'mobile' | 'desktop'>('mobile');
-  const latest = useRef({ fields, tokens });
-  latest.current = { fields, tokens };
+  const latest = useRef({ fields, tokens, selectedKey, showTrigger });
+  latest.current = { fields, tokens, selectedKey, showTrigger };
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
-  // El iframe se puede cargar ANTES de que React hidrate la página (viene en el
-  // HTML del servidor), así que no basta con onLoad: el iframe avisa con
-  // 'cod:preview-ready' y, además, enviamos los datos en cada cambio. Si el
-  // iframe aún no escucha, el aviso de "listo" vuelve a pedir los datos.
+  // El iframe puede cargar antes de que React hidrate: además de enviar en cada
+  // cambio, el iframe avisa con 'cod:preview-ready' y se le reenvían los datos.
   const post = useCallback(() => {
-    ref.current?.contentWindow?.postMessage(
-      { type: 'cod:preview', ...latest.current },
-      window.location.origin,
-    );
+    ref.current?.contentWindow?.postMessage({ type: 'cod:preview', ...latest.current }, window.location.origin);
   }, []);
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.source !== ref.current?.contentWindow) return;
       if (e.data?.type === 'cod:preview-ready') post();
+      if (e.data?.type === 'cod:select' && typeof e.data.key === 'string') onSelectRef.current?.(e.data.key);
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [post]);
 
-  useEffect(() => { post(); }, [fields, tokens, post]);
+  useEffect(() => { post(); }, [fields, tokens, selectedKey, showTrigger, post]);
 
   return (
-    <Card padding="300">
-      <InlineStack align="space-between" blockAlign="center">
-        <Text as="h3" variant="headingSm">Vista previa</Text>
-        <InlineStack gap="100">
-          <Button size="micro" pressed={device === 'mobile'} onClick={() => setDevice('mobile')}>
-            Móvil
-          </Button>
-          <Button size="micro" pressed={device === 'desktop'} onClick={() => setDevice('desktop')}>
-            Escritorio
-          </Button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid #e3e3e3', background: '#fff' }}>
+        <InlineStack align="space-between" blockAlign="center">
+          <Text as="h2" variant="headingSm">Vista previa</Text>
+          <ButtonGroup variant="segmented">
+            <Button size="slim" icon={MobileIcon} pressed={device === 'mobile'}
+              onClick={() => setDevice('mobile')} accessibilityLabel="Móvil">Móvil</Button>
+            <Button size="slim" icon={DesktopIcon} pressed={device === 'desktop'}
+              onClick={() => setDevice('desktop')} accessibilityLabel="Escritorio">Escritorio</Button>
+          </ButtonGroup>
         </InlineStack>
-      </InlineStack>
-
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', justifyContent: 'center', background: '#f1f1f1', padding: device === 'mobile' ? '16px 0' : 0 }}>
         <iframe
           ref={ref}
           title="Vista previa del formulario"
           onLoad={post}
           src="/preview"
           style={{
-            width: device === 'mobile' ? 380 : '100%',
-            height: 620,
-            border: '1px solid #e1e3e5',
-            borderRadius: 12,
-            background: '#f6f6f7',
-            transition: 'width .25s ease',
+            width: device === 'mobile' ? 390 : '100%',
+            height: '100%',
+            border: device === 'mobile' ? '1px solid #d4d4d4' : 0,
+            borderRadius: device === 'mobile' ? 16 : 0,
+            background: '#f1f1f1',
+            transition: 'width .2s ease',
           }}
         />
       </div>
-    </Card>
+      <div style={{ padding: '8px 14px', borderTop: '1px solid #e3e3e3', background: '#fff' }}>
+        <Text as="p" variant="bodySm" tone="subdued">
+          Haz clic en un campo de la vista previa para editarlo.
+        </Text>
+      </div>
+    </div>
   );
 }

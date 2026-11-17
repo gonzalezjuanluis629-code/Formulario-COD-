@@ -76,7 +76,11 @@ function renderField(
   if (f.type === 'subheading') { wrap.innerHTML = `<p class="cod-subheading">${esc(f.content)}</p>`; return wrap; }
   if (f.type === 'divider') { wrap.innerHTML = '<hr class="cod-divider">'; return wrap; }
   if (f.type === 'html') { wrap.innerHTML = `<div class="cod-html">${f.content}</div>`; return wrap; }
-  if (f.type === 'image') { wrap.innerHTML = `<img class="cod-img" src="${esc(f.content)}" alt="" loading="lazy">`; return wrap; }
+  if (f.type === 'image') { wrap.innerHTML = f.content ? `<img class="cod-img" src="${esc(f.content)}" alt="" loading="lazy">` : ''; return wrap; }
+  if (f.type === 'richtext') { wrap.innerHTML = `<p class="cod-richtext">${esc(f.content).replace(/\n/g, '<br>')}</p>`; return wrap; }
+  if (f.type === 'video') { wrap.innerHTML = videoEmbed(f.content); return wrap; }
+  // Tipos sin soporte en el envío (subir archivo, mapa antiguo): no se muestran.
+  if (f.type === 'file' || f.type === 'map') { wrap.className += ' cod-hidden'; return wrap; }
 
   /* El bloque de ubicación es especial: trae su propio módulo (y su mapa lazy). */
   if (f.type === 'location') {
@@ -105,16 +109,38 @@ function renderField(
         <input type="checkbox" id="${id}"><span class="cod-check-box"></span>
         <span>${esc(f.content || f.label)}</span></label>`;
       break;
+    case 'radio':
+      control = `<div class="cod-choices" role="radiogroup">${f.options.map((o, i) => `
+        <label class="cod-choice"><input type="radio" name="${id}" value="${esc(o.value)}" ${i === 0 ? `id="${id}"` : ''}>
+        <span class="cod-choice-dot"></span><span>${esc(o.label)}</span></label>`).join('')}</div>`;
+      break;
+    case 'multiselect':
+      control = `<div class="cod-choices">${f.options.map((o, i) => `
+        <label class="cod-choice"><input type="checkbox" value="${esc(o.value)}" ${i === 0 ? `id="${id}"` : ''}>
+        <span class="cod-check-box"></span><span>${esc(o.label)}</span></label>`).join('')}</div>`;
+      break;
     case 'phone':
       control = `<div class="cod-phone"><span>+1</span>
         <input type="tel" id="${id}" inputmode="tel" placeholder="${esc(f.placeholder)}"></div>`;
       break;
-    default:
-      control = `<input type="${f.type === 'email' ? 'email' : 'text'}" id="${id}"
+    default: {
+      const type = f.type === 'email' ? 'email' : f.type === 'date' ? 'date' : f.type === 'time' ? 'time' : 'text';
+      control = `<input type="${type}" id="${id}"
         placeholder="${esc(f.placeholder)}" ${f.type === 'number' ? 'inputmode="numeric"' : ''}>`;
+    }
   }
 
   wrap.innerHTML = `${f.type === 'checkbox' ? '' : label}${control}${help}<span class="cod-err"></span>`;
+
+  if (f.type === 'radio' || f.type === 'multiselect') {
+    const boxes = [...wrap.querySelectorAll<HTMLInputElement>('.cod-choices input')];
+    boxes.forEach((b) => b.addEventListener('change', () => {
+      state.values[f.key] = boxes.filter((x) => x.checked).map((x) => x.value).join(', ');
+      clearError(wrap);
+      onChange();
+    }));
+    return wrap;
+  }
 
   const input = wrap.querySelector<HTMLInputElement>('input, select, textarea')!;
   const event = f.type === 'select' || f.type === 'checkbox' ? 'change' : 'input';
@@ -181,6 +207,17 @@ function clearError(wrap: HTMLElement) {
   wrap.classList.remove('cod-invalid');
   const e = wrap.querySelector('.cod-err');
   if (e) e.textContent = '';
+}
+
+/** YouTube / Vimeo como iframe; cualquier otra URL como <video>. */
+function videoEmbed(url: string): string {
+  const u = (url || '').trim();
+  if (!u) return '';
+  const yt = /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/.exec(u);
+  if (yt) return `<div class="cod-video"><iframe src="https://www.youtube-nocookie.com/embed/${yt[1]}" allow="encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
+  const vm = /vimeo\.com\/(\d+)/.exec(u);
+  if (vm) return `<div class="cod-video"><iframe src="https://player.vimeo.com/video/${vm[1]}" allowfullscreen loading="lazy"></iframe></div>`;
+  return `<div class="cod-video"><video src="${esc(u)}" controls playsinline preload="metadata"></video></div>`;
 }
 
 const esc = (s: string) =>

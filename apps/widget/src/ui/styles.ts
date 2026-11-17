@@ -66,6 +66,25 @@ export const CSS = `
 .cod-check input:checked+.cod-check-box::after{content:'';position:absolute;left:6px;top:2px;width:5px;height:10px;
   border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}
 
+.cod-heading{margin:2px 0 0;font-size:1.25em;font-weight:700;line-height:1.25;color:var(--cod-text)}
+.cod-subheading{margin:0;font-size:1em;font-weight:600;color:var(--cod-muted)}
+.cod-divider{border:0;border-top:1px solid var(--cod-border);margin:4px 0}
+.cod-img{display:block;max-width:100%;height:auto;border-radius:var(--cod-radius)}
+.cod-choices{display:grid;gap:7px}
+.cod-field .cod-choice{display:flex;align-items:center;gap:9px;margin:0;padding:10px 12px;cursor:pointer;
+  font-size:13px;font-weight:500;border:1.5px solid var(--cod-border);border-radius:var(--cod-radius);background:var(--cod-field)}
+.cod-field .cod-choice input{position:absolute;opacity:0;width:1px;height:1px;padding:0;border:0;margin:0}
+.cod-choice:has(input:checked){border-color:var(--cod-brand);background:#fff}
+.cod-choice-dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--cod-border);flex-shrink:0;position:relative}
+.cod-choice input:checked+.cod-choice-dot{border-color:var(--cod-brand)}
+.cod-choice input:checked+.cod-choice-dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--cod-brand)}
+.cod-choice input:checked+.cod-check-box{background:var(--cod-ok);border-color:var(--cod-ok)}
+.cod-choice input:checked+.cod-check-box::after{content:'';position:absolute;left:6px;top:2px;width:5px;height:10px;
+  border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}
+.cod-richtext{margin:0;font-size:13px;line-height:1.55;color:var(--cod-text)}
+.cod-video{position:relative;width:100%;aspect-ratio:16/9;border-radius:var(--cod-radius);overflow:hidden;background:#000}
+.cod-video iframe,.cod-video video{position:absolute;inset:0;width:100%;height:100%;border:0}
+
 /* ── Ubicación ── */
 .cod-seg{position:relative;display:grid;grid-template-columns:1fr 1fr;padding:4px;background:#f2f2f2;
   border-radius:var(--cod-radius)}

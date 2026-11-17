@@ -52,29 +52,6 @@ export const DEFAULT_FIELDS: Field[] = [
   },
 ];
 
-/** Paleta del constructor: lo que el merchant puede arrastrar al lienzo. */
-export const PALETTE: { type: Field['type']; label: string; icon: string }[] = [
-  { type: 'text', label: 'Texto', icon: 'Aa' },
-  { type: 'textarea', label: 'Área de texto', icon: '¶' },
-  { type: 'email', label: 'Correo', icon: '@' },
-  { type: 'phone', label: 'Teléfono', icon: '☎' },
-  { type: 'number', label: 'Número', icon: '#' },
-  { type: 'date', label: 'Fecha', icon: '📅' },
-  { type: 'time', label: 'Hora', icon: '🕐' },
-  { type: 'select', label: 'Lista desplegable', icon: '▾' },
-  { type: 'checkbox', label: 'Casilla', icon: '☑' },
-  { type: 'radio', label: 'Opción única', icon: '◉' },
-  { type: 'multiselect', label: 'Selección múltiple', icon: '☰' },
-  { type: 'location', label: 'Ubicación + mapa', icon: '📍' },
-  { type: 'heading', label: 'Título', icon: 'H' },
-  { type: 'subheading', label: 'Subtítulo', icon: 'h' },
-  { type: 'richtext', label: 'Texto enriquecido', icon: '¶+' },
-  { type: 'divider', label: 'Separador', icon: '―' },
-  { type: 'image', label: 'Imagen', icon: '🖼' },
-  { type: 'video', label: 'Video', icon: '▶' },
-  { type: 'file', label: 'Subir archivo', icon: '⇪' },
-  { type: 'html', label: 'HTML personalizado', icon: '</>' },
-];
 
 /** Un campo nuevo nace con valores sensatos, no vacío. */
 export function newField(type: Field['type'], order: number): Field {
@@ -99,7 +76,10 @@ export function newField(type: Field['type'], order: number): Field {
       ? [{ label: 'Opción 1', value: 'opcion-1' }]
       : [],
     conditions: [],
-    content: type === 'heading' ? 'Título' : type === 'checkbox' ? 'Acepto los términos' : '',
+    content: ({
+      heading: 'Título', subheading: 'Subtítulo', checkbox: 'Acepto los términos',
+      richtext: 'Escribe aquí tu texto.',
+    } as Partial<Record<Field['type'], string>>)[type] ?? '',
     validation: { minLength: null, maxLength: null, regex: null, message: null },
   };
 }

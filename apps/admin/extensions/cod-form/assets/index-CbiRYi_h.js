@@ -347,7 +347,19 @@ function renderField(f, config, state, onChange) {
     return wrap;
   }
   if (f.type === "image") {
-    wrap.innerHTML = `<img class="cod-img" src="${esc(f.content)}" alt="" loading="lazy">`;
+    wrap.innerHTML = f.content ? `<img class="cod-img" src="${esc(f.content)}" alt="" loading="lazy">` : "";
+    return wrap;
+  }
+  if (f.type === "richtext") {
+    wrap.innerHTML = `<p class="cod-richtext">${esc(f.content).replace(/\n/g, "<br>")}</p>`;
+    return wrap;
+  }
+  if (f.type === "video") {
+    wrap.innerHTML = videoEmbed(f.content);
+    return wrap;
+  }
+  if (f.type === "file" || f.type === "map") {
+    wrap.className += " cod-hidden";
     return wrap;
   }
   if (f.type === "location") {
@@ -374,15 +386,36 @@ function renderField(f, config, state, onChange) {
         <input type="checkbox" id="${id}"><span class="cod-check-box"></span>
         <span>${esc(f.content || f.label)}</span></label>`;
       break;
+    case "radio":
+      control = `<div class="cod-choices" role="radiogroup">${f.options.map((o, i) => `
+        <label class="cod-choice"><input type="radio" name="${id}" value="${esc(o.value)}" ${i === 0 ? `id="${id}"` : ""}>
+        <span class="cod-choice-dot"></span><span>${esc(o.label)}</span></label>`).join("")}</div>`;
+      break;
+    case "multiselect":
+      control = `<div class="cod-choices">${f.options.map((o, i) => `
+        <label class="cod-choice"><input type="checkbox" value="${esc(o.value)}" ${i === 0 ? `id="${id}"` : ""}>
+        <span class="cod-check-box"></span><span>${esc(o.label)}</span></label>`).join("")}</div>`;
+      break;
     case "phone":
       control = `<div class="cod-phone"><span>+1</span>
         <input type="tel" id="${id}" inputmode="tel" placeholder="${esc(f.placeholder)}"></div>`;
       break;
-    default:
-      control = `<input type="${f.type === "email" ? "email" : "text"}" id="${id}"
+    default: {
+      const type = f.type === "email" ? "email" : f.type === "date" ? "date" : f.type === "time" ? "time" : "text";
+      control = `<input type="${type}" id="${id}"
         placeholder="${esc(f.placeholder)}" ${f.type === "number" ? 'inputmode="numeric"' : ""}>`;
+    }
   }
   wrap.innerHTML = `${f.type === "checkbox" ? "" : label}${control}${help}<span class="cod-err"></span>`;
+  if (f.type === "radio" || f.type === "multiselect") {
+    const boxes = [...wrap.querySelectorAll(".cod-choices input")];
+    boxes.forEach((b) => b.addEventListener("change", () => {
+      state.values[f.key] = boxes.filter((x) => x.checked).map((x) => x.value).join(", ");
+      clearError(wrap);
+      onChange();
+    }));
+    return wrap;
+  }
   const input = wrap.querySelector("input, select, textarea");
   const event = f.type === "select" || f.type === "checkbox" ? "change" : "input";
   input.addEventListener(event, () => {
@@ -443,6 +476,15 @@ function clearError(wrap) {
   wrap.classList.remove("cod-invalid");
   const e = wrap.querySelector(".cod-err");
   if (e) e.textContent = "";
+}
+function videoEmbed(url) {
+  const u = (url || "").trim();
+  if (!u) return "";
+  const yt = /(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/.exec(u);
+  if (yt) return `<div class="cod-video"><iframe src="https://www.youtube-nocookie.com/embed/${yt[1]}" allow="encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>`;
+  const vm = /vimeo\.com\/(\d+)/.exec(u);
+  if (vm) return `<div class="cod-video"><iframe src="https://player.vimeo.com/video/${vm[1]}" allowfullscreen loading="lazy"></iframe></div>`;
+  return `<div class="cod-video"><video src="${esc(u)}" controls playsinline preload="metadata"></video></div>`;
 }
 const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const CSS = `
@@ -505,6 +547,25 @@ const CSS = `
 .cod-check input:checked+.cod-check-box{background:var(--cod-ok);border-color:var(--cod-ok);transform:scale(1.08)}
 .cod-check input:checked+.cod-check-box::after{content:'';position:absolute;left:6px;top:2px;width:5px;height:10px;
   border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}
+
+.cod-heading{margin:2px 0 0;font-size:1.25em;font-weight:700;line-height:1.25;color:var(--cod-text)}
+.cod-subheading{margin:0;font-size:1em;font-weight:600;color:var(--cod-muted)}
+.cod-divider{border:0;border-top:1px solid var(--cod-border);margin:4px 0}
+.cod-img{display:block;max-width:100%;height:auto;border-radius:var(--cod-radius)}
+.cod-choices{display:grid;gap:7px}
+.cod-field .cod-choice{display:flex;align-items:center;gap:9px;margin:0;padding:10px 12px;cursor:pointer;
+  font-size:13px;font-weight:500;border:1.5px solid var(--cod-border);border-radius:var(--cod-radius);background:var(--cod-field)}
+.cod-field .cod-choice input{position:absolute;opacity:0;width:1px;height:1px;padding:0;border:0;margin:0}
+.cod-choice:has(input:checked){border-color:var(--cod-brand);background:#fff}
+.cod-choice-dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--cod-border);flex-shrink:0;position:relative}
+.cod-choice input:checked+.cod-choice-dot{border-color:var(--cod-brand)}
+.cod-choice input:checked+.cod-choice-dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--cod-brand)}
+.cod-choice input:checked+.cod-check-box{background:var(--cod-ok);border-color:var(--cod-ok)}
+.cod-choice input:checked+.cod-check-box::after{content:'';position:absolute;left:6px;top:2px;width:5px;height:10px;
+  border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}
+.cod-richtext{margin:0;font-size:13px;line-height:1.55;color:var(--cod-text)}
+.cod-video{position:relative;width:100%;aspect-ratio:16/9;border-radius:var(--cod-radius);overflow:hidden;background:#000}
+.cod-video iframe,.cod-video video{position:absolute;inset:0;width:100%;height:100%;border:0}
 
 /* ── Ubicación ── */
 .cod-seg{position:relative;display:grid;grid-template-columns:1fr 1fr;padding:4px;background:#f2f2f2;

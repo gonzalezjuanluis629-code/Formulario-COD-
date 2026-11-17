@@ -3,6 +3,26 @@ import { tokensToCss } from './core/theme';
 import { renderForm } from './ui/form';
 import { CSS } from './ui/styles';
 import { FormState } from './index';
+import { renderTrigger } from './ui/trigger';
+
+export interface PreviewOptions {
+  /** Campo seleccionado en el editor: se resalta en la vista previa. */
+  selectedKey?: string | null;
+  /** Muestra también el botón «Comprar ahora» (modo popup) encima del formulario. */
+  showTrigger?: boolean;
+  /** Se llama al hacer clic en un campo de la vista previa. */
+  onSelect?: (key: string) => void;
+}
+
+let lastSelected: string | null = null;
+
+const PREVIEW_CSS = `
+.cod-field{position:relative;cursor:pointer;border-radius:8px;transition:box-shadow .15s}
+.cod-field:hover{box-shadow:0 0 0 2px rgba(0,91,211,.25)}
+.cod-field.cod-selected{box-shadow:0 0 0 2px #005bd3}
+.cod-field.cod-selected.cod-hidden{display:block;opacity:.6}
+.cod-field.cod-selected::before{content:attr(data-label);position:absolute;top:-9px;right:6px;z-index:2;
+  background:#005bd3;color:#fff;font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px}`;
 
 /**
  * Modo demo del widget: mismo renderizador, mismos estilos, misma validación.
@@ -11,14 +31,15 @@ import { FormState } from './index';
  * Esto es deliberado: una preview que "imita" el formulario acaba mintiendo.
  * Reutilizando el código real, lo que ve el merchant es lo que verá el cliente.
  */
-export function renderPreview(host: HTMLElement, fields: Field[], tokens: ThemeTokens): void {
+export function renderPreview(host: HTMLElement, fields: Field[], tokens: ThemeTokens, opts: PreviewOptions = {}): void {
   host.textContent = '';
+  renderTriggerPreview(host, tokens, !!opts.showTrigger);
 
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
   shadow.innerHTML = '';
 
   const style = document.createElement('style');
-  style.textContent = `:host{${tokensToCss(tokens)}}\n${CSS}\n${tokens.customCss}`;
+  style.textContent = `:host{${tokensToCss(tokens)}}\n${CSS}\n${tokens.customCss}\n${PREVIEW_CSS}`;
   shadow.appendChild(style);
 
   const root = document.createElement('div');
@@ -80,4 +101,37 @@ export function renderPreview(host: HTMLElement, fields: Field[], tokens: ThemeT
         </div>`;
     },
   });
+
+  wireSelection(root, fields, opts);
+}
+
+/** Resalta el campo elegido y permite elegir campos haciendo clic en la vista previa. */
+function wireSelection(root: HTMLElement, fields: Field[], opts: PreviewOptions): void {
+  const names = new Map(fields.map((f) => [f.key, f.label || f.content || f.key]));
+  root.querySelectorAll<HTMLElement>('.cod-field[data-key]').forEach((el) => {
+    const key = el.dataset.key!;
+    el.dataset.label = (names.get(key) ?? '').slice(0, 40);
+    if (key === opts.selectedKey) el.classList.add('cod-selected');
+    el.addEventListener('pointerdown', () => opts.onSelect?.(key));
+  });
+  if (opts.selectedKey && opts.selectedKey !== lastSelected) {
+    root.querySelector('.cod-selected')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+  lastSelected = opts.selectedKey ?? null;
+}
+
+/** Botón «Comprar ahora» encima del formulario, igual que en la tienda en modo popup. */
+function renderTriggerPreview(host: HTMLElement, tokens: ThemeTokens, show: boolean): void {
+  let box = document.getElementById('cod-trigger-preview');
+  if (!show) { box?.remove(); return; }
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'cod-trigger-preview';
+    box.style.cssText = 'margin:0 auto 16px;max-width:420px';
+    host.parentElement?.insertBefore(box, host);
+  }
+  box.innerHTML = '<div style="font:600 11px system-ui;color:#8a8a8a;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Botón «Comprar ahora»</div>';
+  const slot = document.createElement('div');
+  box.appendChild(slot);
+  renderTrigger(slot, tokens.trigger, () => undefined);
 }

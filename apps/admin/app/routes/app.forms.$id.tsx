@@ -1,352 +1,337 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Badge, BlockStack, Button, Card, InlineStack, Layout, Page, Select, Text, TextField, Toast, Frame,
+  Badge, Banner, BlockStack, Button, Frame, InlineStack, Page, Select, Tabs, Text, TextField, Toast,
 } from '@shopify/polaris';
-import { useFetcher, useLoaderData, useNavigate } from 'react-router';
+import { useFetcher, useLoaderData, useNavigate, useSearchParams } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { FieldSchema, ThemeTokensSchema, type Field, type ThemeTokens } from '@cod/contracts';
 import { requireShop } from '../lib/shop.server';
 import { db } from '../db.server';
-import { FormBuilder } from '../features/builder/FormBuilder';
-import { Inspector } from '../features/builder/Inspector';
+import { FieldList } from '../features/builder/FieldList';
+import { FieldSettings } from '../features/builder/FieldSettings';
+import { DesignPanel, type DesignSection } from '../features/builder/DesignPanel';
 import { Preview } from '../features/builder/Preview';
+
+/** El diseño que usa el formulario: el suyo o, si no tiene, el de la tienda. */
+async function themeFor(shopId: string, themeId: string | null) {
+  if (themeId) {
+    const own = await db.theme.findFirst({ where: { id: themeId, shopId } });
+    if (own) return own;
+  }
+  return (await db.theme.findFirst({ where: { shopId, isDefault: true } }))
+    ?? db.theme.create({ data: { shopId, name: 'Tema por defecto', isDefault: true, tokens: {} } });
+}
 
 export async function loader({ request, params }: LoaderFunctionArgs) {
   const { shop } = await requireShop(request);
 
   const form = await db.form.findFirstOrThrow({
     where: { id: params.id!, shopId: shop.id }, // el shopId sale de la sesión, nunca de la URL
-    include: { versions: { orderBy: { version: 'desc' } }, theme: true, assignments: true },
+    include: { versions: { orderBy: { version: 'desc' } }, assignments: true },
   });
-
   const current = form.versions.find((v) => v.id === form.currentVersionId) ?? form.versions[0]!;
+  const theme = await themeFor(shop.id, form.themeId);
 
   return {
     form: {
-      id: form.id, name: form.name, status: form.status, displayMode: form.displayMode,
+      id: form.id, name: form.name, status: form.status,
       assignment: form.assignments[0]
-        ? { type: form.assignments[0].type, value: form.assignments[0].value ?? '', label: (form.assignments[0] as { label?: string }).label ?? '' }
+        ? { type: form.assignments[0].type, value: form.assignments[0].value ?? '', label: form.assignments[0].label ?? '' }
         : null,
     },
     fields: current.schema as Field[],
-    tokens: ThemeTokensSchema.parse(form.theme?.tokens ?? {}),
+    themeId: theme.id,
+    tokens: ThemeTokensSchema.parse(theme.tokens ?? {}),
     versions: form.versions.map((v) => ({ id: v.id, version: v.version, publishedAt: v.publishedAt })),
     currentVersion: current.version,
   };
 }
 
-export async function action({ request, params }: ActionFunctionArgs) {
-  const requestUrl = new URL(request.url);
-  console.info('[form-action] start', {
-    method: request.method,
-    hasAuthorization: request.headers.has('authorization'),
-    hasUrlToken: requestUrl.searchParams.has('id_token'),
-  });
+type ActionResult = { ok: boolean; message: string };
+
+export async function action({ request, params }: ActionFunctionArgs): Promise<ActionResult | null> {
   const { shop } = await requireShop(request);
-  console.info('[form-action] authenticated');
   const fd = await request.formData();
   const intent = String(fd.get('intent'));
-  console.info('[form-action] parsed', {
-    intent,
-    fieldsLength: String(fd.get('fields') ?? '').length,
-  });
-
   const form = await db.form.findFirstOrThrow({ where: { id: params.id!, shopId: shop.id } });
 
-  /* La asignación (dónde se muestra) se guarda en publish y en save. */
-  if (intent === 'publish' || intent === 'save') {
-    const type = String(fd.get('assignType') || 'ALL') as
-      'ALL' | 'PRODUCT' | 'COLLECTION' | 'TAG' | 'VENDOR';
+  if (intent === 'save' || intent === 'publish') {
+    const parsed = FieldSchema.array().safeParse(JSON.parse(String(fd.get('fields') || '[]')));
+    if (!parsed.success) return { ok: false, message: 'Hay un campo con datos no válidos. Revísalo e inténtalo de nuevo.' };
+    const fields = parsed.data;
+
+    const keys = new Set<string>();
+    for (const f of fields) {
+      if (keys.has(f.key)) return { ok: false, message: `Hay dos campos con el mismo nombre interno «${f.key}». Cambia uno en «Más opciones».` };
+      keys.add(f.key);
+    }
+
+    // Dónde se muestra.
+    const type = String(fd.get('assignType') || 'ALL') as 'ALL' | 'PRODUCT' | 'COLLECTION' | 'TAG' | 'VENDOR';
     const value = String(fd.get('assignValue') || '') || null;
     const label = String(fd.get('assignLabel') || '') || null;
-
-    // Especificidad como prioridad, para que producto gane a colección, etc.
+    if (type !== 'ALL' && !value) {
+      return { ok: false, message: 'Elige el producto, la colección, la etiqueta o el proveedor donde se muestra.' };
+    }
     const priority = { PRODUCT: 5, COLLECTION: 4, TAG: 3, VENDOR: 2, ALL: 1 }[type];
-
     await db.formAssignment.deleteMany({ where: { formId: form.id } });
     await db.formAssignment.create({
       data: { formId: form.id, type, value: type === 'ALL' ? null : value, label, priority },
     });
-  }
 
-  /* ── Publicar: crea una VERSIÓN NUEVA, no pisa la anterior. ──
-     Así el formulario que está vivo en la tienda no se rompe a medio editar,
-     y siempre se puede volver atrás. */
-  if (intent === 'publish') {
-    const fields = FieldSchema.array().parse(JSON.parse(String(fd.get('fields'))));
-
-    // Reglas que el builder no puede dejar pasar al storefront.
-    const keys = new Set<string>();
-    for (const f of fields) {
-      if (keys.has(f.key)) throw new Response(`Hay dos campos con la clave "${f.key}"`, { status: 400 });
-      keys.add(f.key);
+    // Diseño.
+    if (fd.get('tokens')) {
+      const tokens = ThemeTokensSchema.safeParse(JSON.parse(String(fd.get('tokens'))));
+      if (!tokens.success) return { ok: false, message: 'Algún valor del diseño no es válido.' };
+      const theme = await themeFor(shop.id, form.themeId);
+      await db.theme.update({ where: { id: theme.id }, data: { tokens: tokens.data as object } });
+      if (form.themeId !== theme.id) await db.form.update({ where: { id: form.id }, data: { themeId: theme.id } });
     }
 
-    const last = await db.formVersion.findFirst({
-      where: { formId: form.id }, orderBy: { version: 'desc' },
-    });
+    const name = String(fd.get('name') || '').trim() || form.name;
 
-    const version = await db.formVersion.create({
-      data: {
-        formId: form.id,
-        version: (last?.version ?? 0) + 1,
-        schema: fields as object,
-        publishedAt: new Date(),
-      },
-    });
+    if (intent === 'publish') {
+      // Publicar crea una VERSIÓN NUEVA: lo que está en la tienda no se rompe y se puede volver atrás.
+      const last = await db.formVersion.findFirst({ where: { formId: form.id }, orderBy: { version: 'desc' } });
+      const version = await db.formVersion.create({
+        data: { formId: form.id, version: (last?.version ?? 0) + 1, schema: fields as object, publishedAt: new Date() },
+      });
+      await db.form.update({ where: { id: form.id }, data: { currentVersionId: version.id, status: 'ACTIVE', name } });
+      return { ok: true, message: 'Publicado. Ya está en tu tienda (puede tardar 1 minuto).' };
+    }
 
-    await db.form.update({
-      where: { id: form.id },
-      data: { currentVersionId: version.id, status: 'ACTIVE', name: String(fd.get('name') || form.name) },
-    });
-
-    return { ok: true, message: `Publicado (v${version.version}). Ya está en tu tienda.` };
+    await db.formVersion.update({ where: { id: form.currentVersionId! }, data: { schema: fields as object } });
+    await db.form.update({ where: { id: form.id }, data: { name } });
+    return { ok: true, message: 'Cambios guardados.' };
   }
 
-  /* ── Guardar borrador: sobrescribe la versión actual SI no está publicada. ── */
-  if (intent === 'save') {
-    const fields = FieldSchema.array().parse(JSON.parse(String(fd.get('fields'))));
-    await db.formVersion.update({
-      where: { id: form.currentVersionId! },
-      data: { schema: fields as object },
-    });
-    await db.form.update({ where: { id: form.id }, data: { name: String(fd.get('name') || form.name) } });
-    return { ok: true, message: 'Borrador guardado.' };
-  }
-
-  /* ── Revertir a una versión anterior. ── */
   if (intent === 'revert') {
-    const versionId = String(fd.get('versionId'));
-    const target = await db.formVersion.findFirstOrThrow({ where: { id: versionId, formId: form.id } });
+    const target = await db.formVersion.findFirst({ where: { id: String(fd.get('versionId')), formId: form.id } });
+    if (!target) return { ok: false, message: 'Esa versión ya no existe.' };
     await db.form.update({ where: { id: form.id }, data: { currentVersionId: target.id } });
-    return { ok: true, message: `Revertido a la versión ${target.version}.` };
+    return { ok: true, message: `Restaurada la versión ${target.version}.` };
   }
 
   if (intent === 'toggle') {
-    await db.form.update({
-      where: { id: form.id },
-      data: { status: form.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE' },
-    });
-    return { ok: true, message: 'Estado actualizado.' };
-  }
-
-  /* ── Exportar / importar (JSON portable entre tiendas). ── */
-  if (intent === 'import') {
-    const fields = FieldSchema.array().parse(JSON.parse(String(fd.get('json'))));
-    await db.formVersion.update({
-      where: { id: form.currentVersionId! },
-      data: { schema: fields as object },
-    });
-    return { ok: true, message: 'Formulario importado.' };
+    await db.form.update({ where: { id: form.id }, data: { status: form.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE' } });
+    return { ok: true, message: form.status === 'ACTIVE' ? 'Formulario pausado: ya no se ve en la tienda.' : 'Formulario activado.' };
   }
 
   return null;
 }
 
+type Tab = 'fields' | 'design' | 'settings';
+const TABS: { id: Tab; content: string }[] = [
+  { id: 'fields', content: 'Campos' },
+  { id: 'design', content: 'Diseño' },
+  { id: 'settings', content: 'Ajustes' },
+];
+
 export default function FormEditor() {
   const navigate = useNavigate();
   const data = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<{ ok: boolean; message: string }>();
+  const fetcher = useFetcher<ActionResult>();
+  const [params] = useSearchParams();
 
+  const [tab, setTab] = useState<Tab>(params.get('tab') === 'design' ? 'design' : 'fields');
   const [name, setName] = useState(data.form.name);
   const [fields, setFields] = useState<Field[]>(data.fields);
+  const [tokens, setTokens] = useState<ThemeTokens>(data.tokens);
   const [selected, setSelected] = useState<string | null>(null);
+  const [designOpen, setDesignOpen] = useState<DesignSection | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
-  // Asignación: dónde se muestra el formulario.
   const [assignType, setAssignType] = useState(data.form.assignment?.type ?? 'ALL');
   const [assignValue, setAssignValue] = useState(data.form.assignment?.value ?? '');
   const [assignLabel, setAssignLabel] = useState(data.form.assignment?.label ?? '');
 
-  const selectedField = useMemo(
-    () => fields.find((f) => f.key === selected) ?? null,
-    [fields, selected],
-  );
+  const selectedField = useMemo(() => fields.find((f) => f.key === selected) ?? null, [fields, selected]);
+  const busy = fetcher.state !== 'idle';
 
-  /** Resource Picker de App Bridge: elegir producto o colección sin pegar IDs. */
+  useEffect(() => {
+    if (fetcher.state === 'idle' && fetcher.data) {
+      if (fetcher.data.ok) { setToast(fetcher.data.message); setDirty(false); }
+    }
+  }, [fetcher.state, fetcher.data]);
+
+  const changeFields = useCallback((f: Field[]) => { setFields(f); setDirty(true); }, []);
+  const changeField = useCallback((f: Field) => {
+    setFields((prev) => prev.map((x) => (x.key === selected ? f : x)));
+    if (f.key !== selected) setSelected(f.key);
+    setDirty(true);
+  }, [selected]);
+  const changeTokens = useCallback((t: ThemeTokens) => { setTokens(t); setDirty(true); }, []);
+
+  const selectFromPreview = useCallback((key: string) => {
+    setTab('fields');
+    setSelected(key);
+  }, []);
+
   const pickResource = useCallback(async (type: 'PRODUCT' | 'COLLECTION') => {
     const shopify = (window as unknown as { shopify?: { resourcePicker: (o: unknown) => Promise<unknown> } }).shopify;
     if (!shopify?.resourcePicker) return;
-    const picked = (await shopify.resourcePicker({
-      type: type === 'PRODUCT' ? 'product' : 'collection',
-      action: 'select',
-    })) as { id: string; title: string }[] | undefined;
-    if (picked?.length) {
-      setAssignValue(picked[0].id);
-      setAssignLabel(picked[0].title);
-      setDirty(true);
-    }
+    const picked = (await shopify.resourcePicker({ type: type === 'PRODUCT' ? 'product' : 'collection', action: 'select' })) as
+      { id: string; title: string }[] | undefined;
+    if (picked?.length) { setAssignValue(picked[0].id); setAssignLabel(picked[0].title); setDirty(true); }
   }, []);
-
-  const updateFields = useCallback((f: Field[]) => {
-    setFields(f);
-    setDirty(true);
-  }, []);
-
-  const updateField = useCallback((f: Field) => {
-    setFields((prev) => prev.map((x) => (x.key === selected ? f : x)));
-    if (f.key !== selected) setSelected(f.key); // si cambió la key, seguirla
-    setDirty(true);
-  }, [selected]);
 
   const send = async (intent: string, extra: Record<string, string> = {}) => {
-    // React Router conserva los query params de la carga inicial, incluido un
-    // id_token que caduca al minuto. Al guardar después de editar, Shopify
-    // rechazaba ese token antiguo con 400. Sustituirlo justo antes del submit
-    // mantiene autenticadas todas las acciones del editor.
+    // Token de sesión fresco: el de la URL caduca al minuto.
     const actionUrl = new URL(window.location.href);
-    const shopify = (window as unknown as {
-      shopify?: { idToken?: () => Promise<string> };
-    }).shopify;
-    if (shopify?.idToken) {
-      actionUrl.searchParams.set('id_token', await shopify.idToken());
-    }
-
+    const shopify = (window as unknown as { shopify?: { idToken?: () => Promise<string> } }).shopify;
+    if (shopify?.idToken) actionUrl.searchParams.set('id_token', await shopify.idToken());
     fetcher.submit(
       {
-        intent, name, fields: JSON.stringify(fields),
-        assignType, assignValue, assignLabel,
-        ...extra,
+        intent, name, fields: JSON.stringify(fields), tokens: JSON.stringify(tokens),
+        assignType, assignValue, assignLabel, ...extra,
       },
       { method: 'post', action: `${actionUrl.pathname}${actionUrl.search}` },
     );
-    setDirty(false);
   };
 
-  const busy = fetcher.state !== 'idle';
+  const status = data.form.status;
 
   return (
     <Frame>
+      <style>{EDITOR_CSS}</style>
       <Page
+        fullWidth
         backAction={{ content: 'Formularios', onAction: () => navigate('/app/forms') }}
-        title={name}
+        title={name || 'Formulario'}
         titleMetadata={
           <InlineStack gap="200">
-            <Badge tone={data.form.status === 'ACTIVE' ? 'success' : undefined}>
-              {data.form.status === 'ACTIVE' ? 'Activo' : data.form.status === 'PAUSED' ? 'Pausado' : 'Borrador'}
+            <Badge tone={status === 'ACTIVE' ? 'success' : status === 'PAUSED' ? 'warning' : undefined}>
+              {status === 'ACTIVE' ? 'Publicado' : status === 'PAUSED' ? 'Pausado' : 'Sin publicar'}
             </Badge>
-            <Badge>{`v${data.currentVersion}`}</Badge>
-            {dirty && <Badge tone="attention">Sin guardar</Badge>}
+            {dirty && <Badge tone="attention">Cambios sin guardar</Badge>}
           </InlineStack>
         }
-        primaryAction={{
-          content: 'Publicar',
-          loading: busy,
-          disabled: !fields.length,
-          onAction: () => send('publish'),
-        }}
+        primaryAction={{ content: 'Publicar', loading: busy, disabled: !fields.length, onAction: () => send('publish') }}
         secondaryActions={[
-          { content: 'Guardar borrador', onAction: () => send('save'), disabled: busy },
-          {
-            content: data.form.status === 'ACTIVE' ? 'Pausar' : 'Activar',
-            onAction: () => send('toggle'),
-          },
-          {
-            content: 'Exportar JSON',
-            onAction: () => {
-              const blob = new Blob([JSON.stringify(fields, null, 2)], { type: 'application/json' });
-              const a = document.createElement('a');
-              a.href = URL.createObjectURL(blob);
-              a.download = `${name.replace(/\s+/g, '-').toLowerCase()}.json`;
-              a.click();
-            },
-          },
+          { content: 'Guardar', disabled: busy || !dirty, onAction: () => send('save') },
+          ...(status !== 'DRAFT'
+            ? [{ content: status === 'ACTIVE' ? 'Pausar' : 'Activar', disabled: busy, onAction: () => send('toggle') }]
+            : []),
         ]}
       >
-        <Layout>
-          <Layout.Section>
-            <Card padding="300">
-              <InlineStack gap="300" blockAlign="end" wrap={false}>
-                <div style={{ flex: 1 }}>
-                  <TextField
-                    label="Nombre del formulario"
-                    value={name}
-                    onChange={(v) => { setName(v); setDirty(true); }}
-                    autoComplete="off"
-                  />
-                </div>
-                <div style={{ width: 300 }}>
-                  <BlockStack gap="150">
-                    <Select
-                      label="Se muestra en"
-                      options={[
-                        { label: 'Todos los productos', value: 'ALL' },
-                        { label: 'Un producto específico', value: 'PRODUCT' },
-                        { label: 'Una colección', value: 'COLLECTION' },
-                        { label: 'Por etiqueta', value: 'TAG' },
-                        { label: 'Por proveedor', value: 'VENDOR' },
-                      ]}
-                      value={assignType}
-                      onChange={(v) => { setAssignType(v as typeof assignType); setAssignValue(''); setAssignLabel(''); setDirty(true); }}
-                    />
+        {fetcher.data && !fetcher.data.ok && fetcher.state === 'idle' && (
+          <div style={{ marginBottom: 12 }}>
+            <Banner tone="critical" title="No se pudo guardar">{fetcher.data.message}</Banner>
+          </div>
+        )}
 
-                    {(assignType === 'PRODUCT' || assignType === 'COLLECTION') && (
-                      <Button
-                        onClick={() => pickResource(assignType)}
-                        variant="secondary"
-                      >
-                        {assignLabel || `Elegir ${assignType === 'PRODUCT' ? 'producto' : 'colección'}…`}
-                      </Button>
-                    )}
-                    {(assignType === 'TAG' || assignType === 'VENDOR') && (
-                      <TextField
-                        label={assignType === 'TAG' ? 'Etiqueta' : 'Proveedor'}
-                        labelHidden
-                        value={assignValue}
-                        onChange={(v) => { setAssignValue(v); setDirty(true); }}
-                        autoComplete="off"
-                        placeholder={assignType === 'TAG' ? 'Ej. oferta' : 'Ej. Nike'}
-                      />
-                    )}
-                  </BlockStack>
-                </div>
-              </InlineStack>
-            </Card>
-          </Layout.Section>
+        <div className="cod-editor">
+          {/* ── Panel izquierdo ── */}
+          <div className="cod-editor-side">
+            <div className="cod-editor-tabs">
+              <Tabs tabs={TABS} selected={TABS.findIndex((t) => t.id === tab)}
+                onSelect={(i) => { setTab(TABS[i]!.id); if (TABS[i]!.id !== 'fields') setSelected(null); }} fitted />
+            </div>
+            <div className="cod-editor-body">
+              {tab === 'fields' && (selectedField ? (
+                <FieldSettings
+                  key={selectedField.key}
+                  field={selectedField}
+                  allFields={fields}
+                  onChange={changeField}
+                  onBack={() => setSelected(null)}
+                  onRemove={() => {
+                    changeFields(fields.filter((f) => f.key !== selectedField.key).map((f, i) => ({ ...f, order: i + 1 })));
+                    setSelected(null);
+                  }}
+                />
+              ) : (
+                <BlockStack gap="300">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Toca un campo para editarlo. Arrástralo desde ⠿ para cambiar el orden.
+                  </Text>
+                  <FieldList fields={fields} onChange={changeFields} onSelect={setSelected} />
+                </BlockStack>
+              ))}
 
-          <Layout.Section>
-            <FormBuilder
-              fields={fields}
-              onChange={updateFields}
-              selectedKey={selected}
-              onSelect={setSelected}
-            />
-          </Layout.Section>
-
-          <Layout.Section variant="oneThird">
-            <BlockStack gap="400">
-              <Inspector field={selectedField} allFields={fields} onChange={updateField} />
-
-              {data.versions.length > 1 && (
-                <Card padding="300">
-                  <BlockStack gap="200">
-                    <Text as="h3" variant="headingSm">Historial</Text>
-                    {data.versions.slice(0, 5).map((v) => (
-                      <InlineStack key={v.id} align="space-between" blockAlign="center">
-                        <Text as="span" variant="bodySm">
-                          v{v.version}
-                          {v.version === data.currentVersion ? ' · en uso' : ''}
-                        </Text>
-                        {v.version !== data.currentVersion && (
-                          <Button size="micro" onClick={() => send('revert', { versionId: v.id })}>
-                            Restaurar
-                          </Button>
-                        )}
-                      </InlineStack>
-                    ))}
-                  </BlockStack>
-                </Card>
+              {tab === 'design' && (
+                <DesignPanel tokens={tokens} onChange={changeTokens} open={designOpen} onOpen={setDesignOpen} />
               )}
-            </BlockStack>
-          </Layout.Section>
 
-          <Layout.Section>
-            <Preview fields={fields} tokens={data.tokens as ThemeTokens} />
-          </Layout.Section>
-        </Layout>
+              {tab === 'settings' && (
+                <BlockStack gap="400">
+                  <TextField label="Nombre del formulario" value={name} autoComplete="off"
+                    helpText="Solo lo ves tú, para reconocerlo."
+                    onChange={(v) => { setName(v); setDirty(true); }} />
+                  <Select
+                    label="¿En qué productos se muestra?"
+                    options={[
+                      { label: 'En todos los productos', value: 'ALL' },
+                      { label: 'Solo en un producto', value: 'PRODUCT' },
+                      { label: 'En una colección', value: 'COLLECTION' },
+                      { label: 'En productos con una etiqueta', value: 'TAG' },
+                      { label: 'En productos de un proveedor', value: 'VENDOR' },
+                    ]}
+                    value={assignType}
+                    onChange={(v) => { setAssignType(v as typeof assignType); setAssignValue(''); setAssignLabel(''); setDirty(true); }}
+                  />
+                  {(assignType === 'PRODUCT' || assignType === 'COLLECTION') && (
+                    <Button onClick={() => pickResource(assignType)}>
+                      {assignLabel || `Elegir ${assignType === 'PRODUCT' ? 'producto' : 'colección'}…`}
+                    </Button>
+                  )}
+                  {(assignType === 'TAG' || assignType === 'VENDOR') && (
+                    <TextField label={assignType === 'TAG' ? 'Etiqueta' : 'Proveedor'} value={assignValue} autoComplete="off"
+                      placeholder={assignType === 'TAG' ? 'Ej. contraentrega' : 'Ej. Mi marca'}
+                      onChange={(v) => { setAssignValue(v); setDirty(true); }} />
+                  )}
 
-        {fetcher.data?.message && <Toast content={fetcher.data.message} onDismiss={() => {}} />}
+                  {data.versions.length > 1 && (
+                    <BlockStack gap="200">
+                      <Text as="h3" variant="headingSm">Versiones publicadas</Text>
+                      {data.versions.slice(0, 5).map((v) => (
+                        <InlineStack key={v.id} align="space-between" blockAlign="center">
+                          <Text as="span" variant="bodySm">
+                            Versión {v.version}{v.version === data.currentVersion ? ' · en uso' : ''}
+                            {v.publishedAt ? ` · ${new Date(v.publishedAt).toLocaleDateString('es')}` : ''}
+                          </Text>
+                          {v.version !== data.currentVersion && (
+                            <Button size="slim" onClick={() => send('revert', { versionId: v.id })}>Restaurar</Button>
+                          )}
+                        </InlineStack>
+                      ))}
+                    </BlockStack>
+                  )}
+                </BlockStack>
+              )}
+            </div>
+          </div>
+
+          {/* ── Vista previa, siempre visible ── */}
+          <div className="cod-editor-preview">
+            <Preview
+              fields={fields}
+              tokens={tokens}
+              selectedKey={tab === 'fields' ? selected : null}
+              onSelect={selectFromPreview}
+              showTrigger={tab === 'design' && designOpen === 'trigger'}
+            />
+          </div>
+        </div>
+
+        {toast && <Toast content={toast} onDismiss={() => setToast(null)} />}
       </Page>
     </Frame>
   );
 }
+
+const EDITOR_CSS = `
+.cod-editor{display:grid;grid-template-columns:minmax(320px,400px) 1fr;gap:16px;align-items:start}
+.cod-editor-side{background:#fff;border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.06);
+  display:flex;flex-direction:column;height:calc(100vh - 130px);min-height:520px;overflow:hidden}
+.cod-editor-tabs{border-bottom:1px solid #e3e3e3;flex-shrink:0}
+.cod-editor-body{padding:14px;overflow:auto;flex:1}
+.cod-editor-preview{position:sticky;top:12px;height:calc(100vh - 130px);min-height:520px;border-radius:12px;overflow:hidden;
+  box-shadow:0 1px 0 rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.06);background:#f1f1f1}
+@media (max-width: 860px){
+  .cod-editor{grid-template-columns:1fr}
+  .cod-editor-side{height:auto;min-height:0}
+  .cod-editor-body{overflow:visible}
+  .cod-editor-preview{position:relative;top:0;height:640px}
+}`;
