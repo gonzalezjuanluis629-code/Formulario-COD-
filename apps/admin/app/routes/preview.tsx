@@ -45,6 +45,7 @@ const HTML = `<!DOCTYPE html>
         offers: e.data.offers || [],
         addons: e.data.addons || [],
         unitPriceCents: e.data.unitPriceCents || 0,
+        shipping: e.data.shipping || null,
         focus: e.data.focus || null,
         onSelect: (key) => parent.postMessage({ type: 'cod:select', key }, location.origin),
       });

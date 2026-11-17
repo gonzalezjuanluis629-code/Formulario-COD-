@@ -254,8 +254,9 @@ export const ShopSettingsSchema = z.object({
   orderTag: z.string().default('COD'),
   gateway: z.string().default('Cash on Delivery (COD)'),
   currency: z.string().default('DOP'),
-  freeShippingOverCents: z.number().int().nullable().default(350000),
-  defaultShippingCents: z.number().int().default(25000),
+  freeShippingOverCents: z.number().int().nullable().default(null),
+  /** Sin configurar = 0: nunca se cobra un envío que el comerciante no puso. */
+  defaultShippingCents: z.number().int().default(0),
   /** Tarifa de envío por provincia (código DO-XX → centavos). Si falta, usa la default. */
   shippingByProvince: z.record(z.string(), z.number().int()).default({}),
   /** Recargo por pagar contra entrega (COD fee). 0 = sin recargo. */
