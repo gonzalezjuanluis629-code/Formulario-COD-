@@ -238,6 +238,19 @@ function overlayOpen(): boolean {
  * ahora abren ESTE formulario con todo el carrito.
  */
 export const CART_TRIGGERS = '[data-pd-rsi-cart], a[href*="pd_cod=1"], [data-cod-open-cart]';
+/** Botones que deja Releasit en el tema (aunque ya no se use): abren ESTE formulario. */
+const RELEASIT = '#rsi_buy_now_button, .rsi_animation_shake, [data-rsi-cod-button], ._rsi-buy-now-button-app-block-hook button';
+const onCartPage = () => /\/cart\/?$/.test(location.pathname);
+
+/** Formulario del producto de la página: el mismo que abre nuestro botón fijo. */
+function openProductForm(): boolean {
+  const host = [...document.querySelectorAll<HTMLElement>('[data-cod-form][data-cod-rendered="button"]')]
+    .find((el) => el.dataset.cart !== 'true' && el.shadowRoot?.querySelector('.cod-trigger'));
+  const btn = host?.shadowRoot?.querySelector<HTMLElement>('.cod-trigger');
+  if (!btn) return false;
+  btn.click();
+  return true;
+}
 let cartOpening = false;
 async function openCartForm(): Promise<void> {
   if (cartOpening) return;
@@ -586,6 +599,7 @@ const CHECKOUT = 'button[name="checkout"], input[name="checkout"], button#checko
  */
 function placeCartButtons(): void {
   if (!DIRECT?.cartButton) return;
+  if (onCartPage()) placeOnCartPage();
   document.querySelectorAll<HTMLElement>(CHECKOUT).forEach((btn) => {
     if (btn.closest('[data-cod-form], [data-cod-modal]')) return;
     // Si el botón va en una fila (junto a otros), el nuestro va debajo de la fila.
@@ -604,6 +618,37 @@ function placeCartButtons(): void {
     el.style.cssText = 'display:block;width:100%;margin:10px 0 0;';
     anchor.insertAdjacentElement('afterend', el);
   });
+}
+
+/**
+ * Página del carrito sin botón «Pagar» propio (temas hechos para otra app de
+ * pago contra entrega): nuestro botón va debajo del TOTAL del carrito, donde
+ * esa app ponía el suyo. Si la otra app sigue puesta y muestra su botón, no se
+ * duplica: ese botón ya abre este formulario.
+ */
+function placeOnCartPage(): void {
+  const shown = (e: Element) => e.getClientRects().length > 0;
+  const ours = document.querySelector<HTMLElement>('[data-cod-cart-page]');
+  const theirs = [...document.querySelectorAll(RELEASIT)].some((b) => shown(b) && !b.closest('[data-cod-form]'));
+  const checkout = [...document.querySelectorAll(CHECKOUT)].some((b) => shown(b) && !b.closest('[data-cod-form], [data-cod-modal]'));
+  if (theirs || checkout) { ours?.remove(); return; }
+  if (ours?.isConnected) return;
+  const total = document.querySelector('[data-mc-total], .mc-total__val, .totals__total-value, [data-cart-total], .cart__total, .cart-subtotal__price');
+  // El hueco donde iba el botón de la otra app; si no, debajo de la fila del total.
+  const anchor = document.querySelector<HTMLElement>('.rsi-app-block-container')?.closest<HTMLElement>('.mc-appblock')
+    ?? document.querySelector<HTMLElement>('.rsi-app-block-container')
+    ?? document.querySelector<HTMLElement>('.mc-summary .mc-total')
+    ?? total?.parentElement?.closest<HTMLElement>('.mc-total, .totals, .cart__totals, .cart-subtotal, .totals__total')
+    ?? total?.parentElement
+    ?? null;
+  if (!anchor) return;
+  const el = document.createElement('div');
+  el.setAttribute('data-cod-form', '');
+  el.dataset.mode = 'popup';
+  el.dataset.cart = 'true';
+  el.dataset.codCartPage = '1';
+  el.style.cssText = 'display:block;width:100%;margin:14px 0 4px;';
+  anchor.insertAdjacentElement('afterend', el);
 }
 
 /**
@@ -697,11 +742,18 @@ async function mountCart(el: HTMLElement): Promise<void> {
 
 if (DIRECT?.cartButton) {
   document.addEventListener('click', (e) => {
-    const t = (e.target as Element | null)?.closest?.(CART_TRIGGERS);
-    if (!t || t.closest('[data-cod-modal]')) return;
+    const el = e.target as Element | null;
+    const cartBtn = el?.closest?.(CART_TRIGGERS);
+    const rsiBtn = cartBtn ? null : el?.closest?.(RELEASIT);
+    if ((!cartBtn && !rsiBtn) || el?.closest?.('[data-cod-modal]')) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    void openCartForm();
+    // Ya está abierto: el tema a veces «pulsa» el botón solo varias veces; no se
+    // vuelve a abrir (se perdería lo que el cliente está escribiendo).
+    if (document.querySelector('[data-cod-modal]')) return;
+    // En la página del carrito o desde el carrito: TODO el carrito.
+    // Botón de Releasit en la página de un producto: el formulario de ese producto.
+    if (cartBtn || onCartPage() || !openProductForm()) void openCartForm();
   }, true);
   // Llegó a la página del carrito para pagar contra entrega (/cart?pd_cod=1).
   if (/\/cart\/?$/.test(location.pathname) && /[?&](pd_)?cod=1\b/.test(location.search)) {
@@ -753,6 +805,8 @@ new MutationObserver((muts) => {
       if (n instanceof HTMLElement && (n.matches('[data-cod-form]') || n.querySelector('[data-cod-form]'))) { queueBoot(); return; }
       // Carrito lateral que se vuelve a dibujar (al añadir un producto): su «Pagar» nuevo.
       if (DIRECT?.cartButton && n instanceof HTMLElement && (n.matches(CHECKOUT) || n.querySelector(CHECKOUT))) { queueBoot(); return; }
+      // Página del carrito que se redibuja (al cambiar cantidades) o botón de otra app que aparece.
+      if (DIRECT?.cartButton && n instanceof HTMLElement && onCartPage()) { queueBoot(); return; }
     }
   }
 }).observe(document.documentElement, { childList: true, subtree: true });
