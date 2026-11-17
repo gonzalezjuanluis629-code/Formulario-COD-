@@ -55,7 +55,7 @@ export const CSS = `
 .cod-phone{display:flex;align-items:center;border:1.5px solid var(--cod-border);
   border-radius:var(--cod-radius);background:var(--cod-field);overflow:hidden}
 .cod-phone:focus-within{border-color:var(--cod-brand);background:#fff;box-shadow:0 0 0 3.5px rgba(0,0,0,.06)}
-.cod-phone span{padding:10px 10px 10px 12px;color:var(--cod-muted);border-right:1.5px solid var(--cod-border)}
+.cod-phone span{white-space:nowrap;flex:none;padding:10px 10px 10px 12px;color:var(--cod-muted);border-right:1.5px solid var(--cod-border)}
 .cod-phone input{border:none!important;background:transparent!important;box-shadow:none!important}
 
 /* ".cod-field label" e ".cod-field input" son más específicos: hay que ganarles. */

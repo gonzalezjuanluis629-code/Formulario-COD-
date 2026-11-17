@@ -497,7 +497,7 @@ function renderOffers(host, config, state, onChange) {
   };
   const cards = [base, ...list.filter((o) => o.minQty > 1)];
   const pre = cards.find((o) => o.preselected);
-  if (pre && state.qty === 1) state.qty = pre.minQty;
+  if (pre && state.qty === 1 && !state.qtyFromPage) state.qty = pre.minQty;
   const wrap = document.createElement("div");
   wrap.className = "cod-offers";
   wrap.setAttribute("role", "radiogroup");
@@ -555,7 +555,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-foJDentC.js").then(({ renderAddons }) => {
+    void import("./addons-DyWVhpwm.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -571,6 +571,10 @@ function renderForm(root, config, state, handlers) {
     handlers.onSubmit();
   });
   state.onQuote(() => paintPrice(root, state));
+  state.onQtyChange((q) => {
+    root.querySelectorAll(".cod-offer").forEach((b) => b.setAttribute("aria-checked", String(Number(b.dataset.qty) === q)));
+    update(root, state);
+  });
   update(root, state);
 }
 function paintPrice(root, state) {
@@ -769,12 +773,12 @@ function renderField(f, config, state, onChange) {
   });
   return wrap;
 }
-let raf = 0;
+const pending = /* @__PURE__ */ new WeakMap();
 function update(root, state) {
-  if (raf) return;
-  raf = requestAnimationFrame(() => {
+  if (pending.get(root)) return;
+  pending.set(root, requestAnimationFrame(() => {
     var _a2;
-    raf = 0;
+    pending.delete(root);
     const visible = new Set(state.visibleFields().map((f) => f.key));
     root.querySelectorAll(".cod-field").forEach((el) => {
       const key = el.dataset.key;
@@ -794,7 +798,7 @@ function update(root, state) {
       bar.style.width = `${pct}%`;
       (_a2 = root.querySelector(".cod-submit")) == null ? void 0 : _a2.classList.toggle("cod-ready", pct === 100);
     }
-  });
+  }));
 }
 function showError(root, key, msg) {
   const el = root.querySelector(`.cod-field[data-key="${key}"]`);
@@ -868,7 +872,7 @@ const CSS = `
 .cod-phone{display:flex;align-items:center;border:1.5px solid var(--cod-border);
   border-radius:var(--cod-radius);background:var(--cod-field);overflow:hidden}
 .cod-phone:focus-within{border-color:var(--cod-brand);background:#fff;box-shadow:0 0 0 3.5px rgba(0,0,0,.06)}
-.cod-phone span{padding:10px 10px 10px 12px;color:var(--cod-muted);border-right:1.5px solid var(--cod-border)}
+.cod-phone span{white-space:nowrap;flex:none;padding:10px 10px 10px 12px;color:var(--cod-muted);border-right:1.5px solid var(--cod-border)}
 .cod-phone input{border:none!important;background:transparent!important;box-shadow:none!important}
 
 /* ".cod-field label" e ".cod-field input" son más específicos: hay que ganarles. */
@@ -1102,13 +1106,27 @@ ${CSS}
 ${config.tokens.customCss}`;
   const renderInto = (mountRoot) => {
     const state = new FormState(config);
+    const fromPage = pageQuantityInfo(config.product.variantId);
+    if (fromPage && (fromPage.qty > 1 || fromPage.managed)) {
+      state.qty = fromPage.qty;
+      state.qtyFromPage = true;
+    }
     renderForm(mountRoot, config, state, {
       onSubmit: () => submit(mountRoot, config, state)
     });
+    const follow = () => window.setTimeout(() => {
+      if (!mountRoot.isConnected) {
+        document.removeEventListener("change", follow, true);
+        return;
+      }
+      const q = pageQuantity(config.product.variantId);
+      if (q) state.setQtyFromPage(q);
+    }, 60);
+    document.addEventListener("change", follow, true);
   };
   const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-CaGIARKb.js");
+    const { renderTrigger } = await import("./trigger-DPsfZ6A3.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1208,6 +1226,9 @@ class FormState {
   constructor(config) {
     __publicField(this, "values", {});
     __publicField(this, "qty", 1);
+    /** La cantidad la eligió el cliente en la página (oferta o selector del tema). */
+    __publicField(this, "qtyFromPage", false);
+    __publicField(this, "qtyListeners", []);
     __publicField(this, "location", null);
     __publicField(this, "discountCode", null);
     __publicField(this, "acceptedAddons", []);
@@ -1228,6 +1249,16 @@ class FormState {
   }
   onQuote(fn) {
     this.quoteListeners.push(fn);
+  }
+  onQtyChange(fn) {
+    this.qtyListeners.push(fn);
+  }
+  /** Cambio de cantidad que viene de la página (no de las tarjetas del formulario). */
+  setQtyFromPage(q) {
+    if (q === this.qty) return;
+    this.qty = q;
+    this.qtyFromPage = true;
+    this.qtyListeners.forEach((fn) => fn(q));
   }
   quoteInput(discountCode = this.discountCode) {
     return {
@@ -1396,6 +1427,24 @@ function autoPlace() {
     marker.remove();
   });
 }
+function pageQuantity(variantId) {
+  var _a2, _b;
+  return (_b = (_a2 = pageQuantityInfo(variantId)) == null ? void 0 : _a2.qty) != null ? _b : null;
+}
+function pageQuantityInfo(variantId) {
+  var _a2, _b;
+  const variant = variantId.replace(/\D/g, "");
+  const forms = [...document.querySelectorAll('form[action*="/cart/add"]')].filter((f) => !f.closest("[data-cod-form]") && !f.closest(CARD) && f.querySelector('[name="quantity"]'));
+  const idOf = (f) => {
+    var _a3, _b2;
+    return (_b2 = (_a3 = f.querySelector('[name="id"]')) == null ? void 0 : _a3.value) != null ? _b2 : "";
+  };
+  const form = (_b = (_a2 = forms.find((f) => idOf(f) === variant)) != null ? _a2 : forms.find((f) => f.closest('main, #MainContent, [id*="main"], [id*="product-information"], [id*="product-template"]'))) != null ? _b : null;
+  const input = form == null ? void 0 : form.querySelector('[name="quantity"]');
+  const q = Math.floor(Number(input == null ? void 0 : input.value));
+  if (!input || !Number.isFinite(q) || q < 1 || q > 99) return null;
+  return { qty: q, managed: input instanceof HTMLInputElement && input.type === "hidden" };
+}
 const CARD = 'product-card, .card, .card-wrapper, [class*="product-card"], [class*="related"], [class*="recommend"], [id*="related"], [id*="recommend"]';
 function findBuyAnchor(variant) {
   var _a2, _b, _c;
@@ -1492,7 +1541,9 @@ export {
   buttonBackground as b,
   buttonAnimationCss as c,
   mount as d,
+  pageQuantityInfo as e,
   money as m,
+  pageQuantity as p,
   quote as q,
   renderForm as r,
   tokensToCss as t

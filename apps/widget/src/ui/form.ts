@@ -61,6 +61,11 @@ export function renderForm(
   });
 
   state.onQuote(() => paintPrice(root, state));
+  // La cantidad cambió en la página: marca la tarjeta que toca y recotiza.
+  state.onQtyChange((q) => {
+    root.querySelectorAll<HTMLElement>('.cod-offer').forEach((b) => b.setAttribute('aria-checked', String(Number(b.dataset.qty) === q)));
+    update(root, state);
+  });
   update(root, state);
 }
 
@@ -256,12 +261,12 @@ function renderField(
   return wrap;
 }
 
-/** Repinta visibilidad condicional + barra de progreso. Throttled con rAF. */
-let raf = 0;
+/** Repinta visibilidad condicional + barra de progreso. Throttled con rAF (uno por formulario). */
+const pending = new WeakMap<HTMLElement, number>();
 function update(root: HTMLElement, state: FormState): void {
-  if (raf) return;
-  raf = requestAnimationFrame(() => {
-    raf = 0;
+  if (pending.get(root)) return;
+  pending.set(root, requestAnimationFrame(() => {
+    pending.delete(root);
     const visible = new Set(state.visibleFields().map((f) => f.key));
 
     root.querySelectorAll<HTMLElement>('.cod-field').forEach((el) => {
@@ -281,7 +286,7 @@ function update(root: HTMLElement, state: FormState): void {
       bar.style.width = `${pct}%`;
       root.querySelector('.cod-submit')?.classList.toggle('cod-ready', pct === 100);
     }
-  });
+  }));
 }
 
 function showError(root: HTMLElement, key: string, msg: string) {

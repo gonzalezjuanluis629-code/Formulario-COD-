@@ -56,9 +56,19 @@ export async function mount(opts: MountOptions): Promise<void> {
 
   const renderInto = (mountRoot: HTMLElement) => {
     const state = new FormState(config);
+    // Si la página ya tiene su propia oferta o selector de cantidad («2 unidades»),
+    // el formulario empieza con esa cantidad y la sigue mientras esté abierto.
+    const fromPage = pageQuantityInfo(config.product.variantId);
+    if (fromPage && (fromPage.qty > 1 || fromPage.managed)) { state.qty = fromPage.qty; state.qtyFromPage = true; }
     renderForm(mountRoot, config, state, {
       onSubmit: () => submit(mountRoot, config, state),
     });
+    const follow = () => window.setTimeout(() => {
+      if (!mountRoot.isConnected) { document.removeEventListener('change', follow, true); return; }
+      const q = pageQuantity(config.product.variantId);
+      if (q) state.setQtyFromPage(q);
+    }, 60);
+    document.addEventListener('change', follow, true);
   };
 
   // Modo popup: el botón "Comprar ahora" abre el formulario en un modal.
@@ -176,6 +186,9 @@ export interface QuoteInput {
 export class FormState {
   values: Record<string, string> = {};
   qty = 1;
+  /** La cantidad la eligió el cliente en la página (oferta o selector del tema). */
+  qtyFromPage = false;
+  private qtyListeners: ((q: number) => void)[] = [];
   location: SubmitRequest['location'] = null;
   discountCode: string | null = null;
   acceptedAddons: { id: string; variantId: string | null; qty: number }[] = [];
@@ -201,6 +214,16 @@ export class FormState {
   }
 
   onQuote(fn: (q: QuoteResponse) => void) { this.quoteListeners.push(fn); }
+
+  onQtyChange(fn: (q: number) => void) { this.qtyListeners.push(fn); }
+
+  /** Cambio de cantidad que viene de la página (no de las tarjetas del formulario). */
+  setQtyFromPage(q: number): void {
+    if (q === this.qty) return;
+    this.qty = q;
+    this.qtyFromPage = true;
+    this.qtyListeners.forEach((fn) => fn(q));
+  }
 
   private quoteInput(discountCode = this.discountCode): QuoteInput {
     return {
@@ -402,6 +425,33 @@ function autoPlace(): void {
     anchor.insertAdjacentElement('afterend', el);
     marker.remove();
   });
+}
+
+/**
+ * Cantidad elegida en la página del producto (selector del tema o su propia
+ * caja de ofertas, que suelen escribir en el campo «quantity» del formulario
+ * de compra). null si la página no tiene.
+ */
+export function pageQuantity(variantId: string): number | null {
+  return pageQuantityInfo(variantId)?.qty ?? null;
+}
+
+/**
+ * Además dice si la cantidad la maneja una caja de ofertas del tema (campo
+ * oculto): entonces manda siempre, también cuando el cliente elige 1.
+ */
+export function pageQuantityInfo(variantId: string): { qty: number; managed: boolean } | null {
+  const variant = variantId.replace(/\D/g, '');
+  const forms = [...document.querySelectorAll<HTMLFormElement>('form[action*="/cart/add"]')]
+    .filter((f) => !f.closest('[data-cod-form]') && !f.closest(CARD) && f.querySelector('[name="quantity"]'));
+  const idOf = (f: HTMLFormElement) => f.querySelector<HTMLInputElement | HTMLSelectElement>('[name="id"]')?.value ?? '';
+  const form = forms.find((f) => idOf(f) === variant)
+    ?? forms.find((f) => f.closest('main, #MainContent, [id*="main"], [id*="product-information"], [id*="product-template"]'))
+    ?? null;
+  const input = form?.querySelector<HTMLInputElement | HTMLSelectElement>('[name="quantity"]');
+  const q = Math.floor(Number(input?.value));
+  if (!input || !Number.isFinite(q) || q < 1 || q > 99) return null;
+  return { qty: q, managed: input instanceof HTMLInputElement && input.type === 'hidden' };
 }
 
 /** Tarjetas de «productos relacionados», carruseles, etc.: nunca son el sitio. */
