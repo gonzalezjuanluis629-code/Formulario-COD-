@@ -23,7 +23,8 @@ export function renderOffers(host: HTMLElement, config: WidgetConfig, state: For
   const cards = [base, ...list.filter((o) => o.minQty > 1)];
 
   const pre = cards.find((o) => o.preselected);
-  if (pre && state.qty === 1) state.qty = pre.minQty;
+  // La cantidad elegida en la página manda sobre la tarjeta marcada de inicio.
+  if (pre && state.qty === 1 && !state.qtyFromPage) state.qty = pre.minQty;
 
   const wrap = document.createElement('div');
   wrap.className = 'cod-offers';
