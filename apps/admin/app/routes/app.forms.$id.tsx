@@ -42,7 +42,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
   return {
     form: {
-      id: form.id, name: form.name, status: form.status,
+      id: form.id, name: form.name, status: form.status, displayMode: form.displayMode,
       assignment: form.assignments[0]
         ? { type: form.assignments[0].type, value: form.assignments[0].value ?? '', label: form.assignments[0].label ?? '' }
         : null,
@@ -98,6 +98,8 @@ export async function action({ request, params }: ActionFunctionArgs): Promise<A
     }
 
     const name = String(fd.get('name') || '').trim() || form.name;
+    const displayMode = fd.get('displayMode') === 'POPUP' ? 'POPUP' : 'EMBEDDED';
+    if (form.displayMode !== displayMode) await db.form.update({ where: { id: form.id }, data: { displayMode } });
 
     if (intent === 'publish') {
       // Publicar crea una VERSIÓN NUEVA: lo que está en la tienda no se rompe y se puede volver atrás.
@@ -151,6 +153,7 @@ export default function FormEditor() {
   const [dirty, setDirty] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  const [displayMode, setDisplayMode] = useState<'EMBEDDED' | 'POPUP'>(data.form.displayMode === 'POPUP' ? 'POPUP' : 'EMBEDDED');
   const [assignType, setAssignType] = useState(data.form.assignment?.type ?? 'ALL');
   const [assignValue, setAssignValue] = useState(data.form.assignment?.value ?? '');
   const [assignLabel, setAssignLabel] = useState(data.form.assignment?.label ?? '');
@@ -193,7 +196,7 @@ export default function FormEditor() {
     fetcher.submit(
       {
         intent, name, fields: JSON.stringify(fields), tokens: JSON.stringify(tokens),
-        assignType, assignValue, assignLabel, ...extra,
+        assignType, assignValue, assignLabel, displayMode, ...extra,
       },
       { method: 'post', action: `${actionUrl.pathname}${actionUrl.search}` },
     );
@@ -278,6 +281,16 @@ export default function FormEditor() {
                     helpText="Solo lo ves tú, para reconocerlo."
                     onChange={(v) => { setName(v); setDirty(true); }} />
                   <Select
+                    label="¿Cómo se muestra en la tienda?"
+                    options={[
+                      { label: 'Formulario completo en la página del producto', value: 'EMBEDDED' },
+                      { label: 'Botón «Comprar ahora» que abre el formulario en una ventana', value: 'POPUP' },
+                    ]}
+                    value={displayMode}
+                    onChange={(v) => { setDisplayMode(v as 'EMBEDDED' | 'POPUP'); setDirty(true); }}
+                    helpText={displayMode === 'POPUP' ? 'El diseño del botón se cambia en Diseño → Botón «Comprar ahora».' : undefined}
+                  />
+                  <Select
                     label="¿En qué productos se muestra?"
                     options={[
                       { label: 'En todos los productos', value: 'ALL' },
@@ -328,7 +341,7 @@ export default function FormEditor() {
               tokens={tokens}
               selectedKey={tab === 'fields' ? selected : null}
               onSelect={selectFromPreview}
-              showTrigger={tab === 'design' && designOpen === 'trigger'}
+              showTrigger={displayMode === 'POPUP' || (tab === 'design' && designOpen === 'trigger')}
               offers={data.offers}
               addons={data.addons}
             />

@@ -1,5 +1,5 @@
-import { C as CSS, t as tokensToCss, F as FormState, q as quote, r as renderForm } from "./index-oS3cpOni.js";
-import { renderTrigger } from "./trigger-OXOUZ-hE.js";
+import { C as CSS, t as tokensToCss, F as FormState, q as quote, r as renderForm } from "./index-BEl6tFb5.js";
+import { renderTrigger } from "./trigger-CUM0O--5.js";
 let lastFocus = null;
 let lastSelected = null;
 let lastFormKey = "";
@@ -75,6 +75,7 @@ function buildForm(root, fields, tokens, opts) {
   const config = {
     formId: "preview",
     formVersionId: "preview",
+    displayMode: "EMBEDDED",
     fields,
     tokens,
     location: {

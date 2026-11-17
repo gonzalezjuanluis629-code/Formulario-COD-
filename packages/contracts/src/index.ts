@@ -336,6 +336,8 @@ export const WidgetConfigSchema = z.object({
   settings: ShopSettingsSchema,
   offers: z.array(OfferSchema).default([]),
   addons: z.array(AddonSchema).default([]),
+  /** Cómo se muestra: el formulario en la página o un botón que lo abre en ventana. */
+  displayMode: z.enum(['EMBEDDED', 'POPUP']).default('EMBEDDED'),
   product: z.object({
     variantId: z.string(),
     title: z.string(),

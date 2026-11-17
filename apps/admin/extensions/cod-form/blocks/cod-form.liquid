@@ -6,6 +6,7 @@
 
 <div
   data-cod-form
+  {% if block.settings.mode != 'app' %}data-mode="{{ block.settings.mode }}"{% endif %}
   data-product-id="gid://shopify/Product/{{ product.id }}"
   data-variant-id="gid://shopify/ProductVariant/{{ product.selected_or_first_available_variant.id }}"
   {{ block.shopify_attributes }}
@@ -22,6 +23,17 @@
     {
       "type": "paragraph",
       "content": "El diseño, los campos y las reglas se configuran desde el panel de la app COD Forms."
+    },
+    {
+      "type": "select",
+      "id": "mode",
+      "label": "Cómo se muestra",
+      "options": [
+        { "value": "app", "label": "Como esté en la app (Ajustes del formulario)" },
+        { "value": "embedded", "label": "Formulario completo en la página" },
+        { "value": "popup", "label": "Botón «Comprar ahora» que abre el formulario" }
+      ],
+      "default": "app"
     }
   ]
 }

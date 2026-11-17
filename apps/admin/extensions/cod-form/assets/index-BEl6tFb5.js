@@ -508,7 +508,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-5_RJ-LRF.js").then(({ renderAddons }) => {
+    void import("./addons-DD8yDkXq.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -778,6 +778,9 @@ const CSS = `
 .cod-root{font-family:var(--cod-font);font-size:var(--cod-size);color:var(--cod-text);
   background:var(--cod-surface);border-radius:var(--cod-radius);box-shadow:var(--cod-shadow);
   padding:18px;-webkit-tap-highlight-color:transparent}
+/* Modo botón: solo el botón «Comprar ahora», sin la tarjeta del formulario alrededor. */
+.cod-root.cod-root-trigger{background:none;box-shadow:none;padding:4px 0;display:flex;justify-content:center}
+.cod-root-trigger .cod-trigger[style*="width:100%"]{width:100%}
 
 .cod-skeleton{display:grid;gap:10px}
 .cod-skeleton span{height:42px;border-radius:var(--cod-radius);
@@ -1050,10 +1053,19 @@ ${config.tokens.customCss}`;
       onSubmit: () => submit(mountRoot, config, state)
     });
   };
-  if (host.dataset.mode === "popup") {
-    const { renderTrigger } = await import("./trigger-OXOUZ-hE.js");
+  const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
+  if (mode === "popup") {
+    const { renderTrigger } = await import("./trigger-CUM0O--5.js");
     root.innerHTML = "";
-    renderTrigger(root, config.tokens.trigger, () => openModal(config, renderInto));
+    root.classList.add("cod-root-trigger");
+    if (host.dataset.floating === "true") {
+      host.style.cssText = "position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;display:flex;justify-content:center;";
+    }
+    renderTrigger(root, config.tokens.trigger, () => openModal(shadow, config, renderInto));
+    try {
+      api.track(config.formId, "view", config.formVersionId);
+    } catch {
+    }
     return;
   }
   root.innerHTML = "";
@@ -1063,14 +1075,14 @@ ${config.tokens.customCss}`;
   } catch {
   }
 }
-function openModal(config, renderInto) {
+function openModal(shadow, config, renderInto) {
   const overlay = document.createElement("div");
   overlay.className = "cod-modal-overlay";
   const modal = document.createElement("div");
   modal.className = "cod-modal";
   modal.innerHTML = `<button class="cod-modal-close" aria-label="Cerrar">✕</button><div class="cod-modal-body"></div>`;
   overlay.appendChild(modal);
-  document.body.appendChild(overlay);
+  shadow.appendChild(overlay);
   document.body.style.overflow = "hidden";
   requestAnimationFrame(() => overlay.classList.add("cod-open"));
   const close = () => {
@@ -1088,7 +1100,10 @@ function openModal(config, renderInto) {
       document.removeEventListener("keydown", esc2);
     }
   });
-  renderInto(modal.querySelector(".cod-modal-body"));
+  const formRoot = document.createElement("div");
+  formRoot.className = "cod-root";
+  modal.querySelector(".cod-modal-body").appendChild(formRoot);
+  renderInto(formRoot);
 }
 class FormState {
   constructor(config) {

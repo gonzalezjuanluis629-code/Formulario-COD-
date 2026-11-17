@@ -1,7 +1,7 @@
-import { A as ANIMATION_SPEEDS, b as buttonBackground, a as buttonShadow, c as buttonAnimationCss } from "./index-oS3cpOni.js";
+import { A as ANIMATION_SPEEDS, b as buttonBackground, a as buttonShadow, c as buttonAnimationCss } from "./index-BEl6tFb5.js";
 function renderTrigger(host, cfg, onClick) {
   var _a;
-  injectStylesOnce();
+  injectStylesOnce(host.getRootNode());
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = `cod-trigger cod-trigger-anim-${cfg.animation}`;
@@ -42,10 +42,11 @@ function renderTrigger(host, cfg, onClick) {
     }, cfg.descriptionIntervalMs);
   }
 }
-let stylesInjected = false;
-function injectStylesOnce() {
-  if (stylesInjected) return;
-  stylesInjected = true;
+const styledRoots = /* @__PURE__ */ new WeakSet();
+function injectStylesOnce(root) {
+  const target = root instanceof ShadowRoot ? root : document;
+  if (styledRoots.has(target)) return;
+  styledRoots.add(target);
   const style = document.createElement("style");
   style.textContent = `
     .cod-trigger{display:inline-flex;align-items:center;justify-content:center;gap:10px;
@@ -67,7 +68,8 @@ function injectStylesOnce() {
 
     ${buttonAnimationCss("cod-trigger", "var(--t-solid)")}
   `;
-  document.head.appendChild(style);
+  if (target instanceof ShadowRoot) target.appendChild(style);
+  else document.head.appendChild(style);
 }
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const escapeAttr = (s) => escapeHtml(s).replace(/`/g, "");
