@@ -267,8 +267,17 @@ function mountLocation(wrap, config, state, onChange) {
   async function locate() {
     const gpsBtn = wrap.querySelector('[data-mode="gps"]');
     gpsBtn.classList.add("cod-locating");
+    let pos;
     try {
-      const pos = await getPosition();
+      pos = await getPosition();
+    } catch (e) {
+      await setMode("manual");
+      errEl.textContent = await whyNoLocation(e);
+      errEl.classList.add("cod-soft");
+      gpsBtn.classList.remove("cod-locating");
+      return;
+    }
+    try {
       const { createMap } = await import("./map-BTnRQ8LE.js");
       mapPanel.hidden = false;
       map = createMap(wrap.querySelector(".cod-map"), {
@@ -295,14 +304,18 @@ function mountLocation(wrap, config, state, onChange) {
         capturedAt: (/* @__PURE__ */ new Date()).toISOString()
       };
       map.setAccuracy(pos.coords.accuracy);
+    } catch {
+      state.location = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracyMeters: Math.round(pos.coords.accuracy),
+        source: "GPS",
+        capturedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+    } finally {
       setValue("gps");
       void reverse(pos.coords.latitude, pos.coords.longitude);
       onChange();
-    } catch {
-      await setMode("manual");
-      errEl.textContent = "Sin acceso a tu ubicación. Escribe tu dirección aquí abajo.";
-      errEl.classList.add("cod-soft");
-    } finally {
       gpsBtn.classList.remove("cod-locating");
     }
   }
@@ -330,6 +343,33 @@ function mountLocation(wrap, config, state, onChange) {
     btn.textContent = on ? "Guardar ubicación" : "Editar ubicación";
     btn.classList.toggle("cod-saving", on);
   });
+}
+async function whyNoLocation(e) {
+  const tail = " Mientras, escribe tu dirección aquí abajo.";
+  const inFrame = (() => {
+    try {
+      return window.top !== window.self;
+    } catch {
+      return true;
+    }
+  })();
+  const policy = document.featurePolicy;
+  if (inFrame && policy && !policy.allowsFeature("geolocation")) {
+    return "La vista previa del editor no permite pedir la ubicación. Pruébalo en la tienda (botón «Ver tienda»)." + tail;
+  }
+  if (!navigator.geolocation || !window.isSecureContext) return "Este navegador no permite usar la ubicación." + tail;
+  const code = e == null ? void 0 : e.code;
+  if (code === 1) {
+    let state = "";
+    try {
+      state = (await navigator.permissions.query({ name: "geolocation" })).state;
+    } catch {
+    }
+    return (state === "denied" ? "La ubicación está bloqueada para esta tienda. Actívala tocando el candado junto a la dirección de la página." : "No se dio permiso para usar tu ubicación.") + tail;
+  }
+  if (code === 2) return "No se pudo saber tu ubicación. Revisa que la ubicación esté activada en tu teléfono o computadora." + tail;
+  if (code === 3) return "La ubicación tardó demasiado. Inténtalo otra vez." + tail;
+  return "Sin acceso a tu ubicación." + tail;
 }
 function getPosition() {
   return new Promise((resolve, reject) => {
@@ -508,7 +548,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-DClX5O13.js").then(({ renderAddons }) => {
+    void import("./addons-8OZt8vSN.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1055,7 +1095,7 @@ ${config.tokens.customCss}`;
   };
   const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-s-27LW6h.js");
+    const { renderTrigger } = await import("./trigger-T0XiGM0c.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
