@@ -2,6 +2,7 @@ import type { WidgetConfig, Field } from '@cod/contracts';
 import type { FormState } from '../index';
 import { validateField } from '../core/validate';
 import { mountLocation } from './location';
+import { renderOffers } from './offers';
 
 /**
  * Renderiza los campos que vengan del panel. NO hay campos hardcodeados:
@@ -17,6 +18,7 @@ export function renderForm(
   root.innerHTML = `
     <form class="cod-form" novalidate>
       ${config.tokens.progressBar ? '<div class="cod-progress"><span></span></div>' : ''}
+      <div class="cod-offers-slot"></div>
       <div class="cod-fields"></div>
       <div class="cod-addons-slot"></div>
       <div class="cod-form-error" role="alert"></div>
@@ -31,6 +33,8 @@ export function renderForm(
 
   const form = root.querySelector<HTMLFormElement>('.cod-form')!;
   const box = root.querySelector<HTMLElement>('.cod-fields')!;
+
+  renderOffers(root.querySelector<HTMLElement>('.cod-offers-slot')!, config, state, () => update(root, state));
 
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));

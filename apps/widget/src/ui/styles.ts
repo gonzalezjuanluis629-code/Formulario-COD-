@@ -53,8 +53,12 @@ export const CSS = `
 .cod-phone span{padding:10px 10px 10px 12px;color:var(--cod-muted);border-right:1.5px solid var(--cod-border)}
 .cod-phone input{border:none!important;background:transparent!important;box-shadow:none!important}
 
-.cod-check{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:12.5px}
-.cod-check input{position:absolute;opacity:0;width:0}
+/* ".cod-field label" e ".cod-field input" son más específicos: hay que ganarles. */
+.cod-field .cod-check{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:12.5px;
+  font-weight:500;margin:0;position:relative}
+.cod-field .cod-check input{position:absolute;opacity:0;width:1px;height:1px;padding:0;border:0;margin:0}
+.cod-check input:focus-visible+.cod-check-box{box-shadow:0 0 0 3.5px rgba(0,0,0,.12)}
+.cod-invalid .cod-check-box{border-color:var(--cod-danger)}
 .cod-check-box{width:20px;height:20px;border:2px solid var(--cod-border);border-radius:6px;
   background:var(--cod-field);flex-shrink:0;position:relative;
   transition:background .22s var(--cod-ease),border-color .22s var(--cod-ease),transform .28s cubic-bezier(.34,1.42,.64,1)}
@@ -157,6 +161,17 @@ export const CSS = `
 .cod-done small{font-size:11px;color:var(--cod-muted)}
 
 /* ── Order bumps / upsells / downsells ── */
+.cod-offers{display:grid;gap:8px;margin-bottom:14px}
+.cod-offer{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;text-align:left;
+  border:1.5px solid var(--cod-border);border-radius:var(--cod-radius);background:var(--cod-field);
+  color:var(--cod-text);font:inherit;cursor:pointer;transition:border-color .2s var(--cod-ease),background .2s var(--cod-ease)}
+.cod-offer[aria-checked="true"]{border-color:var(--cod-brand);background:#fff;box-shadow:0 0 0 3px rgba(0,0,0,.05)}
+.cod-offer-dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--cod-border);flex-shrink:0;position:relative}
+.cod-offer[aria-checked="true"] .cod-offer-dot{border-color:var(--cod-brand)}
+.cod-offer[aria-checked="true"] .cod-offer-dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--cod-brand)}
+.cod-offer-text{flex:1;display:flex;flex-direction:column;gap:1px}
+.cod-offer-text b{font-size:13px}.cod-offer-text small{font-size:11px;color:var(--cod-muted)}
+.cod-offer-badge{font-size:11px;font-weight:700;color:#fff;background:var(--cod-ok);padding:3px 8px;border-radius:99px;white-space:nowrap}
 .cod-addons{display:grid;gap:9px;margin-top:4px}
 .cod-bump{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;
   border:1.5px dashed var(--cod-brand);border-radius:var(--cod-radius);background:var(--cod-field);

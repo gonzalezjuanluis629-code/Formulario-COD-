@@ -57,7 +57,9 @@ const shopify = shopifyApp({
       await db.shopifyApp.update({
         where: { id: app.id },
         data: {
-          clientSecretEnc: encryptForShop(shop.id, process.env.SHOPIFY_API_SECRET!),
+          // Clave ligada a la APP (no a la tienda): la misma app puede estar
+          // instalada en varias tiendas y todas deben poder verificar el proxy.
+          clientSecretEnc: encryptForShop(`app:${app.id}`, process.env.SHOPIFY_API_SECRET!),
         },
       });
 
@@ -84,7 +86,7 @@ async function ensureDefaults(shopId: string) {
   });
 
   const version = await db.formVersion.create({
-    data: { formId: form.id, version: 1, schema: DEFAULT_FIELDS, publishedAt: new Date() },
+    data: { formId: form.id, version: 1, schema: DEFAULT_FIELDS as object, publishedAt: new Date() },
   });
 
   await db.form.update({ where: { id: form.id }, data: { currentVersionId: version.id } });

@@ -277,7 +277,7 @@ export default function FormEditor() {
                         { label: 'Por proveedor', value: 'VENDOR' },
                       ]}
                       value={assignType}
-                      onChange={(v) => { setAssignType(v); setAssignValue(''); setAssignLabel(''); setDirty(true); }}
+                      onChange={(v) => { setAssignType(v as typeof assignType); setAssignValue(''); setAssignLabel(''); setDirty(true); }}
                     />
 
                     {(assignType === 'PRODUCT' || assignType === 'COLLECTION') && (

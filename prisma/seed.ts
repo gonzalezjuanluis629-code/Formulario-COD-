@@ -37,14 +37,10 @@ async function main() {
     },
   });
 
-  const installedShop = await prisma.shop.findFirst({
-    where: { shopifyAppId: app.id, uninstalledAt: null },
-    select: { id: true },
-  });
-  if (installedShop && process.env.SHOPIFY_API_SECRET) {
+  if (process.env.SHOPIFY_API_SECRET) {
     await prisma.shopifyApp.update({
       where: { id: app.id },
-      data: { clientSecretEnc: encrypt(installedShop.id, process.env.SHOPIFY_API_SECRET) },
+      data: { clientSecretEnc: encrypt(`app:${app.id}`, process.env.SHOPIFY_API_SECRET) },
     });
   }
 

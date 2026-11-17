@@ -40,9 +40,25 @@ export function renderPreview(host: HTMLElement, fields: Field[], tokens: ThemeT
       thankYouUrl: '/pages/gracias', redirectDelayMs: 3000, orderTag: 'COD',
       gateway: 'Cash on Delivery (COD)', currency: 'DOP',
       freeShippingOverCents: 350000, defaultShippingCents: 25000,
+      shippingByProvince: {}, codFeeCents: 0, codFeeLabel: 'Recargo contra entrega',
       showOrderSummaryToCustomer: false,
+      confirmation: {
+        title: '¡Pedido confirmado!',
+        message: 'Te contactamos por WhatsApp para coordinar la entrega.',
+        redirectTarget: 'none',
+        whatsapp: { enabled: false, phone: '', messageTemplate: '' },
+      },
+      antifraud: {
+        holdHighRisk: false, riskThreshold: 50, maxOrdersPerPhonePerDay: 0,
+        turnstileSiteKey: '', turnstileSecret: '',
+      },
+      tracking: {
+        metaPixelId: '', metaCapiToken: '', metaTestCode: '', tiktokPixelId: '', tiktokToken: '',
+        ga4MeasurementId: '', ga4ApiSecret: '', purchaseEventName: 'Purchase',
+      },
     },
     offers: [],
+    addons: [],
     product: { variantId: 'preview', title: 'Producto de ejemplo', unitPriceCents: 189000, image: null },
   };
 

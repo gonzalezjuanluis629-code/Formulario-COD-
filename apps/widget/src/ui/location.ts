@@ -54,6 +54,13 @@ export function mountLocation(
   const errEl = wrap.querySelector<HTMLElement>('.cod-err')!;
 
   let map: MapController | null = null;
+  // Clave del campo en el formulario. Su valor ('gps' | 'manual') es lo que
+  // cuenta como "respondido" para el obligatorio y la barra de progreso, y
+  // `locationMode` es lo que usan las reglas condicionales (provincia, dirección…).
+  const key = wrap.dataset.key || 'location';
+  const setValue = (v: string) => {
+    if (v) state.values[key] = v; else delete state.values[key];
+  };
 
   segs.forEach((btn) => {
     btn.addEventListener('click', () => void setMode(btn.dataset.mode as 'gps' | 'manual'));
@@ -63,16 +70,22 @@ export function mountLocation(
     wrap.querySelector('.cod-seg')!.setAttribute('data-active', mode);
     segs.forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === mode)));
     errEl.textContent = '';
+    errEl.classList.remove('cod-soft');
+    wrap.classList.remove('cod-invalid');
+    state.values.locationMode = mode;
 
     if (mode === 'manual') {
       mapPanel.hidden = true;
       manualPanel.hidden = false;
       state.location = null;
+      setValue('manual');
       onChange();
       return;
     }
 
     manualPanel.hidden = true;
+    setValue('');
+    onChange();
     await locate();
   }
 
@@ -109,6 +122,7 @@ export function mountLocation(
         capturedAt: new Date().toISOString(),
       };
       map.setAccuracy(pos.coords.accuracy);
+      setValue('gps');
       void reverse(pos.coords.latitude, pos.coords.longitude);
       onChange();
     } catch {

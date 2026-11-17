@@ -7,6 +7,12 @@ import type { Field } from '@cod/contracts';
 export function validateField(f: Field, value: string): string | null {
   const v = (value ?? '').trim();
 
+  if (f.type === 'location') {
+    return f.required && !v ? 'Elige cómo darnos tu dirección: tu ubicación o escribirla.' : null;
+  }
+  if (f.type === 'checkbox') {
+    return f.required && v !== 'true' ? 'Marca esta casilla para continuar.' : null;
+  }
   if (f.required && !v) return `${f.label || 'Este campo'} es obligatorio.`;
   if (!v) return null;
 

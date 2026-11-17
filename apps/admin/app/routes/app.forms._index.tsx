@@ -1,4 +1,5 @@
 import { Badge, Button, Card, EmptyState, IndexTable, Page, Text } from '@shopify/polaris';
+import { IntentButton } from '../components/IntentButton';
 import { Form, Link, useLoaderData, useSubmit } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { redirect } from 'react-router';
@@ -30,7 +31,7 @@ export async function action({ request }: ActionFunctionArgs) {
       },
     });
     const v = await db.formVersion.create({
-      data: { formId: form.id, version: 1, schema: DEFAULT_FIELDS },
+      data: { formId: form.id, version: 1, schema: DEFAULT_FIELDS as object },
     });
     await db.form.update({ where: { id: form.id }, data: { currentVersionId: v.id } });
     return redirect(`/app/forms/${form.id}`);
@@ -118,10 +119,10 @@ export default function FormsList() {
               <IndexTable.Cell>
                 <Form method="post" style={{ display: 'flex', gap: 6 }}>
                   <input type="hidden" name="id" value={f.id} />
-                  <Button size="micro" name="intent" value="duplicate" submit>Duplicar</Button>
-                  <Button size="micro" tone="critical" variant="tertiary" name="intent" value="archive" submit>
+                  <IntentButton size="micro" intent="duplicate">Duplicar</IntentButton>
+                  <IntentButton size="micro" tone="critical" variant="tertiary" intent="archive">
                     Archivar
-                  </Button>
+                  </IntentButton>
                 </Form>
               </IndexTable.Cell>
             </IndexTable.Row>

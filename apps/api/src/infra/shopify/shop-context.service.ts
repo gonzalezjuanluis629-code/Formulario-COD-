@@ -42,7 +42,7 @@ export class ShopContextService {
       domain: shop.domain,
       accessToken: this.crypto.decrypt(shop.id, Buffer.from(shop.accessTokenEnc)),
       apiVersion: shop.shopifyApp.apiVersion,
-      clientSecret: this.crypto.decrypt(shop.id, Buffer.from(shop.shopifyApp.clientSecretEnc)),
+      clientSecret: await this.clientSecret(shop.id, shop.shopifyApp.id, Buffer.from(shop.shopifyApp.clientSecretEnc)),
       settings: (shop.settings ?? {}) as Record<string, unknown>,
       currency: shop.currency,
       countryCode: shop.countryCode,
@@ -53,4 +53,23 @@ export class ShopContextService {
   }
 
   invalidate(domain: string) { this.cache.delete(domain); }
+
+  /**
+   * El secreto se cifra con una clave ligada a la app (`app:<id>`). Las
+   * instalaciones antiguas lo cifraban con el id de la última tienda instalada,
+   * así que, si hace falta, se prueba con esas claves para no romper nada.
+   */
+  private async clientSecret(shopId: string, appId: string, blob: Buffer): Promise<string> {
+    const candidates = [`app:${appId}`, shopId];
+    for (const id of candidates) {
+      try { return this.crypto.decrypt(id, blob); } catch { /* siguiente */ }
+    }
+    const others = await this.prisma.shop.findMany({
+      where: { shopifyAppId: appId, id: { not: shopId } }, select: { id: true },
+    });
+    for (const o of others) {
+      try { return this.crypto.decrypt(o.id, blob); } catch { /* siguiente */ }
+    }
+    throw new NotFoundException('No se pudo leer el secreto de la app');
+  }
 }

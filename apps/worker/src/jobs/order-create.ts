@@ -83,7 +83,7 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
 
   const accessToken = decrypt(shop.id, Buffer.from(shop.accessTokenEnc));
   const pii = JSON.parse(decrypt(shop.id, Buffer.from(sub.customerDataEnc!))) as Pii;
-  const totals = sub.totals as Totals;
+  const totals = sub.totals as unknown as Totals;
   const items = sub.items as { variantId: string; qty: number }[];
   const addr = profile.toShopifyAddress(pii.address);
 
@@ -121,9 +121,13 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
         firstName: pii.firstName,
         lastName: pii.lastName,
         phone: pii.phoneE164,
-        address1: addr.address1,
+        // Sin geocodificación (GPS sin dirección escrita) el mensajero igual
+        // recibe algo útil: el enlace al mapa con las coordenadas exactas.
+        address1: addr.address1 || (sub.latitude && sub.longitude
+          ? `Ubicación GPS: https://maps.google.com/?q=${Number(sub.latitude)},${Number(sub.longitude)}`
+          : 'Sin dirección'),
         address2: addr.address2 ?? undefined,
-        city: addr.city,
+        city: addr.city || 'Sin especificar',
         provinceCode: addr.provinceCode ?? undefined,
         countryCode: addr.countryCode,
         zip: addr.zip ?? undefined,
@@ -151,6 +155,23 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
             }]
           : []),
       ],
+      // Descuento (ofertas por cantidad o código): sin esto Shopify calcula un total
+      // mayor que lo cobrado y el pedido queda con saldo pendiente descuadrado.
+      ...(totals.discountCents > 0
+        ? {
+            discountCode: {
+              itemFixedDiscountCode: {
+                code: (totals.appliedDiscount?.code || totals.appliedOffer || 'COD-DESCUENTO').slice(0, 255),
+                amountSet: {
+                  shopMoney: {
+                    amount: (totals.discountCents / 100).toFixed(2),
+                    currencyCode: settings.currency,
+                  },
+                },
+              },
+            },
+          }
+        : {}),
       transactions: [
         {
           kind: 'SALE',
@@ -172,27 +193,42 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
     },
   };
 
-  const res = await fetch(
-    `https://${shop.domain}/admin/api/${shop.shopifyApp.apiVersion}/graphql.json`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': accessToken },
-      body: JSON.stringify({ query: MUTATION, variables }),
-    },
-  );
-
-  if (!res.ok) throw new Error(`Shopify HTTP ${res.status}`);
-
-  const body = (await res.json()) as {
+  type OrderCreateBody = {
     data?: { orderCreate: { order: { id: string; name: string } | null; userErrors: { field: string[] | null; message: string }[] } };
     errors?: { message: string }[];
   };
+  const send = async (vars: typeof variables): Promise<OrderCreateBody> => {
+    const res = await fetch(
+      `https://${shop.domain}/admin/api/${shop.shopifyApp.apiVersion}/graphql.json`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': accessToken },
+        body: JSON.stringify({ query: MUTATION, variables: vars }),
+      },
+    );
+    if (!res.ok) throw new Error(`Shopify HTTP ${res.status}`);
+    return (await res.json()) as OrderCreateBody;
+  };
 
+  let body = await send(variables);
   if (body.errors?.length) throw new Error(body.errors.map((e) => e.message).join('; '));
+
+  // Si Shopify no reconoce la provincia del país, se reintenta sin ella: la
+  // provincia ya va como ciudad, y un pedido no se pierde por un código.
+  const provinceError = (body.data?.orderCreate.userErrors ?? []).some((e) =>
+    /province|zone|provincia/i.test(`${e.field?.join('.') ?? ''} ${e.message}`));
+  if (provinceError && variables.order.shippingAddress.provinceCode) {
+    log.warn({ submissionId, provinceCode: variables.order.shippingAddress.provinceCode }, 'Shopify rechazó la provincia; reintentando sin ella');
+    body = await send({
+      ...variables,
+      order: { ...variables.order, shippingAddress: { ...variables.order.shippingAddress, provinceCode: undefined } },
+    });
+    if (body.errors?.length) throw new Error(body.errors.map((e) => e.message).join('; '));
+  }
 
   const ue = body.data?.orderCreate.userErrors ?? [];
   if (ue.length) {
-    // Causa nº1: provinceCode inválido. Se sube el error tal cual al panel.
+    // Se sube el error tal cual al panel.
     throw new Error(ue.map((e) => `${e.field?.join('.') ?? '-'}: ${e.message}`).join(' | '));
   }
 
@@ -267,6 +303,8 @@ interface Totals {
   shippingCents: number;
   codFeeCents?: number;
   totalCents: number;
+  appliedOffer?: string | null;
+  appliedDiscount?: { code: string } | null;
 }
 
 const MUTATION = /* GraphQL */ `

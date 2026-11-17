@@ -71,7 +71,7 @@ export const TriggerButtonSchema = z.object({
   descriptionFontSize: z.number().min(9).max(18).default(12),
   bg: z.string().default('#111111'),
   color: z.string().default('#ffffff'),
-  radius: z.number().int().min(0).max(60).default(100),
+  radius: z.number().int().min(0).max(60).default(60),
   /** Icono: un emoji/carácter, o una URL de imagen si iconType === 'image'. */
   iconType: z.enum(['none', 'emoji', 'image']).default('emoji'),
   icon: z.string().default('🛒'),
