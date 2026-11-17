@@ -6,7 +6,7 @@ import {
 import { ChevronDownIcon, ChevronRightIcon, DeleteIcon, PlusIcon } from '@shopify/polaris-icons';
 import { Form, useFetcher, useLoaderData, useSubmit } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
-import { AddonSchema, OfferSchema, ThemeTokensSchema, type Addon, type Field, type Offer, type ThemeTokens } from '@cod/contracts';
+import { AddonSchema, OfferSchema, ShopSettingsSchema, ThemeTokensSchema, type Addon, type Field, type Offer, type ThemeTokens } from '@cod/contracts';
 import { requireShop } from '../lib/shop.server';
 import { pickResources } from '../lib/base';
 import { db } from '../db.server';
@@ -116,6 +116,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
     fields: ((version?.schema as Field[] | undefined) ?? DEFAULT_FIELDS),
     tokens: ThemeTokensSchema.parse(theme?.tokens ?? {}),
     currency: shop.currency,
+    shipping: (() => {
+      const st = ShopSettingsSchema.parse(shop.settings ?? {});
+      return { defaultShippingCents: st.defaultShippingCents, freeShippingOverCents: st.freeShippingOverCents, codFeeCents: st.codFeeCents };
+    })(),
   };
 }
 
@@ -513,7 +517,7 @@ export default function Offers() {
 
           <div className="cod-editor-preview">
             <Preview fields={data.fields} tokens={pvTokens} offers={pvOffers} addons={pvAddons}
-              unitPriceCents={pvProduct?.priceCents ?? 0} focus={tab === 'extras' ? 'addons' : tab === 'qty' ? 'offers' : null}
+              unitPriceCents={pvProduct?.priceCents ?? 0} shipping={data.shipping} focus={tab === 'extras' ? 'addons' : tab === 'qty' ? 'offers' : null}
               hint={pvProduct
                 ? `Así se ven en «${pvProduct.title}» (precio en Shopify: ${money(pvProduct.priceCents ?? 0)}). Pulsa las tarjetas para probarlas.`
                 : 'Elige el producto de una oferta para verla aquí con su precio real.'} />

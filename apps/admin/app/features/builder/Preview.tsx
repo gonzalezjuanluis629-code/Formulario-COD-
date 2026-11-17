@@ -13,7 +13,7 @@ const EMPTY_A: Addon[] = [];
 
 export function Preview({
   fields, tokens, selectedKey = null, onSelect, showTrigger = false, offers = EMPTY_O, addons = EMPTY_A, unitPriceCents = 0,
-  hint = 'Haz clic en un campo de la vista previa para editarlo.', focus = null,
+  hint = 'Haz clic en un campo de la vista previa para editarlo.', focus = null, shipping = null,
 }: {
   fields: Field[];
   tokens: ThemeTokens;
@@ -25,11 +25,13 @@ export function Preview({
   unitPriceCents?: number;
   hint?: string;
   focus?: 'offers' | 'addons' | null;
+  /** Envío y recargo reales de la tienda, para que el total sea el de verdad. */
+  shipping?: { defaultShippingCents: number; freeShippingOverCents: number | null; codFeeCents: number } | null;
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [device, setDevice] = useState<'mobile' | 'desktop'>('mobile');
-  const latest = useRef({ fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus });
-  latest.current = { fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus };
+  const latest = useRef({ fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus, shipping });
+  latest.current = { fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus, shipping };
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
 
@@ -49,7 +51,7 @@ export function Preview({
     return () => window.removeEventListener('message', onMessage);
   }, [post]);
 
-  useEffect(() => { post(); }, [fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus, post]);
+  useEffect(() => { post(); }, [fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus, shipping, post]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

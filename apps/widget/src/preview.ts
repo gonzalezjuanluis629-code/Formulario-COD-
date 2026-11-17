@@ -18,6 +18,8 @@ export interface PreviewOptions {
   addons?: Addon[];
   /** Precio del producto de ejemplo, en centavos. */
   unitPriceCents?: number;
+  /** Envío y recargo REALES de la tienda (página «Envíos»). Sin dato = sin envío. */
+  shipping?: { defaultShippingCents: number; freeShippingOverCents: number | null; codFeeCents: number } | null;
   /** Zona a la que llevar la vista (al editar ofertas o extras). */
   focus?: 'offers' | 'addons' | null;
 }
@@ -69,7 +71,7 @@ export function renderPreview(host: HTMLElement, fields: Field[], tokens: ThemeT
   // 2) Los campos y textos se redibujan SOLO si cambiaron, y sin animación de entrada.
   const formKey = JSON.stringify([fields, tokens.progressBar, tokens.submit.text, tokens.submit.iconType,
     tokens.submit.icon, tokens.submit.priceDisplay, tokens.offerCard.showCompare, tokens.offerCard.showSave, tokens.offerCard.showInForm,
-    opts.offers ?? [], opts.addons ?? [], opts.unitPriceCents ?? 0]);
+    opts.offers ?? [], opts.addons ?? [], opts.unitPriceCents ?? 0, opts.shipping ?? null]);
   let root = shadow.querySelector<HTMLElement>('.cod-root');
   if (formKey !== lastFormKey || !root) {
     lastFormKey = formKey;
@@ -116,8 +118,9 @@ function buildForm(root: HTMLElement, fields: Field[], tokens: ThemeTokens, opts
     settings: {
       thankYouUrl: '/pages/gracias', redirectDelayMs: 3000, orderTag: 'COD',
       gateway: 'Cash on Delivery (COD)', currency: 'DOP',
-      freeShippingOverCents: 350000, defaultShippingCents: 25000,
-      shippingByProvince: {}, codFeeCents: 0, codFeeLabel: 'Recargo contra entrega',
+      freeShippingOverCents: opts.shipping?.freeShippingOverCents ?? null,
+      defaultShippingCents: opts.shipping?.defaultShippingCents ?? 0,
+      shippingByProvince: {}, codFeeCents: opts.shipping?.codFeeCents ?? 0, codFeeLabel: 'Recargo contra entrega',
       showOrderSummaryToCustomer: false,
       confirmation: {
         title: '¡Pedido confirmado!',
@@ -149,7 +152,7 @@ function buildForm(root: HTMLElement, fields: Field[], tokens: ThemeTokens, opts
     offers: config.offers,
     defaultShippingCents: config.settings.defaultShippingCents,
     freeShippingOverCents: config.settings.freeShippingOverCents,
-    codFeeCents: 0,
+    codFeeCents: config.settings.codFeeCents,
     addonsCents: state.acceptedAddons.reduce((sum, x) => {
       const a = config.addons.find((y) => y.id === x.id);
       return sum + (a ? a.priceCents * a.qty : 0);

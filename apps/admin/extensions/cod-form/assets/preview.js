@@ -14,7 +14,7 @@ const PREVIEW_CSS = `
 .cod-field.cod-selected::before{content:attr(data-label);position:absolute;top:-9px;right:6px;z-index:2;
   background:#005bd3;color:#fff;font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px}`;
 function renderPreview(host, fields, tokens, opts = {}) {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d, _e, _f, _g;
   currentOnSelect = opts.onSelect;
   renderTriggerPreview(host, tokens, !!opts.showTrigger);
   const firstTime = !host.shadowRoot;
@@ -45,7 +45,8 @@ ${PREVIEW_CSS}`;
     tokens.offerCard.showInForm,
     (_b = opts.offers) != null ? _b : [],
     (_c = opts.addons) != null ? _c : [],
-    (_d = opts.unitPriceCents) != null ? _d : 0
+    (_d = opts.unitPriceCents) != null ? _d : 0,
+    (_e = opts.shipping) != null ? _e : null
   ]);
   let root = shadow.querySelector(".cod-root");
   if (formKey !== lastFormKey || !root) {
@@ -68,11 +69,11 @@ ${PREVIEW_CSS}`;
     const target = root.querySelector(opts.focus === "offers" ? ".cod-offers-slot" : ".cod-addons-slot");
     window.setTimeout(() => target == null ? void 0 : target.scrollIntoView({ block: "center", behavior: "smooth" }), 250);
   }
-  lastFocus = (_e = opts.focus) != null ? _e : null;
-  markSelection(root, fields, (_f = opts.selectedKey) != null ? _f : null);
+  lastFocus = (_f = opts.focus) != null ? _f : null;
+  markSelection(root, fields, (_g = opts.selectedKey) != null ? _g : null);
 }
 function buildForm(root, fields, tokens, opts) {
-  var _a, _b;
+  var _a, _b, _c, _d, _e, _f, _g, _h;
   const config = {
     formId: "preview",
     formVersionId: "preview",
@@ -98,10 +99,10 @@ function buildForm(root, fields, tokens, opts) {
       orderTag: "COD",
       gateway: "Cash on Delivery (COD)",
       currency: "DOP",
-      freeShippingOverCents: 35e4,
-      defaultShippingCents: 25e3,
+      freeShippingOverCents: (_b = (_a = opts.shipping) == null ? void 0 : _a.freeShippingOverCents) != null ? _b : null,
+      defaultShippingCents: (_d = (_c = opts.shipping) == null ? void 0 : _c.defaultShippingCents) != null ? _d : 0,
       shippingByProvince: {},
-      codFeeCents: 0,
+      codFeeCents: (_f = (_e = opts.shipping) == null ? void 0 : _e.codFeeCents) != null ? _f : 0,
       codFeeLabel: "Recargo contra entrega",
       showOrderSummaryToCustomer: false,
       confirmation: {
@@ -129,8 +130,8 @@ function buildForm(root, fields, tokens, opts) {
       },
       storefront: { autoPlace: true, floating: true, cartButton: true }
     },
-    offers: (_a = opts.offers) != null ? _a : [],
-    addons: (_b = opts.addons) != null ? _b : [],
+    offers: (_g = opts.offers) != null ? _g : [],
+    addons: (_h = opts.addons) != null ? _h : [],
     product: { variantId: "preview", title: "Producto de ejemplo", unitPriceCents: opts.unitPriceCents || 189e3, image: null }
   };
   const state = new FormState(config);
@@ -141,7 +142,7 @@ function buildForm(root, fields, tokens, opts) {
     offers: config.offers,
     defaultShippingCents: config.settings.defaultShippingCents,
     freeShippingOverCents: config.settings.freeShippingOverCents,
-    codFeeCents: 0,
+    codFeeCents: config.settings.codFeeCents,
     addonsCents: state.acceptedAddons.reduce((sum, x) => {
       const a = config.addons.find((y) => y.id === x.id);
       return sum + (a ? a.priceCents * a.qty : 0);
