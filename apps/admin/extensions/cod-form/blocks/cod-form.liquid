@@ -24,7 +24,6 @@
     style="margin: {{ block.settings.margin }}px 0"
     {{ block.shopify_attributes }}
   ></div>
-  <script src="{{ 'widget.js' | asset_url }}" type="module"></script>
 {%- elsif request.design_mode -%}
   <div {{ block.shopify_attributes }}
     style="padding:14px;border:1.5px dashed #b5b5b5;border-radius:10px;color:#666;font:14px/1.4 system-ui;text-align:center">
@@ -32,6 +31,12 @@
     Esta sección no tiene producto. Elige uno en «Producto» (a la derecha) o pon el bloque en la página de producto.
   </div>
 {%- endif -%}
+{%- comment -%}
+  Siempre se carga: en el editor del tema, al elegir un producto Shopify
+  recarga solo la sección y no ejecuta sus scripts; así el código ya está
+  en la página y monta el botón al momento.
+{%- endcomment -%}
+<script src="{{ 'widget.js' | asset_url }}" type="module"></script>
 
 {% schema %}
 {

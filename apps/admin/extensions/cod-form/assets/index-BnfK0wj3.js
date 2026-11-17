@@ -548,7 +548,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-8OZt8vSN.js").then(({ renderAddons }) => {
+    void import("./addons-X0RJujMw.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1069,6 +1069,7 @@ ${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 `;
 async function mount(opts) {
+  var _a;
   const host = opts.container;
   const shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
@@ -1080,7 +1081,12 @@ async function mount(opts) {
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
-  } catch {
+  } catch (e) {
+    if (((_a = window.Shopify) == null ? void 0 : _a.designMode) && !host.dataset.floating) {
+      const notFound = e instanceof ApiError && e.status === 404;
+      root.innerHTML = `<div style="padding:12px;border:1.5px dashed #b5b5b5;border-radius:10px;color:#666;font:14px/1.4 system-ui;text-align:center"><b>Formulario COD</b><br>${notFound ? "Este producto no tiene un formulario asignado. En la app, abre el formulario → Ajustes → «¿En qué productos se muestra?» y elige este producto o todos." : "No se pudo cargar el formulario. Revisa que la app esté instalada y vuelve a intentarlo."}</div>`;
+      return;
+    }
     host.remove();
     return;
   }
@@ -1095,7 +1101,7 @@ ${config.tokens.customCss}`;
   };
   const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-T0XiGM0c.js");
+    const { renderTrigger } = await import("./trigger-iPpYspdH.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";

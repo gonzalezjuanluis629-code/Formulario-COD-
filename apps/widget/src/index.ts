@@ -39,8 +39,15 @@ export async function mount(opts: MountOptions): Promise<void> {
   let config: WidgetConfig;
   try {
     config = await api.config(opts.productId, opts.variantId);
-  } catch {
-    // Si no hay formulario para este producto, no ensuciamos la página del merchant.
+  } catch (e) {
+    // En el editor del tema se explica; en la tienda no se ensucia la página.
+    if ((window as Window & { Shopify?: { designMode?: boolean } }).Shopify?.designMode && !host.dataset.floating) {
+      const notFound = e instanceof ApiError && e.status === 404;
+      root.innerHTML = `<div style="padding:12px;border:1.5px dashed #b5b5b5;border-radius:10px;color:#666;font:14px/1.4 system-ui;text-align:center"><b>Formulario COD</b><br>${
+        notFound ? 'Este producto no tiene un formulario asignado. En la app, abre el formulario → Ajustes → «¿En qué productos se muestra?» y elige este producto o todos.'
+                 : 'No se pudo cargar el formulario. Revisa que la app esté instalada y vuelve a intentarlo.'}</div>`;
+      return;
+    }
     host.remove();
     return;
   }
