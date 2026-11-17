@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core';
@@ -34,7 +34,12 @@ export function FieldList({
 
   const reindex = (list: Field[]) => list.map((f, i) => ({ ...f, order: i + 1 }));
 
+  // Tras soltar un arrastre el navegador manda un clic: se ignora para no abrir el campo.
+  const lastDrag = useRef(0);
+  const open = (key: string) => { if (Date.now() - lastDrag.current > 250) onSelect(key); };
+
   const handleEnd = useCallback((e: DragEndEvent) => {
+    lastDrag.current = Date.now();
     const { active, over } = e;
     if (!over || active.id === over.id) return;
     const from = sorted.findIndex((f) => f.key === active.id);
@@ -65,11 +70,12 @@ export function FieldList({
 
   return (
     <BlockStack gap="300">
-      <DndContext id="form-fields-dnd" sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleEnd}>
+      <DndContext id="form-fields-dnd" sensors={sensors} collisionDetection={closestCenter}
+        onDragStart={() => { lastDrag.current = Date.now(); }} onDragCancel={() => { lastDrag.current = Date.now(); }} onDragEnd={handleEnd}>
         <SortableContext items={sorted.map((f) => f.key)} strategy={verticalListSortingStrategy}>
           <div style={{ display: 'grid', gap: 6 }}>
             {sorted.map((f) => (
-              <Row key={f.key} field={f} onOpen={() => onSelect(f.key)}
+              <Row key={f.key} field={f} onOpen={() => open(f.key)}
                 onRemove={() => remove(f.key)} onDuplicate={() => duplicate(f.key)} />
             ))}
           </div>
@@ -123,7 +129,11 @@ function Row({
   return (
     <div
       ref={setNodeRef}
+      {...attributes}
+      {...listeners}
       style={{
+        cursor: isDragging ? 'grabbing' : 'grab',
+        touchAction: 'manipulation',
         transform: CSS.Transform.toString(transform),
         transition,
         zIndex: isDragging ? 2 : undefined,
@@ -136,8 +146,7 @@ function Row({
         opacity: field.visible ? 1 : 0.55,
       }}
     >
-      <span {...attributes} {...listeners} aria-label="Arrastrar para ordenar"
-        style={{ cursor: 'grab', touchAction: 'none', display: 'flex', padding: 2 }}>
+      <span aria-label="Arrastrar para ordenar" style={{ display: 'flex', padding: 2, touchAction: 'none' }}>
         <Icon source={DragHandleIcon} tone="subdued" />
       </span>
 

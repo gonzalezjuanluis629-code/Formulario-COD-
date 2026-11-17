@@ -48,6 +48,8 @@ export function tokensToCss(t: ThemeTokens): string {
     --cod-btn-size:${t.submit.fontSize}px;
     --cod-btn-bg:${buttonBackground(t.submit)};
     --cod-btn-solid:${t.submit.bg};
+    --cod-apply-bg:${t.applyBg};
+    --cod-apply-color:${t.applyColor};
     --cod-btn-shadow:${buttonShadow(t.submit)};
     --anim-speed:${ANIMATION_SPEEDS[t.submit.animationSpeed ?? 'normal']};
     --cod-btn-color:${t.submit.color};

@@ -53,6 +53,8 @@ export function DesignPanel({
           <Color label="Texto" value={t.text} onChange={(v) => set('text', v)} />
           <Color label="Barra de progreso" value={t.progressColor} onChange={(v) => set('progressColor', v)} />
           <Color label="Errores" value={t.danger} onChange={(v) => set('danger', v)} />
+          <Color label="Botón «Aplicar» (código de descuento)" value={t.applyBg} onChange={(v) => set('applyBg', v)} />
+          <Color label="Texto del botón «Aplicar»" value={t.applyColor} onChange={(v) => set('applyColor', v)} />
         </>
       ))}
 

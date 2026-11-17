@@ -134,6 +134,8 @@ function tokensToCss(t) {
     --cod-btn-size:${t.submit.fontSize}px;
     --cod-btn-bg:${buttonBackground(t.submit)};
     --cod-btn-solid:${t.submit.bg};
+    --cod-apply-bg:${t.applyBg};
+    --cod-apply-color:${t.applyColor};
     --cod-btn-shadow:${buttonShadow(t.submit)};
     --anim-speed:${ANIMATION_SPEEDS[(_a = t.submit.animationSpeed) != null ? _a : "normal"]};
     --cod-btn-color:${t.submit.color};
@@ -470,7 +472,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-DjhChVZt.js").then(({ renderAddons }) => {
+    void import("./addons-C_JViecY.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -804,8 +806,8 @@ const CSS = `
 .cod-discount{display:flex;gap:8px}
 .cod-discount input{flex:1;min-width:0;text-transform:uppercase}
 .cod-discount input:disabled{opacity:.7}
-.cod-discount-btn{flex-shrink:0;padding:0 16px;border:0;border-radius:var(--cod-radius);background:var(--cod-text);
-  color:var(--cod-surface);font:inherit;font-weight:600;font-size:13px;cursor:pointer}
+.cod-discount-btn{flex-shrink:0;padding:0 16px;border:0;border-radius:var(--cod-radius);background:var(--cod-apply-bg,var(--cod-text));
+  color:var(--cod-apply-color,var(--cod-surface));font:inherit;font-weight:600;font-size:13px;cursor:pointer}
 .cod-discount-btn:disabled{opacity:.6;cursor:default}
 .cod-discount-ok{display:block;margin-top:5px;font-size:12px;font-weight:600;color:var(--cod-ok)}
 .cod-choices{display:grid;gap:7px}
@@ -1000,7 +1002,7 @@ ${config.tokens.customCss}`;
     });
   };
   if (host.dataset.mode === "popup") {
-    const { renderTrigger } = await import("./trigger-DksEpz2G.js");
+    const { renderTrigger } = await import("./trigger-5lHK5Vd5.js");
     root.innerHTML = "";
     renderTrigger(root, config.tokens.trigger, () => openModal(config, renderInto));
     return;

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   BlockStack, Box, Button, ButtonGroup, Checkbox, Collapsible, Divider, Icon, InlineStack, Select, Text, TextField,
 } from '@shopify/polaris';
-import { ArrowLeftIcon, DeleteIcon, PlusIcon } from '@shopify/polaris-icons';
+import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, DeleteIcon, PlusIcon } from '@shopify/polaris-icons';
 import type { Field } from '@cod/contracts';
 import { CONTENT_TYPES, FIELD_META, OPTION_TYPES } from './fieldMeta';
 
@@ -18,18 +18,22 @@ const VIRTUAL_FIELDS = [{ label: 'Modo de dirección (gps / manual)', value: 'lo
 
 /** Editor de UN campo. Lo esencial arriba; lo técnico en «Más opciones». */
 export function FieldSettings({
-  field, allFields, onChange, onBack, onRemove,
+  field, allFields, onChange, onBack, onRemove, onMove, onGoDesign,
 }: {
   field: Field;
   allFields: Field[];
   onChange: (f: Field) => void;
   onBack: () => void;
   onRemove: () => void;
+  onMove: (dir: -1 | 1) => void;
+  onGoDesign?: () => void;
 }) {
   const [more, setMore] = useState(false);
   const meta = FIELD_META[field.type];
   const isContent = CONTENT_TYPES.includes(field.type);
   const set = <K extends keyof Field>(k: K, v: Field[K]) => onChange({ ...field, [k]: v });
+  const sorted = [...allFields].sort((a, b) => a.order - b.order);
+  const pos = sorted.findIndex((f) => f.key === field.key);
 
   return (
     <BlockStack gap="400">
@@ -75,6 +79,9 @@ export function FieldSettings({
             <TextField label="Texto del botón" value={field.content}
               onChange={(v) => set('content', v)} autoComplete="off" placeholder="Aplicar"
               helpText="Valida el código en tus descuentos de Shopify y en los creados en «Ofertas y descuentos»." />
+          )}
+          {field.type === 'discount' && onGoDesign && (
+            <Button onClick={onGoDesign}>Cambiar color del botón</Button>
           )}
 
           {field.type === 'checkbox' && (
@@ -220,7 +227,13 @@ export function FieldSettings({
       </Collapsible>
 
       <Divider />
-      <Button tone="critical" variant="plain" icon={DeleteIcon} onClick={onRemove}>Eliminar este campo</Button>
+      <InlineStack gap="200" align="space-between" blockAlign="center">
+        <ButtonGroup>
+          <Button icon={ArrowUpIcon} disabled={pos <= 0} onClick={() => onMove(-1)}>Subir</Button>
+          <Button icon={ArrowDownIcon} disabled={pos < 0 || pos >= sorted.length - 1} onClick={() => onMove(1)}>Bajar</Button>
+        </ButtonGroup>
+        <Button tone="critical" variant="plain" icon={DeleteIcon} onClick={onRemove}>Eliminar</Button>
+      </InlineStack>
     </BlockStack>
   );
 }

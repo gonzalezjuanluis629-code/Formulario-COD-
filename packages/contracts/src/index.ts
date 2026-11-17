@@ -200,6 +200,9 @@ export const ThemeTokensSchema = z.object({
   animations: z.boolean().default(true),
   progressBar: z.boolean().default(true),
   progressColor: z.string().default('#16a34a'),
+  /** Botón «Aplicar» del código de descuento. */
+  applyBg: z.string().default('#111111'),
+  applyColor: z.string().default('#ffffff'),
   /** Color del botón de envío cuando el formulario está completo. */
   readyColor: z.string().default('#16a34a'),
   logoUrl: z.string().nullable().default(null),
