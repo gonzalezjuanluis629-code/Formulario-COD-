@@ -22,7 +22,7 @@ const HTML = `<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-  body{margin:0;padding:16px;background:#f6f6f7;
+  body{margin:0;padding:20px 16px;background:#f1f1f1;
     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif}
   #root{max-width:420px;margin:0 auto}
   .empty{padding:60px 20px;text-align:center;color:#8a8a8a;font-size:13px}
@@ -37,7 +37,11 @@ const HTML = `<!DOCTYPE html>
     if (e.source !== parent || e.origin !== location.origin) return;
     if (e.data?.type !== 'cod:preview') return;
     try {
-      renderPreview(document.getElementById('root'), e.data.fields, e.data.tokens);
+      renderPreview(document.getElementById('root'), e.data.fields, e.data.tokens, {
+        selectedKey: e.data.selectedKey ?? null,
+        showTrigger: !!e.data.showTrigger,
+        onSelect: (key) => parent.postMessage({ type: 'cod:select', key }, location.origin),
+      });
     } catch (err) {
       console.error('[preview]', err);
     }

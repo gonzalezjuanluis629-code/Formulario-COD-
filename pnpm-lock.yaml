@@ -63,6 +63,9 @@ importers:
       '@shopify/polaris':
         specifier: ^13.9.0
         version: 13.9.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@shopify/polaris-icons':
+        specifier: ^9
+        version: 9.3.1(react@18.3.1)
       '@shopify/shopify-app-react-router':
         specifier: ^1.0.0
         version: 1.2.1(react-dom@18.3.1(react@18.3.1))(react-router@7.18.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
