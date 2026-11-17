@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Offer } from '@cod/contracts';
 import { AdminClientService } from '../../infra/shopify/admin-client.service';
+import { RedisService } from '../../infra/redis/redis.service';
 import type { ShopContext } from '../../infra/shopify/shop-context.service';
 
 /**
@@ -18,7 +19,7 @@ export class PageOffersService {
   private cache = new Map<string, { at: number; offers: Offer[] }>();
   private static TTL = 5 * 60_000;
 
-  constructor(private admin: AdminClientService) {}
+  constructor(private admin: AdminClientService, private redis: RedisService) {}
 
   /** Ofertas de la página del producto (vacío si la página no tiene caja de ofertas). */
   async forProduct(ctx: ShopContext, productGid: string, unitPriceCents: number): Promise<Offer[]> {
@@ -29,10 +30,20 @@ export class PageOffersService {
     if (hit && Date.now() - hit.at < PageOffersService.TTL) {
       rows = hit.offers.map((o) => ({ qty: o.minQty, cents: o.bundlePriceCents ?? 0 }));
     } else {
-      rows = await this.read(ctx, productGid).catch((e) => {
+      const r = await this.read(ctx, productGid).catch((e) => {
         this.log.warn(`No se pudo leer la página de ${productGid} en ${ctx.domain}: ${(e as Error).message}`);
-        return [];
+        return null;
       });
+      // Lo último bueno queda guardado: si la tienda responde con una pantalla de
+      // «verificando conexión» o tarda, se siguen usando los precios de su página.
+      const lastKey = this.redis.key(ctx.shopId, 'page-offers', productGid.split('/').pop() ?? '');
+      if (r === null) {
+        rows = await this.redis.client.get(lastKey).then((v) => (v ? JSON.parse(v) as { qty: number; cents: number }[] : [])).catch(() => []);
+      } else {
+        rows = r;
+        if (rows.length) void this.redis.client.set(lastKey, JSON.stringify(rows), 'EX', 60 * 60 * 24 * 30).catch(() => undefined);
+        else void this.redis.client.del(lastKey).catch(() => undefined);
+      }
       if (this.cache.size > 2000) this.cache.clear();
       this.cache.set(key, { at: Date.now(), offers: rows.map((r) => toOffer(r.qty, r.cents)) });
     }
@@ -40,7 +51,8 @@ export class PageOffersService {
     return rows.filter((r) => r.qty > 1 && r.cents > 0 && r.cents < unitPriceCents * r.qty).map((r) => toOffer(r.qty, r.cents));
   }
 
-  private async read(ctx: ShopContext, productGid: string): Promise<{ qty: number; cents: number }[]> {
+  /** Ofertas de la página; [] si la página no tiene caja; null si no se pudo saber. */
+  private async read(ctx: ShopContext, productGid: string): Promise<{ qty: number; cents: number }[] | null> {
     const d = await this.admin.graphql<{ product: { handle: string; onlineStoreUrl: string | null } | null }>(
       ctx, `query($id: ID!){ product(id:$id){ handle onlineStoreUrl } }`, { id: productGid },
     );
@@ -54,8 +66,11 @@ export class PageOffersService {
       redirect: 'follow',
       signal: AbortSignal.timeout(5000),
     });
-    if (!res.ok) return [];
-    return parseOfferBox(await res.text());
+    if (!res.ok) return null;
+    const html = await res.text();
+    // Una página de la tienda de verdad (no una de verificación o de error).
+    if (!/cdn\/shop\/|Shopify\.shop|\/cart\/add/.test(html)) return null;
+    return parseOfferBox(html);
   }
 }
 

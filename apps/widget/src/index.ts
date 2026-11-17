@@ -177,7 +177,9 @@ function hideWhileInlineVisible(floatingHost: HTMLElement): void {
   const visible = new Set<Element>();
   const apply = () => {
     for (const el of visible) if (!el.isConnected) visible.delete(el);
-    const hide = visible.size > 0;
+    // También se esconde con un carrito lateral o una ventana del tema abiertos:
+    // si no, quedaba ENCIMA de sus botones (p. ej. «Comprar ahora» del carrito).
+    const hide = visible.size > 0 || overlayOpen();
     floatingHost.style.opacity = hide ? '0' : '1';
     floatingHost.style.transform = hide ? 'translateY(120%)' : 'none';
     floatingHost.style.pointerEvents = hide ? 'none' : 'auto';
@@ -204,10 +206,58 @@ function hideWhileInlineVisible(floatingHost: HTMLElement): void {
   // Por si el tema añade el bloque después (carga diferida, editor del tema).
   mo = new MutationObserver(scan);
   mo.observe(document.body, { childList: true, subtree: true });
+  // Abrir/cerrar carritos y ventanas del tema (cambian clases o aria-hidden).
+  let queued = false;
+  new MutationObserver(() => {
+    if (queued || !floatingHost.isConnected) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; apply(); });
+  }).observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class', 'aria-hidden', 'open', 'aria-modal'] });
+}
+
+/** Carritos laterales y ventanas del tema abiertos (no los nuestros). */
+const OVERLAY = '[role="dialog"]:not([aria-hidden="true"]), [aria-modal="true"], dialog[open], cart-drawer[open], cart-drawer.active, .drawer.active, .is-open[role="dialog"]';
+function overlayOpen(): boolean {
+  return [...document.querySelectorAll<HTMLElement>(OVERLAY)].some((el) => {
+    if (el.closest('[data-cod-form], [data-cod-modal]')) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width < 40 || r.height < 40) return false;
+    if (r.right <= 0 || r.left >= window.innerWidth || r.bottom <= 0 || r.top >= window.innerHeight) return false;
+    const cs = getComputedStyle(el);
+    return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05;
+  });
+}
+
+/**
+ * Botones del tema que antes abrían otra app de pago contra entrega desde el
+ * carrito (p. ej. el «Comprar ahora · Paga al recibir» del carrito lateral):
+ * ahora abren ESTE formulario con todo el carrito.
+ */
+export const CART_TRIGGERS = '[data-pd-rsi-cart], a[href*="pd_cod=1"], [data-cod-open-cart]';
+let cartOpening = false;
+async function openCartForm(): Promise<void> {
+  if (cartOpening) return;
+  cartOpening = true;
+  try {
+    const lines = await readCart();
+    if (!lines.length) return;
+    const seen = new Set<string>();
+    for (const l of lines) {
+      if (seen.has(l.productId)) continue;
+      seen.add(l.productId);
+      let config: WidgetConfig;
+      try { config = await api.config(l.productId, l.variantId); } catch { continue; }
+      openModal(null, config, (root) => renderCartInto(root, config));
+      try { api.track(config.formId, 'view', config.formVersionId); } catch { /* no bloquea */ }
+      return;
+    }
+  } catch { /* sin carrito: no se abre nada */ } finally {
+    cartOpening = false;
+  }
 }
 
 /** Modal para el modo popup. El formulario se monta fresco cada apertura. */
-function openModal(shadow: ShadowRoot, config: WidgetConfig, renderInto: (el: HTMLElement) => void): void {
+function openModal(shadow: ShadowRoot | null, config: WidgetConfig, renderInto: (el: HTMLElement) => void): void {
   // La ventana va en su propio contenedor AL FINAL DE LA PÁGINA (no dentro de la
   // sección del tema): las animaciones/transformaciones del tema podían dejarla
   // atrapada debajo de otras capas («se ve pero no se puede tocar»).
@@ -217,7 +267,12 @@ function openModal(shadow: ShadowRoot, config: WidgetConfig, renderInto: (el: HT
   portal.style.cssText = 'position:fixed;inset:0;z-index:2147483600;';
   const pshadow = portal.attachShadow({ mode: 'open' });
   // Los mismos estilos (y colores del diseño) que el botón que la abrió.
-  shadow.querySelectorAll('style').forEach((st) => pshadow.appendChild(st.cloneNode(true)));
+  if (shadow) shadow.querySelectorAll('style').forEach((st) => pshadow.appendChild(st.cloneNode(true)));
+  else {
+    const st = document.createElement('style');
+    st.textContent = `:host{${tokensToCss(config.tokens)}}\n${CSS}\n${config.tokens.customCss}`;
+    pshadow.appendChild(st);
+  }
   document.body.appendChild(portal);
 
   const overlay = document.createElement('div');
@@ -630,6 +685,20 @@ async function mountCart(el: HTMLElement): Promise<void> {
     return;
   }
   el.remove();
+}
+
+if (DIRECT?.cartButton) {
+  document.addEventListener('click', (e) => {
+    const t = (e.target as Element | null)?.closest?.(CART_TRIGGERS);
+    if (!t || t.closest('[data-cod-modal]')) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    void openCartForm();
+  }, true);
+  // Llegó a la página del carrito para pagar contra entrega (/cart?pd_cod=1).
+  if (/\/cart\/?$/.test(location.pathname) && /[?&](pd_)?cod=1\b/.test(location.search)) {
+    window.setTimeout(() => void openCartForm(), 600);
+  }
 }
 
 if (document.readyState === 'loading') {

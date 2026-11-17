@@ -55,9 +55,10 @@ const LOADER = `/* Formulario COD */
   }
   // Botón del carrito: el widget se carga cuando aparece un «Pagar» del tema
   // (página del carrito o carrito lateral al añadir un producto).
-  var CHECKOUT = 'button[name="checkout"],input[name="checkout"],button#checkout,a[href$="/checkout"]';
+  var CHECKOUT = 'button[name="checkout"],input[name="checkout"],button#checkout,a[href$="/checkout"],[data-pd-rsi-cart],a[href*="pd_cod=1"],[data-cod-open-cart]';
   function watchCart() {
     if (!C.cartButton) return;
+    if (/[?&](pd_)?cod=1/.test(location.search)) { load(); return; }
     if (document.querySelector(CHECKOUT)) { load(); return; }
     var mo = new MutationObserver(function () {
       if (document.querySelector(CHECKOUT)) { mo.disconnect(); load(); }
