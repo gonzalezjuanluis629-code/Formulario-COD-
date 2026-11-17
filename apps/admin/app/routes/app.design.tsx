@@ -6,23 +6,31 @@ import {
 import type { TriggerButton, SubmitButton } from '@cod/contracts';
 import { useFetcher, useLoaderData } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
-import { ThemeTokensSchema, type ThemeTokens } from '@cod/contracts';
+import { ThemeTokensSchema, type Field, type ThemeTokens } from '@cod/contracts';
+import { DEFAULT_FIELDS } from '../lib/defaults';
 import { requireShop } from '../lib/shop.server';
 import { db } from '../db.server';
 import { Preview } from '../features/builder/Preview';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { shop } = await requireShop(request);
-  const theme = await db.theme.findFirstOrThrow({ where: { shopId: shop.id, isDefault: true } });
-  const form = await db.form.findFirst({
-    where: { shopId: shop.id, status: 'ACTIVE' },
-    include: { versions: true },
-  });
-  const current = form?.versions.find((v) => v.id === form.currentVersionId);
+  // Si la tienda aún no tiene diseño (instalación antigua o fallida), se crea aquí.
+  const theme =
+    (await db.theme.findFirst({ where: { shopId: shop.id, isDefault: true } })) ??
+    (await db.theme.create({
+      data: { shopId: shop.id, name: 'Tema por defecto', isDefault: true, tokens: {} },
+    }));
+  // Vista previa: el formulario activo; si no hay, el último editado; si no, el de ejemplo.
+  const form =
+    (await db.form.findFirst({ where: { shopId: shop.id, status: 'ACTIVE' }, orderBy: { updatedAt: 'desc' } })) ??
+    (await db.form.findFirst({ where: { shopId: shop.id, status: { not: 'ARCHIVED' } }, orderBy: { updatedAt: 'desc' } }));
+  const current = form?.currentVersionId
+    ? await db.formVersion.findUnique({ where: { id: form.currentVersionId } })
+    : null;
   return {
     themeId: theme.id,
     tokens: ThemeTokensSchema.parse(theme.tokens ?? {}),
-    fields: (current?.schema ?? []) as never[],
+    fields: (current?.schema ?? DEFAULT_FIELDS) as Field[],
   };
 }
 

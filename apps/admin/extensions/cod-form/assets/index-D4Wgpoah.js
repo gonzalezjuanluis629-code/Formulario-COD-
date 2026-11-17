@@ -69,6 +69,12 @@ function tokensToCss(t) {
 }
 function validateField(f, value) {
   const v = (value != null ? value : "").trim();
+  if (f.type === "location") {
+    return f.required && !v ? "Elige cómo darnos tu dirección: tu ubicación o escribirla." : null;
+  }
+  if (f.type === "checkbox") {
+    return f.required && v !== "true" ? "Marca esta casilla para continuar." : null;
+  }
   if (f.required && !v) return `${f.label || "Este campo"} es obligatorio.`;
   if (!v) return null;
   const { minLength, maxLength, regex, message } = f.validation;
@@ -119,12 +125,12 @@ function mountLocation(wrap, config, state, onChange) {
       ${c.gpsEnabled ? `
       <button type="button" class="cod-seg-btn" data-mode="gps" role="radio" aria-checked="false">
         <span class="cod-seg-ico"><span class="cod-spinner-sm"></span></span>
-        <b>${esc$1(c.gpsLabel)}</b><small>${esc$1(c.gpsHint)}</small>
+        <b>${esc$2(c.gpsLabel)}</b><small>${esc$2(c.gpsHint)}</small>
       </button>` : ""}
       ${c.manualEnabled ? `
       <button type="button" class="cod-seg-btn" data-mode="manual" role="radio" aria-checked="false">
         <span class="cod-seg-ico"></span>
-        <b>${esc$1(c.manualLabel)}</b><small>${esc$1(c.manualHint)}</small>
+        <b>${esc$2(c.manualLabel)}</b><small>${esc$2(c.manualHint)}</small>
       </button>` : ""}
     </div>
 
@@ -144,6 +150,11 @@ function mountLocation(wrap, config, state, onChange) {
   const manualPanel = wrap.querySelector(".cod-manual-panel");
   const errEl = wrap.querySelector(".cod-err");
   let map = null;
+  const key = wrap.dataset.key || "location";
+  const setValue = (v) => {
+    if (v) state.values[key] = v;
+    else delete state.values[key];
+  };
   segs.forEach((btn) => {
     btn.addEventListener("click", () => void setMode(btn.dataset.mode));
   });
@@ -151,14 +162,20 @@ function mountLocation(wrap, config, state, onChange) {
     wrap.querySelector(".cod-seg").setAttribute("data-active", mode);
     segs.forEach((b) => b.setAttribute("aria-checked", String(b.dataset.mode === mode)));
     errEl.textContent = "";
+    errEl.classList.remove("cod-soft");
+    wrap.classList.remove("cod-invalid");
+    state.values.locationMode = mode;
     if (mode === "manual") {
       mapPanel.hidden = true;
       manualPanel.hidden = false;
       state.location = null;
+      setValue("manual");
       onChange();
       return;
     }
     manualPanel.hidden = true;
+    setValue("");
+    onChange();
     await locate();
   }
   async function locate() {
@@ -192,6 +209,7 @@ function mountLocation(wrap, config, state, onChange) {
         capturedAt: (/* @__PURE__ */ new Date()).toISOString()
       };
       map.setAccuracy(pos.coords.accuracy);
+      setValue("gps");
       void reverse(pos.coords.latitude, pos.coords.longitude);
       onChange();
     } catch {
@@ -237,11 +255,45 @@ function getPosition() {
     });
   });
 }
+const esc$2 = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+function renderOffers(host, config, state, onChange) {
+  const offers = [...config.offers].filter((o) => o.minQty > 1).sort((a, b) => a.minQty - b.minQty);
+  if (!offers.length) return;
+  const options = [
+    { qty: 1, title: "1 unidad", badge: "", label: "" },
+    ...offers.map((o) => ({
+      qty: o.minQty,
+      title: `${o.minQty} unidades`,
+      badge: o.discountBps > 0 ? `−${trimPct(o.discountBps / 100)} %` : o.freeShipping ? "Envío gratis" : "",
+      label: o.label
+    }))
+  ];
+  const wrap = document.createElement("div");
+  wrap.className = "cod-offers";
+  wrap.setAttribute("role", "radiogroup");
+  wrap.setAttribute("aria-label", "Cantidad");
+  wrap.innerHTML = options.map((o) => `
+    <button type="button" class="cod-offer" role="radio" aria-checked="${o.qty === state.qty}" data-qty="${o.qty}">
+      <span class="cod-offer-dot"></span>
+      <span class="cod-offer-text"><b>${esc$1(o.title)}</b>${o.label && o.label !== o.title ? `<small>${esc$1(o.label)}</small>` : ""}</span>
+      ${o.badge ? `<span class="cod-offer-badge">${esc$1(o.badge)}</span>` : ""}
+    </button>`).join("");
+  wrap.querySelectorAll(".cod-offer").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.qty = Number(btn.dataset.qty) || 1;
+      wrap.querySelectorAll(".cod-offer").forEach((b) => b.setAttribute("aria-checked", String(b === btn)));
+      onChange();
+    });
+  });
+  host.appendChild(wrap);
+}
+const trimPct = (n) => Number.isInteger(n) ? String(n) : n.toFixed(1);
 const esc$1 = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 function renderForm(root, config, state, handlers) {
   root.innerHTML = `
     <form class="cod-form" novalidate>
       ${config.tokens.progressBar ? '<div class="cod-progress"><span></span></div>' : ""}
+      <div class="cod-offers-slot"></div>
       <div class="cod-fields"></div>
       <div class="cod-addons-slot"></div>
       <div class="cod-form-error" role="alert"></div>
@@ -253,6 +305,7 @@ function renderForm(root, config, state, handlers) {
     </form>`;
   const form = root.querySelector(".cod-form");
   const box = root.querySelector(".cod-fields");
+  renderOffers(root.querySelector(".cod-offers-slot"), config, state, () => update(root, state));
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
@@ -440,8 +493,12 @@ const CSS = `
 .cod-phone span{padding:10px 10px 10px 12px;color:var(--cod-muted);border-right:1.5px solid var(--cod-border)}
 .cod-phone input{border:none!important;background:transparent!important;box-shadow:none!important}
 
-.cod-check{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:12.5px}
-.cod-check input{position:absolute;opacity:0;width:0}
+/* ".cod-field label" e ".cod-field input" son más específicos: hay que ganarles. */
+.cod-field .cod-check{display:flex;align-items:center;gap:9px;cursor:pointer;font-size:12.5px;
+  font-weight:500;margin:0;position:relative}
+.cod-field .cod-check input{position:absolute;opacity:0;width:1px;height:1px;padding:0;border:0;margin:0}
+.cod-check input:focus-visible+.cod-check-box{box-shadow:0 0 0 3.5px rgba(0,0,0,.12)}
+.cod-invalid .cod-check-box{border-color:var(--cod-danger)}
 .cod-check-box{width:20px;height:20px;border:2px solid var(--cod-border);border-radius:6px;
   background:var(--cod-field);flex-shrink:0;position:relative;
   transition:background .22s var(--cod-ease),border-color .22s var(--cod-ease),transform .28s cubic-bezier(.34,1.42,.64,1)}
@@ -544,6 +601,17 @@ const CSS = `
 .cod-done small{font-size:11px;color:var(--cod-muted)}
 
 /* ── Order bumps / upsells / downsells ── */
+.cod-offers{display:grid;gap:8px;margin-bottom:14px}
+.cod-offer{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;text-align:left;
+  border:1.5px solid var(--cod-border);border-radius:var(--cod-radius);background:var(--cod-field);
+  color:var(--cod-text);font:inherit;cursor:pointer;transition:border-color .2s var(--cod-ease),background .2s var(--cod-ease)}
+.cod-offer[aria-checked="true"]{border-color:var(--cod-brand);background:#fff;box-shadow:0 0 0 3px rgba(0,0,0,.05)}
+.cod-offer-dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--cod-border);flex-shrink:0;position:relative}
+.cod-offer[aria-checked="true"] .cod-offer-dot{border-color:var(--cod-brand)}
+.cod-offer[aria-checked="true"] .cod-offer-dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--cod-brand)}
+.cod-offer-text{flex:1;display:flex;flex-direction:column;gap:1px}
+.cod-offer-text b{font-size:13px}.cod-offer-text small{font-size:11px;color:var(--cod-muted)}
+.cod-offer-badge{font-size:11px;font-weight:700;color:#fff;background:var(--cod-ok);padding:3px 8px;border-radius:99px;white-space:nowrap}
 .cod-addons{display:grid;gap:9px;margin-top:4px}
 .cod-bump{display:flex;align-items:center;gap:10px;padding:11px 12px;cursor:pointer;
   border:1.5px dashed var(--cod-brand);border-radius:var(--cod-radius);background:var(--cod-field);

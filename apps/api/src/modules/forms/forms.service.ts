@@ -59,6 +59,11 @@ export class FormsService {
     const version = form.versions.find((ver) => ver.id === form.currentVersionId) ?? form.versions.at(-1);
     if (!version) throw new NotFoundException('El formulario no tiene versión publicada');
 
+    // Si el formulario no tiene diseño propio, usa el de la tienda (página «Diseño»).
+    const themeTokens = form.theme?.tokens ?? (await this.prisma.theme.findFirst({
+      where: { shopId: ctx.shopId, isDefault: true },
+    }))?.tokens;
+
     const offers = await this.prisma.offer.findMany({
       where: { shopId: ctx.shopId, active: true, type: 'QUANTITY' },
     });
@@ -74,7 +79,7 @@ export class FormsService {
       formId: form.id,
       formVersionId: version.id,
       fields: version.schema as WidgetConfig['fields'],
-      tokens: ThemeTokensSchema.parse(form.theme?.tokens ?? {}),
+      tokens: ThemeTokensSchema.parse(themeTokens ?? {}),
       location: LocationConfigSchema.parse(
         (ctx.settings as Record<string, unknown>).location ?? {},
       ),

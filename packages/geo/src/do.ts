@@ -86,6 +86,9 @@ function lev(a: string, b: string): number {
  */
 export function matchProvince(input: string | null | undefined): string | null {
   if (!input) return null;
+  // El formulario envía el código (DO-25) como valor del desplegable.
+  const code = input.trim().toUpperCase();
+  if (DO_PROVINCES.some((p) => p.code === code)) return code;
   const q = strip(input);
   if (ALIASES[q]) return ALIASES[q];
 
@@ -131,7 +134,8 @@ export const DO_PROFILE: CountryProfile = {
     return {
       address1: [a.street, a.number].filter(Boolean).join(' ') || a.formatted || '',
       address2: a.district ? `Sector: ${a.district}` : null,
-      city: a.city ?? '',
+      // Shopify y las mensajerías necesitan una ciudad: si no la hay, va la provincia.
+      city: a.city || DO_PROVINCES.find((p) => p.code === a.provinceCode)?.name || a.province || '',
       provinceCode: a.provinceCode,
       countryCode: 'DO',
       zip: a.postalCode ?? null,
