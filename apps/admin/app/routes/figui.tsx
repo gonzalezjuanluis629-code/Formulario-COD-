@@ -63,15 +63,13 @@ function PolarisLink({ url, children, external, ...rest }: { url: string; childr
   return <Link to={url} {...rest}>{children}</Link>;
 }
 
-const NAV: { to: string; label: string; end?: boolean }[] = [
-  { to: '/figui/facil', label: '✏️ Editar fácil' },
-  { to: '/figui?lista=1', label: 'Opciones avanzadas', end: true },
-  { to: '/figui/offers', label: 'Ofertas y descuentos' },
-  { to: '/figui/shipping', label: 'Envíos' },
-  { to: '/figui/orders', label: 'Pedidos del formulario' },
-  { to: '/figui/analytics', label: 'Analítica' },
-  { to: '/figui/antifraud', label: 'Lista de bloqueo' },
-  { to: '/figui/settings', label: 'Ajustes' },
+/** Menú corto: lo de todos los días a la vista; lo avanzado, dentro de «Más opciones». */
+const NAV: { to: string; label: string; match?: (p: string) => boolean }[] = [
+  { to: '/figui/facil', label: '✏️ Editar formulario' },
+  { to: '/figui/orders', label: '📦 Pedidos' },
+  { to: '/figui/analytics', label: '📊 Analítica' },
+  { to: '/figui/mas', label: '⚙️ Más opciones',
+    match: (p) => /^\/figui\/(mas|forms|offers|shipping|antifraud|settings|design)/.test(p) || p === '/figui' || p === '/figui/' },
 ];
 
 export default function FiguiLayout() {
@@ -90,8 +88,8 @@ export default function FiguiLayout() {
       <style>{CSS}</style>
       <nav className="cod-fnav" aria-label="Secciones del formulario">
         {NAV.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.end}
-            className={({ isActive }) => `cod-fnav-item${isActive || (n.end && pathname.startsWith('/figui/forms')) ? ' on' : ''}`}>
+          <NavLink key={n.to} to={n.to}
+            className={({ isActive }) => `cod-fnav-item${isActive || n.match?.(pathname) ? ' on' : ''}`}>
             {n.label}
           </NavLink>
         ))}
@@ -103,11 +101,11 @@ export default function FiguiLayout() {
 }
 
 const CSS = `
-  .cod-fnav{display:flex;gap:4px;overflow-x:auto;padding:8px 12px;background:#fff;border-bottom:1px solid #e3e3e3;position:sticky;top:0;z-index:20;scrollbar-width:none}
+  .cod-fnav{display:flex;gap:6px;overflow-x:auto;padding:9px 12px;background:#fff;border-bottom:1px solid #E3E7ED;position:sticky;top:0;z-index:20;scrollbar-width:none;box-shadow:0 1px 2px rgba(16,24,40,.04)}
   .cod-fnav::-webkit-scrollbar{display:none}
-  .cod-fnav-item{flex:none;padding:7px 12px;border-radius:8px;font:500 13px/1.2 Inter,-apple-system,BlinkMacSystemFont,sans-serif;color:#303030;text-decoration:none;white-space:nowrap}
-  .cod-fnav-item:hover{background:#f1f1f1}
-  .cod-fnav-item.on{background:#303030;color:#fff}
+  .cod-fnav-item{flex:none;padding:9px 14px;border-radius:11px;font:600 14px/1.2 Inter,-apple-system,BlinkMacSystemFont,sans-serif;color:#344054;text-decoration:none;white-space:nowrap;border:1px solid transparent;transition:box-shadow .15s ease}
+  .cod-fnav-item:hover{background:linear-gradient(180deg,#fff,#F6F8FB);border-color:#E3E7ED;box-shadow:0 1px 2px rgba(16,24,40,.06),0 3px 8px -3px rgba(16,24,40,.10),inset 0 1px 0 #fff}
+  .cod-fnav-item.on{background:linear-gradient(180deg,#4A9DF8 0%,#1A73E8 100%);color:#fff;border-color:transparent;box-shadow:0 8px 18px -6px rgba(26,115,232,.55),0 2px 4px rgba(26,115,232,.18),inset 0 1px 0 rgba(255,255,255,.24)}
 `;
 
 export function ErrorBoundary() {

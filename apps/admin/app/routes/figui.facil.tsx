@@ -21,6 +21,9 @@ import { Preview } from '../features/builder/Preview';
  */
 
 type PriceRow = { qty: string; price: string };
+type Coupon = { id: string | null; code: string; kind: 'PERCENTAGE' | 'FIXED'; value: string };
+type AfterOrder = { title: string; message: string; target: 'none' | 'thankyou' | 'whatsapp'; phone: string; waText: string };
+type ShipDraft = { mode: 'free' | 'paid'; cost: string; freeOver: string };
 type ProductPrices = { id: string; title: string; priceCents: number | null; rows: PriceRow[] };
 
 const cents = (v: string) => Math.round((Number(String(v).replace(/[^0-9.]/g, '')) || 0) * 100);
@@ -62,8 +65,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
       .map((x) => ({ qty: String(x.o.minQty), price: String((x.o.bundlePriceCents ?? 0) / 100) })),
   }));
   const st = ShopSettingsSchema.parse(shop.settings ?? {});
+  const discounts = await db.discount.findMany({ where: { shopId: shop.id, type: { in: ['PERCENTAGE', 'FIXED'] } }, orderBy: { name: 'asc' } });
+  const coupons: Coupon[] = discounts
+    .filter((d) => d.code && !((d.conditions as { productIds?: unknown[] } | null)?.productIds?.length))
+    .map((d) => {
+      const p = d.payload as { valueBps?: number; valueCents?: number };
+      return { id: d.id, code: d.code!, kind: d.type as Coupon['kind'], value: String(d.type === 'PERCENTAGE' ? (p.valueBps ?? 0) / 100 : (p.valueCents ?? 0) / 100) };
+    });
+  const c = st.confirmation;
 
   return {
+    coupons,
+    ship: { mode: st.defaultShippingCents > 0 ? 'paid' : 'free', cost: st.defaultShippingCents ? String(st.defaultShippingCents / 100) : '', freeOver: st.freeShippingOverCents ? String(st.freeShippingOverCents / 100) : '' } as ShipDraft,
+    after: { title: c.title, message: c.message, target: c.redirectTarget, phone: c.whatsapp.phone, waText: c.whatsapp.messageTemplate } as AfterOrder,
     formId: form.id,
     fields: ((version?.schema as Field[] | undefined) ?? []).slice().sort((a, b) => a.order - b.order),
     tokens: ThemeTokensSchema.parse(theme.tokens ?? {}),
@@ -82,6 +96,9 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result> {
     fields: Field[];
     buttons: { trigger: string; triggerSub: string; submit: string; color: string; showPrice: boolean };
     products: ProductPrices[];
+    ship?: ShipDraft;
+    coupons?: Coupon[];
+    after?: AfterOrder;
   };
   const form = await db.form.findFirst({ where: { shopId: shop.id, status: { not: 'ARCHIVED' } }, orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }] });
   if (!form) return { ok: false, message: 'No se encontró el formulario.' };
@@ -141,6 +158,59 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result> {
     })),
   ]);
 
+  // 4) Envío y 6) después del pedido (ajustes de la tienda).
+  if (body.ship || body.after) {
+    const fresh = await db.shop.findUniqueOrThrow({ where: { id: shop.id } });
+    const st = ShopSettingsSchema.parse(fresh.settings ?? {});
+    const next = { ...(fresh.settings as object) } as Record<string, unknown>;
+    if (body.ship) {
+      next.defaultShippingCents = body.ship.mode === 'paid' ? cents(body.ship.cost) : 0;
+      next.freeShippingOverCents = body.ship.mode === 'paid' && cents(body.ship.freeOver) > 0 ? cents(body.ship.freeOver) : null;
+      if (body.ship.mode === 'paid' && !(cents(body.ship.cost) > 0)) return { ok: false, message: 'Pon cuánto cobras de envío, o elige «Envío gratis siempre».' };
+    }
+    if (body.after) {
+      const phone = body.after.phone.replace(/\D/g, '');
+      if (body.after.target === 'whatsapp' && phone.length < 10) return { ok: false, message: 'Escribe tu número de WhatsApp completo (por ejemplo 18095551234).' };
+      next.confirmation = {
+        ...st.confirmation,
+        title: body.after.title.trim() || st.confirmation.title,
+        message: body.after.message.trim(),
+        redirectTarget: body.after.target,
+        whatsapp: { ...st.confirmation.whatsapp, enabled: body.after.target === 'whatsapp', phone, messageTemplate: body.after.waText.trim() || st.confirmation.whatsapp.messageTemplate },
+      };
+    }
+    const checked = ShopSettingsSchema.safeParse(next);
+    if (!checked.success) return { ok: false, message: 'Algún ajuste no es válido. Revísalo.' };
+    await db.shop.update({ where: { id: shop.id }, data: { settings: next as object } });
+  }
+
+  // 5) Cupones: los de este editor (sin productos) se crean, cambian o borran.
+  if (body.coupons) {
+    const seen = new Set<string>();
+    for (const cp of body.coupons) {
+      const code = cp.code.trim().toUpperCase().replace(/\s+/g, '');
+      if (!code) return { ok: false, message: 'Hay un cupón sin código. Escríbele un código (por ejemplo BIENVENIDO10).' };
+      if (seen.has(code)) return { ok: false, message: `El cupón ${code} está repetido.` };
+      seen.add(code);
+      const v = Number(cp.value);
+      if (!(v > 0)) return { ok: false, message: `Pon cuánto descuenta el cupón ${code}.` };
+      if (cp.kind === 'PERCENTAGE' && v > 100) return { ok: false, message: `El cupón ${code} no puede pasar del 100 %.` };
+    }
+    const mine = await db.discount.findMany({ where: { shopId: shop.id, type: { in: ['PERCENTAGE', 'FIXED'] } } });
+    const editable = mine.filter((d) => d.code && !((d.conditions as { productIds?: unknown[] } | null)?.productIds?.length));
+    const keep = new Set(body.coupons.map((c) => c.id).filter(Boolean));
+    await db.discount.deleteMany({ where: { shopId: shop.id, id: { in: editable.filter((d) => !keep.has(d.id)).map((d) => d.id) } } });
+    for (const cp of body.coupons) {
+      const code = cp.code.trim().toUpperCase().replace(/\s+/g, '');
+      const v = Number(cp.value);
+      const fields = {
+        name: code, code, type: cp.kind,
+        payload: cp.kind === 'PERCENTAGE' ? { valueBps: Math.round(v * 100) } : { valueCents: Math.round(v * 100) },
+      };
+      await db.discount.upsert({ where: { shopId_code: { shopId: shop.id, code } }, update: fields, create: { shopId: shop.id, ...fields } });
+    }
+  }
+
   return { ok: true, message: '¡Guardado! Ya está en tu tienda (puede tardar 1 minuto).' };
 }
 
@@ -175,6 +245,12 @@ export default function EditorFacil() {
   const [color, setColor] = useState(data.tokens.submit.bg);
   const [showPrice, setShowPrice] = useState(data.tokens.submit.priceDisplay !== 'none');
   const [products, setProducts] = useState<ProductPrices[]>(data.products);
+  const [ship, setShip] = useState<ShipDraft>(data.ship);
+  const [coupons, setCoupons] = useState<Coupon[]>(data.coupons);
+  const [after, setAfter] = useState<AfterOrder>(data.after);
+  const upShip = (p: Partial<ShipDraft>) => { setShip((x) => ({ ...x, ...p })); setDirty(true); };
+  const upAfter = (p: Partial<AfterOrder>) => { setAfter((x) => ({ ...x, ...p })); setDirty(true); };
+  const upCoupon = (i: number, p: Partial<Coupon>) => { setCoupons((l) => l.map((c, j) => (j === i ? { ...c, ...p } : c))); setDirty(true); };
   const [dirty, setDirty] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const busy = fetcher.state !== 'idle';
@@ -206,7 +282,7 @@ export default function EditorFacil() {
   };
 
   const save = () => fetcher.submit(
-    { data: JSON.stringify({ fields, buttons: { trigger, triggerSub, submit: submitText, color, showPrice }, products }) },
+    { data: JSON.stringify({ fields, buttons: { trigger, triggerSub, submit: submitText, color, showPrice }, products, ship, coupons, after }) },
     { method: 'post' },
   );
 
@@ -356,7 +432,78 @@ export default function EditorFacil() {
             )}
           </section>
 
-          <p className="ef-adv">¿Necesitas algo más? <Link to="/figui?lista=1">Opciones avanzadas</Link></p>
+          {/* 4 ─ Envío */}
+          <section className="ef-card">
+            <h2><span className="ef-n">4</span> Envío</h2>
+            <div className="ef-seg" role="radiogroup" aria-label="Envío">
+              <button type="button" role="radio" aria-checked={ship.mode === 'free'} className={ship.mode === 'free' ? 'on' : ''} onClick={() => upShip({ mode: 'free' })}>🚚 Envío gratis siempre</button>
+              <button type="button" role="radio" aria-checked={ship.mode === 'paid'} className={ship.mode === 'paid' ? 'on' : ''} onClick={() => upShip({ mode: 'paid' })}>💵 Cobrar envío</button>
+            </div>
+            {ship.mode === 'paid' && (
+              <>
+                <label className="ef-label">¿Cuánto cobras de envío?
+                  <div className="ef-money"><i>RD$</i><input className="ef-input" inputMode="decimal" value={ship.cost} placeholder="250" onChange={(e) => upShip({ cost: e.target.value.replace(/[^0-9.]/g, '') })} /></div>
+                </label>
+                <label className="ef-label">Envío gratis si la compra pasa de… (opcional)
+                  <div className="ef-money"><i>RD$</i><input className="ef-input" inputMode="decimal" value={ship.freeOver} placeholder="Déjalo vacío si no" onChange={(e) => upShip({ freeOver: e.target.value.replace(/[^0-9.]/g, '') })} /></div>
+                </label>
+              </>
+            )}
+            <p className="ef-hint" style={{ marginTop: 10 }}>¿Un precio distinto por provincia? Eso está en <Link to="/figui/shipping">Envíos por provincia</Link>.</p>
+          </section>
+
+          {/* 5 ─ Cupones */}
+          <section className="ef-card">
+            <h2><span className="ef-n">5</span> Cupones de descuento</h2>
+            <p className="ef-hint">Códigos que el cliente escribe en el formulario. Los cupones que ya tienes en Shopify también funcionan.</p>
+            {coupons.map((cp, i) => (
+              <div key={cp.id ?? `n${i}`} className="ef-coupon">
+                <div className="ef-row">
+                  <span>El código</span>
+                  <input className="ef-input ef-code" value={cp.code} placeholder="BIENVENIDO10" aria-label="Código"
+                    onChange={(e) => upCoupon(i, { code: e.target.value.toUpperCase().replace(/\s+/g, '') })} />
+                  <span>descuenta</span>
+                  <input className="ef-input ef-qty" inputMode="decimal" value={cp.value} aria-label="Cuánto"
+                    onChange={(e) => upCoupon(i, { value: e.target.value.replace(/[^0-9.]/g, '') })} />
+                  <div className="ef-seg small" role="radiogroup" aria-label="Tipo">
+                    <button type="button" role="radio" aria-checked={cp.kind === 'PERCENTAGE'} className={cp.kind === 'PERCENTAGE' ? 'on' : ''} onClick={() => upCoupon(i, { kind: 'PERCENTAGE' })}>%</button>
+                    <button type="button" role="radio" aria-checked={cp.kind === 'FIXED'} className={cp.kind === 'FIXED' ? 'on' : ''} onClick={() => upCoupon(i, { kind: 'FIXED' })}>RD$</button>
+                  </div>
+                  <button type="button" className="ef-x" aria-label={`Borrar cupón ${cp.code}`} onClick={() => { setCoupons((l) => l.filter((_, j) => j !== i)); setDirty(true); }}>✕</button>
+                </div>
+              </div>
+            ))}
+            <button type="button" className="ef-btn-ghost" onClick={() => { setCoupons((l) => [...l, { id: null, code: '', kind: 'PERCENTAGE', value: '10' }]); setDirty(true); }}>🏷️ Crear un cupón</button>
+          </section>
+
+          {/* 6 ─ Después del pedido */}
+          <section className="ef-card">
+            <h2><span className="ef-n">6</span> Después del pedido</h2>
+            <label className="ef-label">Título del mensaje de gracias
+              <input className="ef-input" value={after.title} onChange={(e) => upAfter({ title: e.target.value })} placeholder="¡Pedido confirmado!" />
+            </label>
+            <label className="ef-label">Mensaje
+              <textarea className="ef-input ef-opts" rows={2} value={after.message} onChange={(e) => upAfter({ message: e.target.value })} placeholder="Te contactamos por WhatsApp para coordinar la entrega." />
+            </label>
+            <span className="ef-label">Luego, el cliente…</span>
+            <div className="ef-seg col" role="radiogroup" aria-label="Después del pedido">
+              <button type="button" role="radio" aria-checked={after.target === 'none'} className={after.target === 'none' ? 'on' : ''} onClick={() => upAfter({ target: 'none' })}>✅ Se queda viendo el mensaje</button>
+              <button type="button" role="radio" aria-checked={after.target === 'thankyou'} className={after.target === 'thankyou' ? 'on' : ''} onClick={() => upAfter({ target: 'thankyou' })}>📄 Va a tu página de gracias</button>
+              <button type="button" role="radio" aria-checked={after.target === 'whatsapp'} className={after.target === 'whatsapp' ? 'on' : ''} onClick={() => upAfter({ target: 'whatsapp' })}>💬 Te escribe por WhatsApp</button>
+            </div>
+            {after.target === 'whatsapp' && (
+              <>
+                <label className="ef-label">Tu número de WhatsApp (con el 1 delante)
+                  <input className="ef-input" inputMode="tel" value={after.phone} placeholder="18095551234" onChange={(e) => upAfter({ phone: e.target.value.replace(/[^0-9]/g, '') })} />
+                </label>
+                <label className="ef-label">Mensaje que te llega (puedes usar {'{nombre}'})
+                  <input className="ef-input" value={after.waText} onChange={(e) => upAfter({ waText: e.target.value })} />
+                </label>
+              </>
+            )}
+          </section>
+
+          <p className="ef-adv">¿Necesitas algo más? <Link to="/figui/mas">Más opciones</Link></p>
           <div className="ef-save-bar">
             <button type="button" className="ef-save-btn" disabled={busy} onClick={save}>
               {busy ? 'Guardando…' : dirty ? '💾 Guardar cambios' : '✓ Todo guardado'}
@@ -366,7 +513,8 @@ export default function EditorFacil() {
 
         <div className="ef-preview">
           <Preview fields={fields} tokens={pvTokens} offers={pvOffers} unitPriceCents={pvProduct?.priceCents ?? 0}
-            shipping={data.shipping} showTrigger focus={null}
+            shipping={{ ...data.shipping, defaultShippingCents: ship.mode === 'paid' ? cents(ship.cost) : 0, freeShippingOverCents: ship.mode === 'paid' && cents(ship.freeOver) > 0 ? cents(ship.freeOver) : null }}
+            showTrigger focus={null}
             hint={pvProduct ? `Precios de «${pvProduct.title}».` : 'Así lo ve tu cliente.'} />
         </div>
       </div>
@@ -376,65 +524,92 @@ export default function EditorFacil() {
 }
 
 const CSS = `
-.ef{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:18px;align-items:start;padding:16px;max-width:1240px;margin:0 auto;font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;color:#1a1a1a}
+.ef{
+  --blue-grad:linear-gradient(180deg,#4A9DF8 0%,#1A73E8 100%);
+  --blue-glow:0 8px 18px -6px rgba(26,115,232,.55),0 2px 4px rgba(26,115,232,.18),inset 0 1px 0 rgba(255,255,255,.24);
+  --green-grad:linear-gradient(180deg,#34D07A 0%,#16A34A 100%);
+  --green-glow:0 10px 22px -8px rgba(22,163,74,.6),0 2px 4px rgba(22,163,74,.2),inset 0 1px 0 rgba(255,255,255,.28);
+  --soft-grad:linear-gradient(180deg,#FFFFFF 0%,#F6F8FB 100%);
+  --soft-shadow:0 1px 2px rgba(16,24,40,.06),0 3px 8px -3px rgba(16,24,40,.10),inset 0 1px 0 #fff;
+  --soft-shadow-hover:0 2px 4px rgba(16,24,40,.06),0 8px 16px -6px rgba(16,24,40,.14),inset 0 1px 0 #fff;
+  --line:#E3E7ED;--ink:#0A1120;--muted:#667085;
+  display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:18px;align-items:start;padding:16px;max-width:1240px;margin:0 auto;
+  font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink)}
+.ef button{transition:transform .12s ease,box-shadow .15s ease,filter .15s ease}
+.ef button:active{transform:translateY(1px)}
 .ef-side{display:flex;flex-direction:column;gap:14px;min-width:0;padding-bottom:90px}
 .ef-head h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
-.ef-head p{margin:6px 0 0;color:#555;font-size:15px;line-height:1.45}
-.ef-card{background:#fff;border-radius:16px;padding:18px;box-shadow:0 1px 0 rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.06)}
+.ef-head p{margin:6px 0 0;color:#475467;font-size:15px;line-height:1.45}
+.ef-card{background:#fff;border-radius:18px;padding:18px;border:1px solid var(--line);box-shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px -12px rgba(16,24,40,.12)}
 .ef-card h2{display:flex;align-items:center;gap:10px;margin:0 0 6px;font-size:19px;font-weight:800}
-.ef-n{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#111;color:#fff;font-size:15px;flex:none}
-.ef-hint{margin:0 0 12px;color:#666;font-size:14px;line-height:1.45}
-.ef-hint a,.ef-adv a{color:#2563eb;font-weight:600}
+.ef-n{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--blue-grad);box-shadow:var(--blue-glow);color:#fff;font-size:15px;flex:none}
+.ef-hint{margin:0 0 12px;color:var(--muted);font-size:14px;line-height:1.45}
+.ef-hint a,.ef-adv a{color:#1A73E8;font-weight:700}
 .ef-fields{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
-.ef-field{display:flex;gap:10px;align-items:flex-start;border:1.5px solid #e6e6e6;border-radius:14px;padding:10px;background:#fcfcfc}
+.ef-field{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:14px;padding:10px;background:var(--soft-grad);box-shadow:var(--soft-shadow)}
 .ef-field.off{opacity:.55}
-.ef-move{display:flex;flex-direction:column;gap:4px}
-.ef-move button{width:36px;height:30px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:12px;cursor:pointer;color:#333}
-.ef-move button:disabled{opacity:.3;cursor:default}
+.ef-move{display:flex;flex-direction:column;gap:5px}
+.ef-move button{width:38px;height:31px;border:1px solid var(--line);border-radius:9px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font-size:12px;cursor:pointer;color:#344054}
+.ef-move button:hover:not(:disabled){box-shadow:var(--soft-shadow-hover)}
+.ef-move button:disabled{opacity:.35;cursor:default;box-shadow:none}
 .ef-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
-.ef-kind{font-size:12px;font-weight:700;color:#777;text-transform:uppercase;letter-spacing:.04em}
-.ef-input{width:100%;box-sizing:border-box;border:1.5px solid #d9d9d9;border-radius:10px;padding:11px 12px;font:inherit;font-size:16px;background:#fff;color:#111;outline:none}
-.ef-input:focus{border-color:#111;box-shadow:0 0 0 3px rgba(0,0,0,.07)}
+.ef-kind{font-size:12px;font-weight:700;color:#98A2B3;text-transform:uppercase;letter-spacing:.04em}
+.ef-input{width:100%;box-sizing:border-box;border:1px solid #D0D5DD;border-radius:11px;padding:11px 12px;font:inherit;font-size:16px;background:#fff;color:var(--ink);outline:none;box-shadow:inset 0 1px 2px rgba(16,24,40,.05)}
+.ef-input:focus{border-color:#4F8FE0;box-shadow:0 0 0 3px rgba(79,143,224,.18)}
 .ef-opts{resize:vertical;font-size:15px;line-height:1.5}
 .ef-toggles{display:flex;gap:8px;flex-wrap:wrap}
-.ef-pill{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:99px;border:1.5px solid #d9d9d9;background:#fff;font-size:14px;font-weight:600;cursor:pointer;user-select:none;color:#444}
+.ef-pill{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--soft-grad);box-shadow:var(--soft-shadow);font-size:14px;font-weight:600;cursor:pointer;user-select:none;color:#475467;transition:box-shadow .15s ease}
+.ef-pill:hover{box-shadow:var(--soft-shadow-hover)}
 .ef-pill input{position:absolute;opacity:0;pointer-events:none}
-.ef-pill.on{background:#111;border-color:#111;color:#fff}
+.ef-pill.on{background:var(--blue-grad);border-color:transparent;color:#fff;box-shadow:var(--blue-glow)}
 .ef-pill.big{margin-top:12px;padding:12px 16px;font-size:15px}
-.ef-del{border:0;background:#fff1f1;width:40px;height:40px;border-radius:10px;font-size:18px;cursor:pointer;flex:none}
+.ef-del{border:1px solid #FECDCA;background:linear-gradient(180deg,#FFF6F5,#FEE4E2);box-shadow:0 1px 2px rgba(180,35,24,.08),inset 0 1px 0 #fff;width:40px;height:40px;border-radius:11px;font-size:17px;cursor:pointer;flex:none}
 .ef-sub{margin:16px 0 8px;font-weight:800;font-size:15px}
 .ef-add{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
-.ef-add button{display:flex;align-items:center;gap:8px;padding:13px 12px;border:1.5px dashed #c9c9c9;border-radius:12px;background:#fff;font:inherit;font-size:15px;font-weight:600;cursor:pointer;text-align:left;color:#222}
-.ef-add button:hover{border-color:#111;background:#fafafa}
+.ef-add button{display:flex;align-items:center;gap:8px;padding:13px 12px;border:1px solid var(--line);border-radius:13px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font:inherit;font-size:15px;font-weight:600;cursor:pointer;text-align:left;color:var(--ink)}
+.ef-add button:hover{box-shadow:var(--soft-shadow-hover);border-color:#BFD5F2}
 .ef-add button span{font-size:20px}
-.ef-label{display:flex;flex-direction:column;gap:6px;margin:10px 0 0;font-size:14px;font-weight:700;color:#333}
+.ef-label{display:flex;flex-direction:column;gap:6px;margin:10px 0 0;font-size:14px;font-weight:700;color:#344054}
 .ef-colors{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
-.ef-colors button,.ef-custom{width:42px;height:42px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1.5px #d4d4d4;cursor:pointer}
-.ef-colors button.on{box-shadow:0 0 0 3px #111}
-.ef-custom{display:grid;place-items:center;background:#f4f4f4;font-size:18px;position:relative;overflow:hidden}
+.ef-colors button,.ef-custom{width:42px;height:42px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #D0D5DD,0 4px 10px -4px rgba(16,24,40,.25),inset 0 1px 0 rgba(255,255,255,.3);cursor:pointer}
+.ef-colors button.on{box-shadow:0 0 0 3px #1A73E8,0 6px 14px -4px rgba(26,115,232,.45)}
+.ef-custom{display:grid;place-items:center;background:var(--soft-grad);font-size:18px;position:relative;overflow:hidden}
 .ef-custom input{position:absolute;inset:0;opacity:0;cursor:pointer}
-.ef-prod{border:1.5px solid #e6e6e6;border-radius:14px;padding:12px;margin-bottom:10px;background:#fcfcfc}
+.ef-seg{display:flex;gap:6px;padding:5px;border-radius:14px;background:#F2F4F7;box-shadow:inset 0 1px 2px rgba(16,24,40,.08);flex-wrap:wrap}
+.ef-seg.col{flex-direction:column}
+.ef-seg button{flex:1;min-width:0;padding:11px 12px;border:0;border-radius:10px;background:transparent;font:inherit;font-size:15px;font-weight:700;color:#475467;cursor:pointer;text-align:center}
+.ef-seg.col button{text-align:left}
+.ef-seg button.on{background:var(--blue-grad);color:#fff;box-shadow:var(--blue-glow)}
+.ef-seg.small{padding:3px;flex:none}
+.ef-seg.small button{padding:8px 11px;font-size:14px}
+.ef-prod,.ef-coupon{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:var(--soft-grad);box-shadow:var(--soft-shadow)}
+.ef-coupon{padding:4px 12px}
+.ef-coupon .ef-row{border-top:0}
 .ef-prod-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
 .ef-prod-head b{display:block;font-size:16px}
-.ef-prod-head small{display:block;color:#666;font-size:13px;margin-top:2px}
-.ef-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;border-top:1px dashed #e3e3e3;font-size:15px;font-weight:600}
-.ef-qty{width:64px!important;text-align:center}
-.ef-money{display:flex;align-items:center;border:1.5px solid #d9d9d9;border-radius:10px;background:#fff;padding-left:10px;flex:1;min-width:120px}
-.ef-money i{font-style:normal;color:#777}
+.ef-prod-head small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.ef-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;border-top:1px dashed var(--line);font-size:15px;font-weight:600}
+.ef-qty{width:70px!important;text-align:center}
+.ef-code{flex:1;min-width:140px;width:auto!important;text-transform:uppercase}
+.ef-money{display:flex;align-items:center;border:1px solid #D0D5DD;border-radius:11px;background:#fff;padding-left:10px;flex:1;min-width:120px;box-shadow:inset 0 1px 2px rgba(16,24,40,.05)}
+.ef-money:focus-within{border-color:#4F8FE0;box-shadow:0 0 0 3px rgba(79,143,224,.18)}
+.ef-money i{font-style:normal;color:#98A2B3;font-weight:600}
 .ef-money .ef-input{border:0;box-shadow:none}
-.ef-x{border:0;background:transparent;font-size:16px;color:#999;cursor:pointer;width:32px;height:32px}
+.ef-x{border:0;background:transparent;font-size:16px;color:#98A2B3;cursor:pointer;width:32px;height:32px;border-radius:8px}
+.ef-x:hover{background:#F2F4F7;color:#475467}
 .ef-row small{flex-basis:100%;font-size:13px;font-weight:600}
-.ef-save{color:#15803d}.ef-warn{color:#b45309}
-.ef-link{border:0;background:transparent;color:#2563eb;font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:8px 0}
-.ef-btn-ghost{width:100%;padding:14px;border:1.5px dashed #bdbdbd;border-radius:12px;background:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
-.ef-adv{margin:0;text-align:center;color:#666;font-size:14px}
+.ef-save{color:#067647}.ef-warn{color:#B54708}
+.ef-link{border:0;background:transparent;color:#1A73E8;font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:8px 0}
+.ef-btn-ghost{width:100%;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font:inherit;font-size:15px;font-weight:700;cursor:pointer;color:var(--ink)}
+.ef-btn-ghost:hover{box-shadow:var(--soft-shadow-hover);border-color:#BFD5F2}
+.ef-adv{margin:0;text-align:center;color:var(--muted);font-size:14px}
 .ef-save-bar{position:sticky;bottom:0;padding:12px 0;background:linear-gradient(transparent,#f1f1f1 35%);z-index:5}
-.ef-save-btn{width:100%;padding:17px;border:0;border-radius:14px;background:#16a34a;color:#fff;font:inherit;font-size:18px;font-weight:800;cursor:pointer;box-shadow:0 8px 20px rgba(22,163,74,.25)}
+.ef-save-btn{width:100%;padding:17px;border:0;border-radius:15px;background:var(--green-grad);color:#fff;font:inherit;font-size:18px;font-weight:800;cursor:pointer;box-shadow:var(--green-glow)}
+.ef-save-btn:hover{filter:brightness(1.04)}
 .ef-save-btn:disabled{opacity:.7}
-.ef-preview{position:sticky;top:60px;height:calc(100vh - 80px);min-height:560px;border-radius:16px;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.06);background:#f1f1f1}
+.ef-preview{position:sticky;top:60px;height:calc(100vh - 80px);min-height:560px;border-radius:18px;overflow:hidden;border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(16,24,40,.18);background:#f1f1f1}
 @media (max-width: 900px){
   .ef{grid-template-columns:1fr;padding:12px}
-  .ef-preview{position:relative;top:0;height:640px;order:-1}
+  .ef-preview{position:relative;top:0;height:640px}
 }
-@media (max-width: 900px){ .ef-preview{order:1} }
 `;
