@@ -40,6 +40,10 @@ const HTML = `<!DOCTYPE html>
       renderPreview(document.getElementById('root'), e.data.fields, e.data.tokens, {
         selectedKey: e.data.selectedKey ?? null,
         showTrigger: !!e.data.showTrigger,
+        offers: e.data.offers || [],
+        addons: e.data.addons || [],
+        unitPriceCents: e.data.unitPriceCents || 0,
+        focus: e.data.focus || null,
         onSelect: (key) => parent.postMessage({ type: 'cod:select', key }, location.origin),
       });
     } catch (err) {

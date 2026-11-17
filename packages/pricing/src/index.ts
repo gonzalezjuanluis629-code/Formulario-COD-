@@ -67,7 +67,13 @@ const quantityOffers: PricingStep = {
       .sort((a, b) => b.minQty - a.minQty)[0];
     if (!match) return;
 
-    if (match.discountBps > 0) {
+    if (match.bundlePriceCents != null && ctx.unitPriceCents > 0) {
+      // Precio fijo del paquete: «2 por RD$ 2,950». Se reparte proporcionalmente
+      // si el cliente lleva más unidades que el mínimo del paquete.
+      const full = ctx.unitPriceCents * match.minQty;
+      const rate = full > 0 ? Math.max(0, 1 - match.bundlePriceCents / full) : 0;
+      d.discountCents += Math.round(d.subtotalCents * rate);
+    } else if (match.discountBps > 0) {
       d.discountCents += Math.round((d.subtotalCents * match.discountBps) / 10000);
     }
     if (match.freeShipping) d.freeShipping = true;

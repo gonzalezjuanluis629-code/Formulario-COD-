@@ -1,467 +1,570 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Badge, BlockStack, Button, Card, EmptyState, Form as PForm, IndexTable, InlineStack,
-  Layout, Modal, Page, Select, Text, TextField,
+  Badge, Banner, BlockStack, Box, Button, ButtonGroup, Checkbox, Collapsible, Divider, Frame, Icon, IndexTable,
+  InlineStack, Modal, Page, Select, Tabs, Text, TextField, Toast,
 } from '@shopify/polaris';
-import { IntentButton } from '../components/IntentButton';
-import { useState } from 'react';
-import { Form, useLoaderData, useSubmit } from 'react-router';
+import { ChevronDownIcon, ChevronRightIcon, DeleteIcon, PlusIcon } from '@shopify/polaris-icons';
+import { Form, useFetcher, useLoaderData, useSubmit } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
+import { AddonSchema, OfferSchema, ThemeTokensSchema, type Addon, type Field, type Offer, type ThemeTokens } from '@cod/contracts';
 import { requireShop } from '../lib/shop.server';
 import { db } from '../db.server';
+import { IntentButton } from '../components/IntentButton';
+import { Preview } from '../features/builder/Preview';
+import { DEFAULT_FIELDS } from '../lib/defaults';
+
+/* ─────────────── Borradores (lo que se edita en pantalla) ─────────────── */
+
+type OfferDraft = {
+  id: string; active: boolean; minQty: string; title: string; subtitle: string; badge: string;
+  priceMode: 'bundle' | 'percent' | 'none'; bundlePrice: string; percent: string;
+  freeShipping: boolean; preselected: boolean;
+};
+
+type AddonDraft = {
+  id: string; active: boolean; kind: 'ORDER_BUMP' | 'UPSELL' | 'DOWNSELL';
+  chargeType: 'product' | 'charge'; variantId: string; productTitle: string;
+  title: string; description: string; image: string; price: string; compareAt: string; replacesId: string;
+  border: 'dashed' | 'solid' | 'none'; borderColor: string; bg: string;
+};
+
+const cents = (v: string) => Math.round((Number(String(v).replace(/[^0-9.]/g, '')) || 0) * 100);
+const fromCents = (c: number | null | undefined) => (c != null && c > 0 ? String(c / 100) : '');
+const newId = () => `new-${Math.random().toString(36).slice(2, 9)}`;
+
+function toOffer(d: OfferDraft): Offer {
+  const qty = Math.max(1, parseInt(d.minQty, 10) || 1);
+  return {
+    id: d.id, type: 'QUANTITY', minQty: qty,
+    discountBps: d.priceMode === 'percent' ? Math.round((Number(d.percent) || 0) * 100) : 0,
+    bundlePriceCents: d.priceMode === 'bundle' && d.bundlePrice ? cents(d.bundlePrice) : null,
+    freeShipping: d.freeShipping, label: d.title || `${qty} unidades`,
+    title: d.title, subtitle: d.subtitle, badge: d.badge, preselected: d.preselected,
+  };
+}
+
+function toAddon(d: AddonDraft): Addon {
+  return {
+    id: d.id, kind: d.kind,
+    variantId: d.chargeType === 'product' ? (d.variantId || null) : null,
+    title: d.title || 'Extra', description: d.description, image: d.image || null,
+    priceCents: cents(d.price), compareAtCents: d.compareAt ? cents(d.compareAt) : null,
+    qty: 1, replacesId: d.kind === 'DOWNSELL' ? (d.replacesId || null) : null, minCartCents: 0,
+    style: { border: d.border, borderColor: d.borderColor, bg: d.bg },
+  };
+}
+
+/* ─────────────── Servidor ─────────────── */
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { shop } = await requireShop(request);
-  const [offers, addons, discounts] = await Promise.all([
-    db.offer.findMany({ where: { shopId: shop.id, type: 'QUANTITY' }, orderBy: { priority: 'desc' } }),
-    db.offer.findMany({
-      where: { shopId: shop.id, type: { in: ['UPSELL', 'ORDER_BUMP', 'DOWNSELL'] } },
-      orderBy: { priority: 'desc' },
-    }),
+  const [offerRows, addonRows, discounts, form, theme] = await Promise.all([
+    db.offer.findMany({ where: { shopId: shop.id, type: 'QUANTITY' }, orderBy: { priority: 'asc' } }),
+    db.offer.findMany({ where: { shopId: shop.id, type: { in: ['UPSELL', 'ORDER_BUMP', 'DOWNSELL'] } }, orderBy: { priority: 'desc' } }),
     db.discount.findMany({ where: { shopId: shop.id }, orderBy: { name: 'asc' } }),
+    db.form.findFirst({ where: { shopId: shop.id, status: { not: 'ARCHIVED' } }, orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }] }),
+    db.theme.findFirst({ where: { shopId: shop.id, isDefault: true } }),
   ]);
-  return { offers, addons, discounts, currency: shop.currency };
+  const version = form?.currentVersionId ? await db.formVersion.findUnique({ where: { id: form.currentVersionId } }) : null;
+
+  const offers: OfferDraft[] = offerRows.map((r) => {
+    const o = OfferSchema.parse({ id: r.id, label: r.name, type: 'QUANTITY', ...(r.payload as object) });
+    return {
+      id: r.id, active: r.active, minQty: String(o.minQty), title: o.title, subtitle: o.subtitle, badge: o.badge,
+      priceMode: o.bundlePriceCents != null ? 'bundle' : o.discountBps > 0 ? 'percent' : 'none',
+      bundlePrice: fromCents(o.bundlePriceCents), percent: o.discountBps ? String(o.discountBps / 100) : '',
+      freeShipping: o.freeShipping, preselected: o.preselected,
+    };
+  });
+  const addons: AddonDraft[] = addonRows.map((r) => {
+    const p = r.payload as Record<string, unknown>;
+    const a = AddonSchema.parse({ id: r.id, ...p });
+    return {
+      id: r.id, active: r.active, kind: a.kind, chargeType: a.variantId ? 'product' : 'charge',
+      variantId: a.variantId ?? '', productTitle: String(p.productTitle ?? ''),
+      title: a.title, description: a.description, image: a.image ?? '',
+      price: fromCents(a.priceCents), compareAt: fromCents(a.compareAtCents), replacesId: a.replacesId ?? '',
+      border: a.style.border, borderColor: a.style.borderColor, bg: a.style.bg,
+    };
+  });
+
+  return {
+    offers, addons, discounts,
+    fields: ((version?.schema as Field[] | undefined) ?? DEFAULT_FIELDS),
+    tokens: ThemeTokensSchema.parse(theme?.tokens ?? {}),
+    currency: shop.currency,
+  };
 }
 
-export async function action({ request }: ActionFunctionArgs) {
+type Result = { ok: boolean; message: string };
+
+export async function action({ request }: ActionFunctionArgs): Promise<Result | null> {
   const { shop } = await requireShop(request);
   const fd = await request.formData();
   const intent = String(fd.get('intent'));
 
-  if (intent === 'offer:create') {
-    const minQty = Number(fd.get('minQty'));
-    const kind = String(fd.get('kind'));
-    const value = Number(fd.get('value') || 0);
+  if (intent === 'offers:save') {
+    const body = JSON.parse(String(fd.get('data'))) as { offers: OfferDraft[]; addons: AddonDraft[]; offerCard: ThemeTokens['offerCard'] };
 
-    await db.offer.create({
-      data: {
-        shopId: shop.id,
-        name: String(fd.get('name')),
-        type: 'QUANTITY',
-        priority: minQty, // a mayor cantidad, mayor prioridad: gana la mejor oferta
+    // Ofertas por cantidad: crear, actualizar y borrar las quitadas.
+    const keepOffers: string[] = [];
+    for (const d of body.offers) {
+      const o = toOffer(d);
+      const data = {
+        name: o.label, type: 'QUANTITY' as const, priority: o.minQty, active: d.active,
         payload: {
-          minQty,
-          discountBps: kind === 'PERCENTAGE' ? Math.round(value * 100) : 0,
-          freeShipping: kind === 'FREE_SHIPPING',
+          minQty: o.minQty, discountBps: o.discountBps, freeShipping: o.freeShipping, title: o.title,
+          subtitle: o.subtitle, badge: o.badge, bundlePriceCents: o.bundlePriceCents, preselected: o.preselected,
         },
-      },
+      };
+      if (d.id.startsWith('new-')) keepOffers.push((await db.offer.create({ data: { shopId: shop.id, ...data } })).id);
+      else { await db.offer.updateMany({ where: { id: d.id, shopId: shop.id }, data }); keepOffers.push(d.id); }
+    }
+    await db.offer.deleteMany({ where: { shopId: shop.id, type: 'QUANTITY', id: { notIn: keepOffers } } });
+
+    // Extras. Los downsell se guardan al final para poder apuntar al upsell recién creado.
+    const keepAddons: string[] = [];
+    const idMap = new Map<string, string>();
+    const ordered = [...body.addons].sort((a, b) => (a.kind === 'DOWNSELL' ? 1 : 0) - (b.kind === 'DOWNSELL' ? 1 : 0));
+    for (const d of ordered) {
+      if (d.chargeType === 'product' && !d.variantId) return { ok: false, message: `Elige el producto del extra «${d.title || 'sin título'}».` };
+      if (d.chargeType === 'charge' && !(cents(d.price) > 0)) return { ok: false, message: `Pon el precio del cargo «${d.title || 'sin título'}».` };
+      const a = toAddon({ ...d, replacesId: idMap.get(d.replacesId) ?? d.replacesId });
+      const data = {
+        name: a.title.replace(/\*\*/g, '').slice(0, 120), type: a.kind, active: d.active,
+        priority: a.kind === 'ORDER_BUMP' ? 10 : 5,
+        payload: { ...a, id: undefined, productTitle: d.productTitle } as object,
+      };
+      if (d.id.startsWith('new-')) {
+        const row = await db.offer.create({ data: { shopId: shop.id, ...data } });
+        idMap.set(d.id, row.id); keepAddons.push(row.id);
+      } else { await db.offer.updateMany({ where: { id: d.id, shopId: shop.id }, data }); keepAddons.push(d.id); }
+    }
+    await db.offer.deleteMany({
+      where: { shopId: shop.id, type: { in: ['UPSELL', 'ORDER_BUMP', 'DOWNSELL'] }, id: { notIn: keepAddons } },
     });
-  }
 
-  if (intent === 'offer:toggle') {
-    const o = await db.offer.findFirstOrThrow({ where: { id: String(fd.get('id')), shopId: shop.id } });
-    await db.offer.update({ where: { id: o.id }, data: { active: !o.active } });
-  }
+    // Estilo de las tarjetas: va en el diseño de la tienda.
+    const theme = (await db.theme.findFirst({ where: { shopId: shop.id, isDefault: true } }))
+      ?? await db.theme.create({ data: { shopId: shop.id, name: 'Tema por defecto', isDefault: true, tokens: {} } });
+    const tokens = ThemeTokensSchema.parse({ ...(theme.tokens as object), offerCard: body.offerCard });
+    await db.theme.update({ where: { id: theme.id }, data: { tokens: tokens as object } });
 
-  if (intent === 'offer:delete') {
-    await db.offer.deleteMany({ where: { id: String(fd.get('id')), shopId: shop.id } });
-  }
-
-  /* ── Addons: order bump / upsell / downsell ── */
-  if (intent === 'addon:create') {
-    const kind = String(fd.get('kind')) as 'ORDER_BUMP' | 'UPSELL' | 'DOWNSELL';
-    const variantId = String(fd.get('variantId')).trim();
-    const priceCents = Math.round(Number(fd.get('price') || 0) * 100);
-    const compareAt = fd.get('compareAt') ? Math.round(Number(fd.get('compareAt')) * 100) : null;
-
-    await db.offer.create({
-      data: {
-        shopId: shop.id,
-        name: String(fd.get('title')),
-        type: kind,
-        priority: kind === 'ORDER_BUMP' ? 10 : 5,
-        payload: {
-          kind,
-          variantId,
-          title: String(fd.get('title')),
-          description: String(fd.get('description') || ''),
-          image: String(fd.get('image') || '') || null,
-          priceCents,
-          compareAtCents: compareAt,
-          qty: 1,
-          replacesId: String(fd.get('replacesId') || '') || null,
-          minCartCents: 0,
-        },
-      },
-    });
-  }
-
-  if (intent === 'addon:toggle') {
-    const o = await db.offer.findFirstOrThrow({ where: { id: String(fd.get('id')), shopId: shop.id } });
-    await db.offer.update({ where: { id: o.id }, data: { active: !o.active } });
-  }
-
-  if (intent === 'addon:delete') {
-    await db.offer.deleteMany({ where: { id: String(fd.get('id')), shopId: shop.id } });
+    return { ok: true, message: 'Ofertas guardadas. Ya están en tu tienda (puede tardar 1 minuto).' };
   }
 
   if (intent === 'discount:create') {
     const type = String(fd.get('type')) as 'PERCENTAGE' | 'FIXED' | 'FREE_SHIPPING';
     const value = Number(fd.get('value') || 0);
-
-    await db.discount.create({
-      data: {
-        shopId: shop.id,
-        name: String(fd.get('name')),
-        code: String(fd.get('code')).toUpperCase(),
-        type,
-        payload: type === 'PERCENTAGE'
-          ? { valueBps: Math.round(value * 100) }
-          : type === 'FIXED'
-            ? { valueCents: Math.round(value * 100) }
-            : {},
+    const code = String(fd.get('code') || '').trim().toUpperCase();
+    if (!code) return { ok: false, message: 'Escribe el código del cupón.' };
+    await db.discount.upsert({
+      where: { shopId_code: { shopId: shop.id, code } },
+      update: {},
+      create: {
+        shopId: shop.id, name: String(fd.get('name') || code), code, type,
+        usageLimit: fd.get('usageLimit') ? Number(fd.get('usageLimit')) : null,
+        payload: type === 'PERCENTAGE' ? { valueBps: Math.round(value * 100) }
+          : type === 'FIXED' ? { valueCents: Math.round(value * 100) } : {},
       },
     });
+    return { ok: true, message: `Cupón ${code} creado.` };
   }
 
   if (intent === 'discount:delete') {
     await db.discount.deleteMany({ where: { id: String(fd.get('id')), shopId: shop.id } });
+    return { ok: true, message: 'Cupón eliminado.' };
   }
-
   return null;
 }
 
+/* ─────────────── Pantalla ─────────────── */
+
+type Tab = 'qty' | 'extras' | 'coupons' | 'style';
+const TABS: { id: Tab; content: string }[] = [
+  { id: 'qty', content: 'Por cantidad' },
+  { id: 'extras', content: 'Extras' },
+  { id: 'coupons', content: 'Cupones' },
+  { id: 'style', content: 'Estilo' },
+];
+
 export default function Offers() {
-  const { offers, addons, discounts } = useLoaderData<typeof loader>();
+  const data = useLoaderData<typeof loader>();
+  const fetcher = useFetcher<Result>();
+  const [tab, setTab] = useState<Tab>('qty');
+  const [offers, setOffers] = useState<OfferDraft[]>(data.offers);
+  const [addons, setAddons] = useState<AddonDraft[]>(data.addons);
+  const [card, setCard] = useState<ThemeTokens['offerCard']>(data.tokens.offerCard);
+  const [samplePrice, setSamplePrice] = useState('1799');
+  const [open, setOpen] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [couponModal, setCouponModal] = useState(false);
+
+  useEffect(() => {
+    if (fetcher.state === 'idle' && fetcher.data?.ok) { setToast(fetcher.data.message); setDirty(false); }
+  }, [fetcher.state, fetcher.data]);
+
+  const updOffer = (id: string, p: Partial<OfferDraft>) => {
+    setOffers((l) => l.map((o) => {
+      if (o.id === id) return { ...o, ...p };
+      // Solo una tarjeta puede venir marcada por defecto.
+      return p.preselected ? { ...o, preselected: false } : o;
+    }));
+    setDirty(true);
+  };
+  const updAddon = (id: string, p: Partial<AddonDraft>) => { setAddons((l) => l.map((a) => (a.id === id ? { ...a, ...p } : a))); setDirty(true); };
+
+  const addOffer = () => {
+    const used = offers.map((o) => parseInt(o.minQty, 10) || 1);
+    const qty = Math.max(1, ...used) + (offers.length ? 1 : 1);
+    const d: OfferDraft = {
+      id: newId(), active: true, minQty: String(offers.length ? qty : 2), title: '', subtitle: '', badge: '',
+      priceMode: 'percent', bundlePrice: '', percent: '10', freeShipping: false, preselected: false,
+    };
+    setOffers((l) => [...l, d]); setOpen(d.id); setDirty(true);
+  };
+  const addAddon = (chargeType: AddonDraft['chargeType']) => {
+    const d: AddonDraft = {
+      id: newId(), active: true, kind: 'ORDER_BUMP', chargeType, variantId: '', productTitle: '',
+      title: chargeType === 'charge' ? 'Envío Plus Express {precio}' : 'Agrega **un producto extra** por solo {precio}',
+      description: chargeType === 'charge' ? 'Recíbelo en menos de 24 horas' : '', image: '',
+      price: chargeType === 'charge' ? '350' : '', compareAt: '', replacesId: '',
+      border: 'dashed', borderColor: chargeType === 'charge' ? '#94b07f' : '#1f2a44', bg: chargeType === 'charge' ? '#f7faf3' : '#eef0fa',
+    };
+    setAddons((l) => [...l, d]); setOpen(d.id); setDirty(true);
+  };
+
+  const pickProduct = useCallback(async (id: string) => {
+    const shopify = (window as unknown as { shopify?: { resourcePicker: (o: unknown) => Promise<unknown> } }).shopify;
+    if (!shopify?.resourcePicker) return;
+    const picked = (await shopify.resourcePicker({ type: 'product', action: 'select', multiple: false })) as
+      { title: string; images?: { originalSrc?: string; url?: string }[]; variants?: { id: string; price?: string; title?: string }[] }[] | undefined;
+    const p = picked?.[0];
+    const v = p?.variants?.[0];
+    if (!p || !v) return;
+    const img = p.images?.[0]?.originalSrc || p.images?.[0]?.url || '';
+    updAddon(id, { variantId: v.id, productTitle: p.title, image: img, price: v.price ? String(Number(v.price)) : '' });
+  }, []);
+
+  const save = async () => {
+    const url = new URL(window.location.href);
+    const shopify = (window as unknown as { shopify?: { idToken?: () => Promise<string> } }).shopify;
+    if (shopify?.idToken) url.searchParams.set('id_token', await shopify.idToken());
+    fetcher.submit(
+      { intent: 'offers:save', data: JSON.stringify({ offers, addons, offerCard: card }) },
+      { method: 'post', action: `${url.pathname}${url.search}` },
+    );
+  };
+
+  // Vista previa: solo lo activo, ordenado como en la tienda.
+  const pvOffers = useMemo(() => offers.filter((o) => o.active).map(toOffer), [offers]);
+  const pvAddons = useMemo(() => addons.filter((a) => a.active).map(toAddon), [addons]);
+  const pvTokens = useMemo(() => ({ ...data.tokens, offerCard: card }), [data.tokens, card]);
+
+  const busy = fetcher.state !== 'idle';
+
+  return (
+    <Frame>
+      <style>{CSS}</style>
+      <Page
+        fullWidth
+        title="Ofertas y descuentos"
+        titleMetadata={dirty ? <Badge tone="attention">Cambios sin guardar</Badge> : undefined}
+        primaryAction={{ content: 'Guardar', loading: busy, disabled: !dirty, onAction: save }}
+      >
+        {fetcher.data && !fetcher.data.ok && fetcher.state === 'idle' && (
+          <div style={{ marginBottom: 12 }}><Banner tone="critical" title="No se pudo guardar">{fetcher.data.message}</Banner></div>
+        )}
+
+        <div className="cod-editor">
+          <div className="cod-editor-side">
+            <div className="cod-editor-tabs">
+              <Tabs tabs={TABS} selected={TABS.findIndex((t) => t.id === tab)} onSelect={(i) => setTab(TABS[i]!.id)} fitted />
+            </div>
+            <div className="cod-editor-body">
+              {/* ── Por cantidad ── */}
+              {tab === 'qty' && (
+                <BlockStack gap="300">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Tarjetas para elegir cuántas unidades lleva el cliente. Se aplica la de la cantidad elegida.
+                  </Text>
+                  {[...offers].sort((a, b) => (parseInt(a.minQty, 10) || 0) - (parseInt(b.minQty, 10) || 0)).map((o) => (
+                    <Item key={o.id} open={open === o.id} onToggle={() => setOpen(open === o.id ? null : o.id)}
+                      title={o.title || `${o.minQty || '?'} unidades`}
+                      subtitle={o.priceMode === 'bundle' && o.bundlePrice ? `Paquete por RD$ ${o.bundlePrice}`
+                        : o.priceMode === 'percent' && o.percent ? `${o.percent} % de descuento` : 'Sin descuento'}
+                      badges={[!o.active && 'Pausada', o.badge, o.preselected && 'Marcada'].filter(Boolean) as string[]}>
+                      <InlineStack gap="200" wrap={false}>
+                        <div style={{ width: 110 }}>
+                          <TextField label="Unidades" type="number" min={1} value={o.minQty} autoComplete="off"
+                            onChange={(v) => updOffer(o.id, { minQty: v })} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <TextField label="Título" value={o.title} autoComplete="off" placeholder={`${o.minQty || 2} unidades`}
+                            onChange={(v) => updOffer(o.id, { title: v })} />
+                        </div>
+                      </InlineStack>
+                      <TextField label="Descripción" value={o.subtitle} autoComplete="off" placeholder="Ej. 20 cebos · casa completa"
+                        onChange={(v) => updOffer(o.id, { subtitle: v })} />
+                      <Choice label="Precio" value={o.priceMode} onChange={(v) => updOffer(o.id, { priceMode: v as OfferDraft['priceMode'] })}
+                        options={[['bundle', 'Precio del paquete'], ['percent', '% de descuento'], ['none', 'Normal']]} />
+                      {o.priceMode === 'bundle' && (
+                        <TextField label={`Precio total por ${o.minQty || 'X'} unidades`} prefix="RD$" type="number" value={o.bundlePrice}
+                          autoComplete="off" onChange={(v) => updOffer(o.id, { bundlePrice: v })}
+                          helpText="El «antes» tachado y el «Ahorras %» se calculan solos con el precio del producto." />
+                      )}
+                      {o.priceMode === 'percent' && (
+                        <TextField label="Descuento" suffix="%" type="number" value={o.percent} autoComplete="off"
+                          onChange={(v) => updOffer(o.id, { percent: v })} />
+                      )}
+                      <TextField label="Cinta destacada" value={o.badge} autoComplete="off" placeholder="Ej. MÁS VENDIDO (vacío = sin cinta)"
+                        onChange={(v) => updOffer(o.id, { badge: v })} />
+                      <Checkbox label="Envío gratis con esta oferta" checked={o.freeShipping} onChange={(v) => updOffer(o.id, { freeShipping: v })} />
+                      <Checkbox label="Que venga marcada al abrir el formulario" checked={o.preselected} onChange={(v) => updOffer(o.id, { preselected: v })} />
+                      <ItemFooter active={o.active} onActive={(v) => updOffer(o.id, { active: v })}
+                        onDelete={() => { setOffers((l) => l.filter((x) => x.id !== o.id)); setDirty(true); }} />
+                    </Item>
+                  ))}
+                  {offers.length > 0 && !offers.some((o) => o.minQty === '1') && (
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      La tarjeta «1 unidad» se añade sola. Crea una oferta de 1 unidad si quieres cambiar su texto.
+                    </Text>
+                  )}
+                  <Button icon={PlusIcon} onClick={addOffer}>Añadir oferta por cantidad</Button>
+                </BlockStack>
+              )}
+
+              {/* ── Extras ── */}
+              {tab === 'extras' && (
+                <BlockStack gap="300">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Casillas que suman algo al pedido: otro producto a precio especial o un cargo como el envío express.
+                  </Text>
+                  {addons.map((a) => (
+                    <Item key={a.id} open={open === a.id} onToggle={() => setOpen(open === a.id ? null : a.id)}
+                      title={a.title.replace(/\*\*/g, '').replace(/\{precio\}/gi, a.price ? `RD$ ${a.price}` : '') || 'Extra'}
+                      subtitle={a.chargeType === 'charge' ? 'Cargo extra' : a.productTitle || 'Producto sin elegir'}
+                      badges={[!a.active && 'Pausado', a.kind === 'UPSELL' ? 'Upsell' : a.kind === 'DOWNSELL' ? 'Downsell' : ''].filter(Boolean) as string[]}>
+                      <Choice label="¿Qué se suma al pedido?" value={a.chargeType}
+                        onChange={(v) => updAddon(a.id, { chargeType: v as AddonDraft['chargeType'] })}
+                        options={[['product', 'Un producto'], ['charge', 'Un cargo (sin producto)']]} />
+                      {a.chargeType === 'product' && (
+                        <Button onClick={() => pickProduct(a.id)}>{a.productTitle || 'Elegir producto…'}</Button>
+                      )}
+                      <TextField label="Texto" value={a.title} autoComplete="off" multiline={2}
+                        onChange={(v) => updAddon(a.id, { title: v })}
+                        helpText="Pon **así** para negrita y {precio} donde quieras el precio." />
+                      <TextField label="Texto pequeño (opcional)" value={a.description} autoComplete="off"
+                        onChange={(v) => updAddon(a.id, { description: v })} />
+                      <InlineStack gap="200" wrap={false}>
+                        <div style={{ flex: 1 }}>
+                          <TextField label={a.chargeType === 'charge' ? 'Precio del cargo' : 'Precio especial'} prefix="RD$" type="number"
+                            value={a.price} autoComplete="off" onChange={(v) => updAddon(a.id, { price: v })}
+                            helpText={a.chargeType === 'product' ? 'Vacío = precio normal de la tienda.' : undefined} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <TextField label="Precio antes (tachado)" prefix="RD$" type="number" value={a.compareAt}
+                            autoComplete="off" onChange={(v) => updAddon(a.id, { compareAt: v })} />
+                        </div>
+                      </InlineStack>
+                      <TextField label="Imagen (enlace)" value={a.image} autoComplete="off" placeholder="https://…"
+                        onChange={(v) => updAddon(a.id, { image: v })} />
+                      <Choice label="Tipo" value={a.kind} onChange={(v) => updAddon(a.id, { kind: v as AddonDraft['kind'] })}
+                        options={[['ORDER_BUMP', 'Casilla'], ['UPSELL', 'Botón «Añadir»'], ['DOWNSELL', 'Alternativa']]} />
+                      {a.kind === 'DOWNSELL' && (
+                        <Select label="Se ofrece si el cliente quita…" value={a.replacesId}
+                          options={[{ label: 'Elige un extra con botón «Añadir»', value: '' },
+                            ...addons.filter((x) => x.kind === 'UPSELL').map((x) => ({ label: x.title.replace(/\*\*/g, ''), value: x.id }))]}
+                          onChange={(v) => updAddon(a.id, { replacesId: v })} />
+                      )}
+                      <Divider />
+                      <Choice label="Borde" value={a.border} onChange={(v) => updAddon(a.id, { border: v as AddonDraft['border'] })}
+                        options={[['dashed', 'Rayas'], ['solid', 'Línea'], ['none', 'Sin borde']]} />
+                      {a.border !== 'none' && <Color label="Color del borde" value={a.borderColor} onChange={(v) => updAddon(a.id, { borderColor: v })} />}
+                      <Color label="Color de fondo" value={a.bg} onChange={(v) => updAddon(a.id, { bg: v })} />
+                      <ItemFooter active={a.active} onActive={(v) => updAddon(a.id, { active: v })}
+                        onDelete={() => { setAddons((l) => l.filter((x) => x.id !== a.id)); setDirty(true); }} />
+                    </Item>
+                  ))}
+                  <InlineStack gap="200">
+                    <Button icon={PlusIcon} onClick={() => addAddon('product')}>Producto extra</Button>
+                    <Button icon={PlusIcon} onClick={() => addAddon('charge')}>Cargo extra</Button>
+                  </InlineStack>
+                </BlockStack>
+              )}
+
+              {/* ── Cupones ── */}
+              {tab === 'coupons' && (
+                <BlockStack gap="300">
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Códigos para el bloque «Código de descuento». También valen los códigos que ya tengas en Shopify.
+                  </Text>
+                  {data.discounts.length > 0 && (
+                    <IndexTable itemCount={data.discounts.length} selectable={false}
+                      headings={[{ title: 'Código' }, { title: 'Descuento' }, { title: 'Usos' }, { title: '' }]}>
+                      {data.discounts.map((d, i) => {
+                        const p = d.payload as { valueBps?: number; valueCents?: number };
+                        return (
+                          <IndexTable.Row id={d.id} key={d.id} position={i}>
+                            <IndexTable.Cell><Text as="span" fontWeight="semibold">{d.code}</Text></IndexTable.Cell>
+                            <IndexTable.Cell>
+                              {d.type === 'PERCENTAGE' ? `${(p.valueBps ?? 0) / 100} %` : d.type === 'FIXED' ? `RD$ ${(p.valueCents ?? 0) / 100}` : 'Envío gratis'}
+                            </IndexTable.Cell>
+                            <IndexTable.Cell>{d.usageCount}{d.usageLimit ? ` / ${d.usageLimit}` : ''}</IndexTable.Cell>
+                            <IndexTable.Cell>
+                              <Form method="post">
+                                <input type="hidden" name="id" value={d.id} />
+                                <IntentButton size="micro" tone="critical" variant="tertiary" intent="discount:delete">Eliminar</IntentButton>
+                              </Form>
+                            </IndexTable.Cell>
+                          </IndexTable.Row>
+                        );
+                      })}
+                    </IndexTable>
+                  )}
+                  <Button icon={PlusIcon} onClick={() => setCouponModal(true)}>Crear cupón</Button>
+                </BlockStack>
+              )}
+
+              {/* ── Estilo ── */}
+              {tab === 'style' && (
+                <BlockStack gap="300">
+                  <Text as="h3" variant="headingSm">Tarjetas por cantidad</Text>
+                  <Color label="Color de la tarjeta elegida" value={card.accent} onChange={(v) => { setCard({ ...card, accent: v }); setDirty(true); }} />
+                  <Color label="Cinta: color inicial" value={card.badgeFrom} onChange={(v) => { setCard({ ...card, badgeFrom: v }); setDirty(true); }} />
+                  <Color label="Cinta: color final" value={card.badgeTo} onChange={(v) => { setCard({ ...card, badgeTo: v }); setDirty(true); }} />
+                  <Color label="Cinta: texto" value={card.badgeColor} onChange={(v) => { setCard({ ...card, badgeColor: v }); setDirty(true); }} />
+                  <Color label="«Ahorras»: fondo" value={card.saveBg} onChange={(v) => { setCard({ ...card, saveBg: v }); setDirty(true); }} />
+                  <Color label="«Ahorras»: texto" value={card.saveColor} onChange={(v) => { setCard({ ...card, saveColor: v }); setDirty(true); }} />
+                  <Checkbox label="Mostrar el precio de antes tachado" checked={card.showCompare} onChange={(v) => { setCard({ ...card, showCompare: v }); setDirty(true); }} />
+                  <Checkbox label="Mostrar «Ahorras X %»" checked={card.showSave} onChange={(v) => { setCard({ ...card, showSave: v }); setDirty(true); }} />
+                </BlockStack>
+              )}
+
+              <Box paddingBlockStart="400">
+                <Divider />
+                <Box paddingBlockStart="300">
+                  <TextField label="Precio del producto para la vista previa" prefix="RD$" type="number" value={samplePrice}
+                    autoComplete="off" onChange={setSamplePrice}
+                    helpText="Solo para ver los precios aquí. En la tienda se usa el precio real de cada producto." />
+                </Box>
+              </Box>
+            </div>
+          </div>
+
+          <div className="cod-editor-preview">
+            <Preview fields={data.fields} tokens={pvTokens} offers={pvOffers} addons={pvAddons}
+              unitPriceCents={cents(samplePrice)} focus={tab === 'extras' ? 'addons' : tab === 'qty' ? 'offers' : null} hint="Así se ven tus ofertas en el formulario. Pulsa las tarjetas para probarlas." />
+          </div>
+        </div>
+
+        <CouponModal open={couponModal} onClose={() => setCouponModal(false)} />
+        {toast && <Toast content={toast} onDismiss={() => setToast(null)} />}
+      </Page>
+    </Frame>
+  );
+}
+
+/* ─────────────── Piezas ─────────────── */
+
+function Item({ open, onToggle, title, subtitle, badges, children }: {
+  open: boolean; onToggle: () => void; title: string; subtitle: string; badges: string[]; children: React.ReactNode;
+}) {
+  return (
+    <div style={{ border: '1px solid #e3e3e3', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
+      <button type="button" onClick={onToggle} aria-expanded={open}
+        style={{ all: 'unset', boxSizing: 'border-box', width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', cursor: 'pointer' }}>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <Text as="span" variant="bodyMd" fontWeight="semibold" truncate>{title}</Text>
+          <InlineStack gap="100" blockAlign="center">
+            <Text as="span" variant="bodySm" tone="subdued">{subtitle}</Text>
+            {badges.map((b) => <Badge key={b} size="small">{b}</Badge>)}
+          </InlineStack>
+        </span>
+        <Icon source={open ? ChevronDownIcon : ChevronRightIcon} tone="subdued" />
+      </button>
+      <Collapsible open={open} id={`item-${title}`}>
+        <div style={{ padding: '0 12px 14px' }}><BlockStack gap="300">{children}</BlockStack></div>
+      </Collapsible>
+    </div>
+  );
+}
+
+function ItemFooter({ active, onActive, onDelete }: { active: boolean; onActive: (v: boolean) => void; onDelete: () => void }) {
+  return (
+    <InlineStack align="space-between" blockAlign="center">
+      <Checkbox label="Activa" checked={active} onChange={onActive} />
+      <Button variant="plain" tone="critical" icon={DeleteIcon} onClick={onDelete}>Eliminar</Button>
+    </InlineStack>
+  );
+}
+
+function Choice({ label, value, options, onChange }: {
+  label: string; value: string; options: readonly (readonly [string, string])[]; onChange: (v: string) => void;
+}) {
+  return (
+    <BlockStack gap="100">
+      <Text as="span" variant="bodyMd">{label}</Text>
+      <ButtonGroup variant="segmented" fullWidth>
+        {options.map(([v, l]) => <Button key={v} size="slim" pressed={value === v} onClick={() => onChange(v)}>{l}</Button>)}
+      </ButtonGroup>
+    </BlockStack>
+  );
+}
+
+function Color({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <InlineStack gap="300" blockAlign="center" wrap={false}>
+      <label style={{ position: 'relative', width: 34, height: 34, flexShrink: 0, borderRadius: 8, border: '1px solid #d4d4d4', background: value, cursor: 'pointer', overflow: 'hidden' }}>
+        <input type="color" value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#000000'} onChange={(e) => onChange(e.target.value)}
+          aria-label={label} style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+      </label>
+      <div style={{ flex: 1, minWidth: 0 }}><Text as="p" variant="bodyMd">{label}</Text></div>
+      <div style={{ width: 96 }}><TextField labelHidden label={label} value={value} onChange={onChange} autoComplete="off" /></div>
+    </InlineStack>
+  );
+}
+
+function CouponModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const submit = useSubmit();
-  const [modal, setModal] = useState<'offer' | 'discount' | 'addon' | null>(null);
-  const [addonKind, setAddonKind] = useState<'ORDER_BUMP' | 'UPSELL' | 'DOWNSELL'>('ORDER_BUMP');
-
-  return (
-    <Page title="Ofertas y descuentos">
-      <Layout>
-        {/* ── Ofertas por cantidad ── */}
-        <Layout.Section>
-          <Card padding="0">
-            <div style={{ padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <BlockStack gap="050">
-                <Text as="h2" variant="headingMd">Ofertas por cantidad</Text>
-                <Text as="p" tone="subdued" variant="bodySm">
-                  Se aplican solas cuando el cliente sube la cantidad. Gana siempre la mejor.
-                </Text>
-              </BlockStack>
-              <Button variant="primary" onClick={() => setModal('offer')}>Crear oferta</Button>
-            </div>
-
-            {offers.length === 0 ? (
-              <div style={{ padding: '0 16px 20px' }}>
-                <Text as="p" tone="subdued">
-                  Ej.: «Compra 2 y llévate 10 %», «Compra 3 y el envío es gratis».
-                </Text>
-              </div>
-            ) : (
-              <IndexTable
-                itemCount={offers.length}
-                selectable={false}
-                headings={[{ title: 'Oferta' }, { title: 'Desde' }, { title: 'Beneficio' }, { title: 'Estado' }, { title: '' }]}
-              >
-                {offers.map((o, i) => {
-                  const p = o.payload as { minQty: number; discountBps: number; freeShipping: boolean };
-                  return (
-                    <IndexTable.Row id={o.id} key={o.id} position={i}>
-                      <IndexTable.Cell><Text as="span" fontWeight="semibold">{o.name}</Text></IndexTable.Cell>
-                      <IndexTable.Cell>{p.minQty} unidades</IndexTable.Cell>
-                      <IndexTable.Cell>
-                        {p.freeShipping ? 'Envío gratis' : `${(p.discountBps / 100).toFixed(0)} % de descuento`}
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Badge tone={o.active ? 'success' : undefined}>{o.active ? 'Activa' : 'Pausada'}</Badge>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Form method="post" style={{ display: 'flex', gap: 6 }}>
-                          <input type="hidden" name="id" value={o.id} />
-                          <IntentButton size="micro" intent="offer:toggle">
-                            {o.active ? 'Pausar' : 'Activar'}
-                          </IntentButton>
-                          <IntentButton size="micro" tone="critical" variant="tertiary" intent="offer:delete">
-                            Eliminar
-                          </IntentButton>
-                        </Form>
-                      </IndexTable.Cell>
-                    </IndexTable.Row>
-                  );
-                })}
-              </IndexTable>
-            )}
-          </Card>
-        </Layout.Section>
-
-        {/* ── Upsells, bumps y downsells ── */}
-        <Layout.Section>
-          <Card padding="0">
-            <div style={{ padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <BlockStack gap="050">
-                <Text as="h2" variant="headingMd">Upsells y order bumps</Text>
-                <Text as="p" tone="subdued" variant="bodySm">
-                  Order bump = casilla de un clic. Upsell = tarjeta con «Añadir». Downsell = alternativa
-                  si rechaza un upsell.
-                </Text>
-              </BlockStack>
-              <Button variant="primary" onClick={() => { setAddonKind('ORDER_BUMP'); setModal('addon'); }}>
-                Crear
-              </Button>
-            </div>
-
-            {addons.length === 0 ? (
-              <div style={{ padding: '0 16px 20px' }}>
-                <Text as="p" tone="subdued">
-                  Ej.: «Añade la garantía extendida por RD$ 290» (order bump), o «Llévate también el estuche»
-                  (upsell).
-                </Text>
-              </div>
-            ) : (
-              <IndexTable
-                itemCount={addons.length}
-                selectable={false}
-                headings={[{ title: 'Producto' }, { title: 'Tipo' }, { title: 'Precio' }, { title: 'Aceptados' }, { title: 'Estado' }, { title: '' }]}
-              >
-                {addons.map((a, i) => {
-                  const p = a.payload as { title: string; priceCents: number; kind: string };
-                  return (
-                    <IndexTable.Row id={a.id} key={a.id} position={i}>
-                      <IndexTable.Cell><Text as="span" fontWeight="semibold">{p.title}</Text></IndexTable.Cell>
-                      <IndexTable.Cell>
-                        {p.kind === 'ORDER_BUMP' ? 'Order bump' : p.kind === 'UPSELL' ? 'Upsell' : 'Downsell'}
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>RD$ {(p.priceCents / 100).toLocaleString('en-US')}</IndexTable.Cell>
-                      <IndexTable.Cell>{a.accepts}</IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Badge tone={a.active ? 'success' : undefined}>{a.active ? 'Activo' : 'Pausado'}</Badge>
-                      </IndexTable.Cell>
-                      <IndexTable.Cell>
-                        <Form method="post" style={{ display: 'flex', gap: 6 }}>
-                          <input type="hidden" name="id" value={a.id} />
-                          <IntentButton size="micro" intent="addon:toggle">
-                            {a.active ? 'Pausar' : 'Activar'}
-                          </IntentButton>
-                          <IntentButton size="micro" tone="critical" variant="tertiary" intent="addon:delete">
-                            Eliminar
-                          </IntentButton>
-                        </Form>
-                      </IndexTable.Cell>
-                    </IndexTable.Row>
-                  );
-                })}
-              </IndexTable>
-            )}
-          </Card>
-        </Layout.Section>
-
-        {/* ── Cupones ── */}
-        <Layout.Section>
-          <Card padding="0">
-            <div style={{ padding: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <BlockStack gap="050">
-                <Text as="h2" variant="headingMd">Cupones</Text>
-                <Text as="p" tone="subdued" variant="bodySm">
-                  El formulario valida primero los códigos reales de Shopify. Si no existen allí, busca aquí.
-                </Text>
-              </BlockStack>
-              <Button variant="primary" onClick={() => setModal('discount')}>Crear cupón</Button>
-            </div>
-
-            {discounts.length > 0 && (
-              <IndexTable
-                itemCount={discounts.length}
-                selectable={false}
-                headings={[{ title: 'Código' }, { title: 'Nombre' }, { title: 'Tipo' }, { title: 'Usos' }, { title: '' }]}
-              >
-                {discounts.map((d, i) => (
-                  <IndexTable.Row id={d.id} key={d.id} position={i}>
-                    <IndexTable.Cell>
-                      <Text as="span" fontWeight="semibold">{d.code}</Text>
-                    </IndexTable.Cell>
-                    <IndexTable.Cell>{d.name}</IndexTable.Cell>
-                    <IndexTable.Cell>
-                      {d.type === 'PERCENTAGE' ? 'Porcentaje' : d.type === 'FIXED' ? 'Monto fijo' : 'Envío gratis'}
-                    </IndexTable.Cell>
-                    <IndexTable.Cell>{d.usageCount}</IndexTable.Cell>
-                    <IndexTable.Cell>
-                      <Form method="post">
-                        <input type="hidden" name="id" value={d.id} />
-                        <IntentButton size="micro" tone="critical" variant="tertiary" intent="discount:delete">
-                          Eliminar
-                        </IntentButton>
-                      </Form>
-                    </IndexTable.Cell>
-                  </IndexTable.Row>
-                ))}
-              </IndexTable>
-            )}
-          </Card>
-        </Layout.Section>
-      </Layout>
-
-      <OfferModal open={modal === 'offer'} onClose={() => setModal(null)} submit={submit} />
-      <DiscountModal open={modal === 'discount'} onClose={() => setModal(null)} submit={submit} />
-      <AddonModal open={modal === 'addon'} onClose={() => setModal(null)} submit={submit}
-        addons={addons} defaultKind={addonKind} />
-    </Page>
-  );
-}
-
-function OfferModal({ open, onClose, submit }: { open: boolean; onClose: () => void; submit: ReturnType<typeof useSubmit> }) {
-  const [name, setName] = useState('');
-  const [minQty, setMinQty] = useState('2');
-  const [kind, setKind] = useState('PERCENTAGE');
-  const [value, setValue] = useState('10');
-
-  return (
-    <Modal
-      open={open} onClose={onClose} title="Crear oferta por cantidad"
-      primaryAction={{
-        content: 'Crear',
-        onAction: () => {
-          submit({ intent: 'offer:create', name: name || `Compra ${minQty}`, minQty, kind, value }, { method: 'post' });
-          onClose();
-        },
-      }}
-    >
-      <Modal.Section>
-        <BlockStack gap="300">
-          <TextField label="Nombre (lo ve el cliente)" value={name} onChange={setName}
-            placeholder="Ej. Llévate 2 y ahorra" autoComplete="off" />
-          <TextField label="A partir de (unidades)" type="number" value={minQty} onChange={setMinQty} autoComplete="off" />
-          <Select label="Beneficio" value={kind} onChange={setKind}
-            options={[
-              { label: 'Descuento en porcentaje', value: 'PERCENTAGE' },
-              { label: 'Envío gratis', value: 'FREE_SHIPPING' },
-            ]} />
-          {kind === 'PERCENTAGE' && (
-            <TextField label="Porcentaje" type="number" value={value} onChange={setValue} suffix="%" autoComplete="off" />
-          )}
-        </BlockStack>
-      </Modal.Section>
-    </Modal>
-  );
-}
-
-function DiscountModal({ open, onClose, submit }: { open: boolean; onClose: () => void; submit: ReturnType<typeof useSubmit> }) {
-  const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [type, setType] = useState('PERCENTAGE');
   const [value, setValue] = useState('10');
-
+  const [limit, setLimit] = useState('');
   return (
-    <Modal
-      open={open} onClose={onClose} title="Crear cupón"
+    <Modal open={open} onClose={onClose} title="Crear cupón"
       primaryAction={{
-        content: 'Crear',
-        onAction: () => {
-          submit({ intent: 'discount:create', name: name || code, code, type, value }, { method: 'post' });
-          onClose();
-        },
-      }}
-    >
+        content: 'Crear', disabled: !code.trim(),
+        onAction: () => { submit({ intent: 'discount:create', name: code, code, type, value, usageLimit: limit }, { method: 'post' }); onClose(); },
+      }}>
       <Modal.Section>
         <BlockStack gap="300">
-          <TextField label="Código" value={code} onChange={(v) => setCode(v.toUpperCase())}
-            placeholder="BIENVENIDO10" autoComplete="off" />
-          <TextField label="Nombre interno" value={name} onChange={setName} autoComplete="off" />
+          <TextField label="Código" value={code} onChange={(v) => setCode(v.toUpperCase().replace(/\s+/g, ''))} placeholder="BIENVENIDO10" autoComplete="off" />
           <Select label="Tipo" value={type} onChange={setType}
-            options={[
-              { label: 'Porcentaje', value: 'PERCENTAGE' },
-              { label: 'Monto fijo', value: 'FIXED' },
-              { label: 'Envío gratis', value: 'FREE_SHIPPING' },
-            ]} />
+            options={[{ label: 'Porcentaje', value: 'PERCENTAGE' }, { label: 'Monto fijo', value: 'FIXED' }, { label: 'Envío gratis', value: 'FREE_SHIPPING' }]} />
           {type !== 'FREE_SHIPPING' && (
-            <TextField label={type === 'PERCENTAGE' ? 'Porcentaje' : 'Monto'} type="number"
-              value={value} onChange={setValue} suffix={type === 'PERCENTAGE' ? '%' : 'RD$'} autoComplete="off" />
+            <TextField label={type === 'PERCENTAGE' ? 'Porcentaje' : 'Monto'} type="number" value={value} onChange={setValue}
+              suffix={type === 'PERCENTAGE' ? '%' : undefined} prefix={type === 'FIXED' ? 'RD$' : undefined} autoComplete="off" />
           )}
+          <TextField label="Límite de usos (opcional)" type="number" value={limit} onChange={setLimit} autoComplete="off" helpText="Vacío = sin límite." />
         </BlockStack>
       </Modal.Section>
     </Modal>
   );
 }
 
-function AddonModal({
-  open, onClose, submit, addons, defaultKind,
-}: {
-  open: boolean;
-  onClose: () => void;
-  submit: ReturnType<typeof useSubmit>;
-  addons: { id: string; payload: unknown }[];
-  defaultKind: 'ORDER_BUMP' | 'UPSELL' | 'DOWNSELL';
-}) {
-  const [kind, setKind] = useState<'ORDER_BUMP' | 'UPSELL' | 'DOWNSELL'>(defaultKind);
-  const [variantId, setVariantId] = useState('');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [image, setImage] = useState('');
-  const [price, setPrice] = useState('');
-  const [compareAt, setCompareAt] = useState('');
-  const [replacesId, setReplacesId] = useState('');
-
-  // Para el downsell: a qué upsell reemplaza.
-  const upsells = addons.filter((a) => (a.payload as { kind?: string }).kind === 'UPSELL');
-
-  const create = () => {
-    submit(
-      {
-        intent: 'addon:create',
-        kind, variantId, title: title || 'Producto extra', description, image,
-        price, compareAt, replacesId: kind === 'DOWNSELL' ? replacesId : '',
-      },
-      { method: 'post' },
-    );
-    onClose();
-  };
-
-  return (
-    <Modal
-      open={open} onClose={onClose} title="Crear upsell / order bump"
-      primaryAction={{ content: 'Crear', onAction: create, disabled: !variantId || !price }}
-    >
-      <Modal.Section>
-        <BlockStack gap="300">
-          <Select
-            label="Tipo"
-            value={kind}
-            options={[
-              { label: 'Order bump (casilla de un clic)', value: 'ORDER_BUMP' },
-              { label: 'Upsell (tarjeta con «Añadir»)', value: 'UPSELL' },
-              { label: 'Downsell (alternativa si rechaza un upsell)', value: 'DOWNSELL' },
-            ]}
-            onChange={(v) => setKind(v as 'ORDER_BUMP' | 'UPSELL' | 'DOWNSELL')}
-          />
-
-          {kind === 'DOWNSELL' && (
-            <Select
-              label="Se ofrece si rechaza este upsell"
-              value={replacesId}
-              options={[
-                { label: 'Selecciona un upsell…', value: '' },
-                ...upsells.map((u) => ({
-                  label: (u.payload as { title: string }).title,
-                  value: u.id,
-                })),
-              ]}
-              onChange={setReplacesId}
-            />
-          )}
-
-          <TextField
-            label="ID de la variante"
-            value={variantId}
-            onChange={setVariantId}
-            autoComplete="off"
-            placeholder="gid://shopify/ProductVariant/1234567890"
-            helpText="Cópialo desde el producto en Shopify. El precio se toma de esa variante al cobrar."
-          />
-          <TextField label="Título (lo ve el cliente)" value={title} onChange={setTitle}
-            autoComplete="off" placeholder="Ej. Garantía extendida 12 meses" />
-          <TextField label="Descripción" value={description} onChange={setDescription}
-            autoComplete="off" multiline={2} />
-          <TextField label="URL de la imagen" value={image} onChange={setImage}
-            autoComplete="off" helpText="Opcional. Súbela a Archivos de Shopify y pega la URL." />
-          <InlineStack gap="200" wrap={false}>
-            <TextField label="Precio" type="number" value={price} onChange={setPrice}
-              prefix="RD$" autoComplete="off"
-              helpText="Informativo: el cobro usa el precio real de la variante." />
-            <TextField label="Precio comparado" type="number" value={compareAt} onChange={setCompareAt}
-              prefix="RD$" autoComplete="off" helpText="Opcional (precio tachado)." />
-          </InlineStack>
-        </BlockStack>
-      </Modal.Section>
-    </Modal>
-  );
-}
+const CSS = `
+.cod-editor{display:grid;grid-template-columns:minmax(330px,420px) 1fr;gap:16px;align-items:start}
+.cod-editor-side{background:#fff;border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.06);
+  display:flex;flex-direction:column;height:calc(100vh - 130px);min-height:520px;overflow:hidden}
+.cod-editor-tabs{border-bottom:1px solid #e3e3e3;flex-shrink:0}
+.cod-editor-body{padding:14px;overflow:auto;flex:1}
+.cod-editor-preview{position:sticky;top:12px;height:calc(100vh - 130px);min-height:520px;border-radius:12px;overflow:hidden;
+  box-shadow:0 1px 0 rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.06);background:#f1f1f1}
+@media (max-width: 860px){
+  .cod-editor{grid-template-columns:1fr}
+  .cod-editor-side{height:auto;min-height:0}
+  .cod-editor-body{overflow:visible}
+  .cod-editor-preview{position:relative;top:0;height:640px}
+}`;

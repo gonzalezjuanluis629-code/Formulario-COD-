@@ -38,22 +38,40 @@ export function renderAddons(
   host.appendChild(wrap);
 }
 
-/** Order bump: casilla de un clic. */
+/** Título con **negritas** y {precio}. Se escapa todo antes de dar formato. */
+function richTitle(a: Addon): string {
+  return esc(a.title)
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/\{precio\}/gi, `<b>${money(a.priceCents)}</b>`);
+}
+
+/** Borde, color de borde y fondo que eligió el comerciante para esta tarjeta. */
+function cardStyle(a: Addon): string {
+  const st = a.style;
+  const border = st.border === 'none' ? 'border:2px solid transparent' : `border:2px ${st.border} ${st.borderColor}`;
+  return `${border};background:${st.bg}`;
+}
+
+/** Precio aparte solo si el título no lo incluye ya con {precio}. */
+function priceTag(a: Addon, cls: string): string {
+  if (/\{precio\}/i.test(a.title) || !(a.priceCents > 0)) return '';
+  return `<span class="${cls}">${a.compareAtCents ? `<s>${money(a.compareAtCents)}</s>` : ''}${money(a.priceCents)}</span>`;
+}
+
+/** Order bump: casilla de un clic («Agrega una ESTACIÓN DE CEBO por solo RD$999»). */
 function renderBump(a: Addon, state: FormState, onChange: () => void): HTMLElement {
   const el = document.createElement('label');
   el.className = 'cod-bump';
+  el.setAttribute('style', cardStyle(a));
   el.innerHTML = `
     <input type="checkbox">
     <span class="cod-bump-box"></span>
-    ${a.image ? `<img class="cod-bump-img" src="${esc(a.image)}" alt="">` : ''}
     <span class="cod-bump-text">
-      <b>${esc(a.title)}</b>
+      <span class="cod-bump-title">${richTitle(a)}</span>
       ${a.description ? `<small>${esc(a.description)}</small>` : ''}
+      ${priceTag(a, 'cod-bump-price')}
     </span>
-    <span class="cod-bump-price">
-      ${a.compareAtCents ? `<s>${money(a.compareAtCents)}</s>` : ''}
-      ${money(a.priceCents)}
-    </span>`;
+    ${a.image ? `<img class="cod-bump-img" src="${esc(a.image)}" alt="" loading="lazy">` : ''}`;
 
   el.querySelector('input')!.addEventListener('change', (e) => {
     toggleAddon(state, a, (e.target as HTMLInputElement).checked);
@@ -67,15 +85,13 @@ function renderBump(a: Addon, state: FormState, onChange: () => void): HTMLEleme
 function renderUpsell(a: Addon, downsell: Addon | null, state: FormState, onChange: () => void): HTMLElement {
   const el = document.createElement('div');
   el.className = 'cod-upsell';
+  el.setAttribute('style', cardStyle(a));
   el.innerHTML = `
-    ${a.image ? `<img class="cod-upsell-img" src="${esc(a.image)}" alt="">` : ''}
+    ${a.image ? `<img class="cod-upsell-img" src="${esc(a.image)}" alt="" loading="lazy">` : ''}
     <div class="cod-upsell-body">
-      <b>${esc(a.title)}</b>
+      <span class="cod-bump-title">${richTitle(a)}</span>
       ${a.description ? `<small>${esc(a.description)}</small>` : ''}
-      <span class="cod-upsell-price">
-        ${a.compareAtCents ? `<s>${money(a.compareAtCents)}</s>` : ''}
-        ${money(a.priceCents)}
-      </span>
+      ${priceTag(a, 'cod-upsell-price')}
     </div>
     <button type="button" class="cod-upsell-add">Añadir</button>`;
 

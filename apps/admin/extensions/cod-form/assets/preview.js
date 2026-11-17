@@ -1,5 +1,6 @@
-import { C as CSS, t as tokensToCss, F as FormState, q as quote, r as renderForm } from "./index-CCgsoCAs.js";
-import { renderTrigger } from "./trigger-5lHK5Vd5.js";
+import { C as CSS, t as tokensToCss, F as FormState, q as quote, r as renderForm } from "./index-oS3cpOni.js";
+import { renderTrigger } from "./trigger-OXOUZ-hE.js";
+let lastFocus = null;
 let lastSelected = null;
 let lastFormKey = "";
 let lastTriggerKey = "";
@@ -13,7 +14,7 @@ const PREVIEW_CSS = `
 .cod-field.cod-selected::before{content:attr(data-label);position:absolute;top:-9px;right:6px;z-index:2;
   background:#005bd3;color:#fff;font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px}`;
 function renderPreview(host, fields, tokens, opts = {}) {
-  var _a, _b;
+  var _a, _b, _c, _d, _e, _f;
   currentOnSelect = opts.onSelect;
   renderTriggerPreview(host, tokens, !!opts.showTrigger);
   const firstTime = !host.shadowRoot;
@@ -38,14 +39,19 @@ ${PREVIEW_CSS}`;
     tokens.submit.text,
     tokens.submit.iconType,
     tokens.submit.icon,
-    tokens.submit.priceDisplay
+    tokens.submit.priceDisplay,
+    tokens.offerCard.showCompare,
+    tokens.offerCard.showSave,
+    (_b = opts.offers) != null ? _b : [],
+    (_c = opts.addons) != null ? _c : [],
+    (_d = opts.unitPriceCents) != null ? _d : 0
   ]);
   let root = shadow.querySelector(".cod-root");
   if (formKey !== lastFormKey || !root) {
     lastFormKey = formKey;
     const next = document.createElement("div");
     next.className = root ? "cod-root cod-static" : "cod-root";
-    buildForm(next, fields, tokens);
+    buildForm(next, fields, tokens, opts);
     if (root) shadow.replaceChild(next, root);
     else shadow.appendChild(next);
     root = next;
@@ -57,9 +63,15 @@ ${PREVIEW_CSS}`;
       btn.className = btn.className.replace(/\bcod-submit-anim-\S+/g, "").trim() + " " + cls;
     }
   }
-  markSelection(root, fields, (_b = opts.selectedKey) != null ? _b : null);
+  if (opts.focus && opts.focus !== lastFocus) {
+    const target = root.querySelector(opts.focus === "offers" ? ".cod-offers-slot" : ".cod-addons-slot");
+    window.setTimeout(() => target == null ? void 0 : target.scrollIntoView({ block: "center", behavior: "smooth" }), 250);
+  }
+  lastFocus = (_e = opts.focus) != null ? _e : null;
+  markSelection(root, fields, (_f = opts.selectedKey) != null ? _f : null);
 }
-function buildForm(root, fields, tokens) {
+function buildForm(root, fields, tokens, opts) {
+  var _a, _b;
   const config = {
     formId: "preview",
     formVersionId: "preview",
@@ -114,9 +126,9 @@ function buildForm(root, fields, tokens) {
         purchaseEventName: "Purchase"
       }
     },
-    offers: [],
-    addons: [],
-    product: { variantId: "preview", title: "Producto de ejemplo", unitPriceCents: 189e3, image: null }
+    offers: (_a = opts.offers) != null ? _a : [],
+    addons: (_b = opts.addons) != null ? _b : [],
+    product: { variantId: "preview", title: "Producto de ejemplo", unitPriceCents: opts.unitPriceCents || 189e3, image: null }
   };
   const state = new FormState(config);
   state.quoter = async (r) => quote({
@@ -127,6 +139,10 @@ function buildForm(root, fields, tokens) {
     defaultShippingCents: config.settings.defaultShippingCents,
     freeShippingOverCents: config.settings.freeShippingOverCents,
     codFeeCents: 0,
+    addonsCents: state.acceptedAddons.reduce((sum, x) => {
+      const a = config.addons.find((y) => y.id === x.id);
+      return sum + (a ? a.priceCents * a.qty : 0);
+    }, 0),
     discount: r.discountCode ? { code: r.discountCode.toUpperCase(), source: "APP", label: "Ejemplo", kind: "PERCENTAGE", valueBps: 1e3 } : null
   });
   renderForm(root, config, state, {

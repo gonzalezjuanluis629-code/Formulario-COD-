@@ -84,7 +84,10 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
   const accessToken = decrypt(shop.id, Buffer.from(shop.accessTokenEnc));
   const pii = JSON.parse(decrypt(shop.id, Buffer.from(sub.customerDataEnc!))) as Pii;
   const totals = sub.totals as unknown as Totals;
-  const items = sub.items as { variantId: string; qty: number }[];
+  type Item = { variantId?: string; qty: number; priceCents?: number; charge?: boolean; title?: string };
+  const allItems = sub.items as Item[];
+  const items = allItems.filter((i) => !i.charge && i.variantId) as (Item & { variantId: string })[];
+  const charges = allItems.filter((i) => i.charge && (i.priceCents ?? 0) > 0);
   const addr = profile.toShopifyAddress(pii.address);
 
   const attrs: { key: string; value: string }[] = [];
@@ -116,7 +119,14 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
       note: pii.note ?? undefined,
       tags,
       customAttributes: attrs,
-      lineItems: items.map((i) => ({ variantId: i.variantId, quantity: i.qty })),
+      lineItems: items.map((i) => ({
+        variantId: i.variantId,
+        quantity: i.qty,
+        // Extras con precio especial: Shopify cobra exactamente lo que vio el cliente.
+        ...(i.priceCents != null
+          ? { priceSet: { shopMoney: { amount: (i.priceCents / 100).toFixed(2), currencyCode: settings.currency } } }
+          : {}),
+      })),
       shippingAddress: {
         firstName: pii.firstName,
         lastName: pii.lastName,
@@ -142,6 +152,11 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
             },
           },
         },
+        // Cargos extra elegidos por el cliente (p. ej. «Envío express»).
+        ...charges.map((c) => ({
+          title: c.title || 'Cargo extra',
+          priceSet: { shopMoney: { amount: ((c.priceCents ?? 0) / 100).toFixed(2), currencyCode: settings.currency } },
+        })),
         // COD fee: se muestra como línea aparte para que el desglose sea claro.
         ...(totals.codFeeCents && totals.codFeeCents > 0
           ? [{
