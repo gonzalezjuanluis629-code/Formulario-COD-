@@ -1,5 +1,5 @@
-import { C as CSS, t as tokensToCss, F as FormState, q as quote, r as renderForm } from "./index-B43ZGH_H.js";
-import { renderTrigger } from "./trigger-DkewmEBz.js";
+import { C as CSS, t as tokensToCss, F as FormState, q as quote, r as renderForm } from "./index-Bqy7DBbX.js";
+import { renderTrigger } from "./trigger-Dw8pbe_i.js";
 let lastFocus = null;
 let lastSelected = null;
 let lastFormKey = "";
@@ -42,6 +42,7 @@ ${PREVIEW_CSS}`;
     tokens.submit.priceDisplay,
     tokens.offerCard.showCompare,
     tokens.offerCard.showSave,
+    tokens.offerCard.showInForm,
     (_b = opts.offers) != null ? _b : [],
     (_c = opts.addons) != null ? _c : [],
     (_d = opts.unitPriceCents) != null ? _d : 0
