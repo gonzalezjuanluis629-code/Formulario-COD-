@@ -43,6 +43,8 @@ export const CSS = `
 .cod-field input:focus,.cod-field select:focus,.cod-field textarea:focus{
   border-color:var(--cod-brand);background:#fff;box-shadow:0 0 0 3.5px rgba(0,0,0,.06)}
 .cod-field textarea{resize:none;line-height:1.5}
+/* iPhone hace zoom (y no lo quita) en campos con letra < 16 px: nunca menos de 16 px. */
+input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,1em)!important}
 .cod-invalid input,.cod-invalid select,.cod-invalid textarea,.cod-invalid .cod-phone{
   border-color:var(--cod-danger);animation:cod-shake .34s var(--cod-ease)}
 @keyframes cod-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}
