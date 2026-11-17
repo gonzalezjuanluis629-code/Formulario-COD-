@@ -59,7 +59,7 @@ export function renderPreview(host: HTMLElement, fields: Field[], tokens: ThemeT
 
   // 2) Los campos y textos se redibujan SOLO si cambiaron, y sin animación de entrada.
   const formKey = JSON.stringify([fields, tokens.progressBar, tokens.submit.text, tokens.submit.iconType,
-    tokens.submit.icon, tokens.submit.animation, tokens.submit.priceDisplay]);
+    tokens.submit.icon, tokens.submit.priceDisplay]);
   let root = shadow.querySelector<HTMLElement>('.cod-root');
   if (formKey !== lastFormKey || !root) {
     lastFormKey = formKey;
@@ -68,6 +68,15 @@ export function renderPreview(host: HTMLElement, fields: Field[], tokens: ThemeT
     buildForm(next, fields, tokens);
     if (root) shadow.replaceChild(next, root); else shadow.appendChild(next);
     root = next;
+  }
+
+  // Animación del botón: solo se cambia su clase, sin redibujar nada.
+  const btn = root.querySelector<HTMLElement>('.cod-submit');
+  if (btn) {
+    const cls = `cod-submit-anim-${tokens.submit.animation}`;
+    if (!btn.classList.contains(cls)) {
+      btn.className = btn.className.replace(/\bcod-submit-anim-\S+/g, '').trim() + ' ' + cls;
+    }
   }
 
   // 3) Selección: solo cambia el resaltado.

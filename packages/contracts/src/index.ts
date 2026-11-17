@@ -75,6 +75,9 @@ export const TriggerButtonSchema = z.object({
   bgType: z.enum(['solid', 'gradient']).default('solid'),
   bg2: z.string().default('#4f46e5'),
   gradientAngle: z.number().int().min(0).max(360).default(135),
+  /** Sombra del botón (se combina con cualquier animación). */
+  shadow: z.enum(['none', 'sm', 'md', 'lg']).default('none'),
+  shadowColor: z.string().default('#000000'),
   radius: z.number().int().min(0).max(60).default(60),
   /** Icono: un emoji/carácter, o una URL de imagen si iconType === 'image'. */
   iconType: z.enum(['none', 'emoji', 'image']).default('emoji'),
@@ -103,6 +106,9 @@ export const SubmitButtonSchema = z.object({
   bgType: z.enum(['solid', 'gradient']).default('solid'),
   bg2: z.string().default('#4f46e5'),
   gradientAngle: z.number().int().min(0).max(360).default(135),
+  /** Sombra del botón (se combina con cualquier animación). */
+  shadow: z.enum(['none', 'sm', 'md', 'lg']).default('none'),
+  shadowColor: z.string().default('#000000'),
   /** Color al que cambia cuando el formulario está completo. */
   readyBg: z.string().default('#16a34a'),
   iconType: z.enum(['none', 'emoji']).default('none'),
@@ -194,6 +200,9 @@ export const ThemeTokensSchema = z.object({
   animations: z.boolean().default(true),
   progressBar: z.boolean().default(true),
   progressColor: z.string().default('#16a34a'),
+  /** Botón «Aplicar» del código de descuento. */
+  applyBg: z.string().default('#111111'),
+  applyColor: z.string().default('#ffffff'),
   /** Color del botón de envío cuando el formulario está completo. */
   readyColor: z.string().default('#16a34a'),
   logoUrl: z.string().nullable().default(null),

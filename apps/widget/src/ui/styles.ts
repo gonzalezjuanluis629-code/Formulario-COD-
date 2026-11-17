@@ -76,8 +76,8 @@ export const CSS = `
 .cod-discount{display:flex;gap:8px}
 .cod-discount input{flex:1;min-width:0;text-transform:uppercase}
 .cod-discount input:disabled{opacity:.7}
-.cod-discount-btn{flex-shrink:0;padding:0 16px;border:0;border-radius:var(--cod-radius);background:var(--cod-text);
-  color:var(--cod-surface);font:inherit;font-weight:600;font-size:13px;cursor:pointer}
+.cod-discount-btn{flex-shrink:0;padding:0 16px;border:0;border-radius:var(--cod-radius);background:var(--cod-apply-bg,var(--cod-text));
+  color:var(--cod-apply-color,var(--cod-surface));font:inherit;font-weight:600;font-size:13px;cursor:pointer}
 .cod-discount-btn:disabled{opacity:.6;cursor:default}
 .cod-discount-ok{display:block;margin-top:5px;font-size:12px;font-weight:600;color:var(--cod-ok)}
 .cod-choices{display:grid;gap:7px}
@@ -152,6 +152,7 @@ export const CSS = `
 .cod-submit{width:100%;margin-top:14px;height:var(--cod-btn-height);display:flex;align-items:center;
   justify-content:center;gap:8px;background:var(--cod-btn-bg);color:var(--cod-btn-color);border:0;
   border-radius:var(--cod-btn-radius);font:inherit;font-size:var(--cod-btn-size);font-weight:700;cursor:pointer;
+  filter:var(--cod-btn-shadow,none);
   transition:background .18s var(--cod-ease),transform .12s var(--cod-ease)}
 .cod-submit:active{transform:scale(.985)}
 .cod-submit.cod-ready{background:var(--cod-btn-ready)}

@@ -1,4 +1,4 @@
-import { A as ANIMATION_SPEEDS, b as buttonBackground, a as buttonAnimationCss } from "./index-uESjr13O.js";
+import { A as ANIMATION_SPEEDS, b as buttonBackground, a as buttonShadow, c as buttonAnimationCss } from "./index-CCgsoCAs.js";
 function renderTrigger(host, cfg, onClick) {
   var _a;
   injectStylesOnce();
@@ -8,6 +8,7 @@ function renderTrigger(host, cfg, onClick) {
   btn.style.cssText = [
     `--t-bg:${buttonBackground(cfg)}`,
     `--t-solid:${cfg.bg}`,
+    `--t-shadow:${buttonShadow(cfg)}`,
     `--anim-speed:${ANIMATION_SPEEDS[(_a = cfg.animationSpeed) != null ? _a : "normal"]}`,
     `--t-color:${cfg.color}`,
     `--t-radius:${cfg.radius}px`,
@@ -50,9 +51,9 @@ function injectStylesOnce() {
     .cod-trigger{display:inline-flex;align-items:center;justify-content:center;gap:10px;
       box-sizing:border-box;max-width:100%;padding:0 26px;background:var(--t-bg);color:var(--t-color);border:0;
       border-radius:var(--t-radius);font-family:inherit;font-weight:700;cursor:pointer;line-height:1.15;
-      text-align:center;overflow:hidden;
+      text-align:center;overflow:hidden;filter:var(--t-shadow,none);
       transition:transform .12s cubic-bezier(.32,.72,0,1),filter .2s;-webkit-tap-highlight-color:transparent}
-    .cod-trigger:hover{filter:brightness(1.08)}
+    .cod-trigger:hover{filter:var(--t-shadow,none) brightness(1.08)}
     .cod-trigger:active{transform:scale(.97)}
     .cod-trigger-emoji{font-size:1.15em;line-height:1}
     .cod-trigger-img{width:1.4em;height:1.4em;object-fit:contain;border-radius:4px}

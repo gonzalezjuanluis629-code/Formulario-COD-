@@ -236,6 +236,15 @@ export default function FormEditor() {
                   allFields={fields}
                   onChange={changeField}
                   onBack={() => setSelected(null)}
+                  onGoDesign={() => { setSelected(null); setTab('design'); setDesignOpen('colors'); }}
+                  onMove={(dir) => {
+                    const list = [...fields].sort((a, b) => a.order - b.order);
+                    const i = list.findIndex((f) => f.key === selectedField.key);
+                    const j = i + dir;
+                    if (i < 0 || j < 0 || j >= list.length) return;
+                    [list[i], list[j]] = [list[j]!, list[i]!];
+                    changeFields(list.map((f, n) => ({ ...f, order: n + 1 })));
+                  }}
                   onRemove={() => {
                     changeFields(fields.filter((f) => f.key !== selectedField.key).map((f, i) => ({ ...f, order: i + 1 })));
                     setSelected(null);
@@ -244,7 +253,7 @@ export default function FormEditor() {
               ) : (
                 <BlockStack gap="300">
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Toca un campo para editarlo. Arrástralo desde ⠿ para cambiar el orden.
+                    Toca un campo para editarlo. Para cambiar el orden, arrastra su tarjeta hacia arriba o hacia abajo.
                   </Text>
                   <FieldList fields={fields} onChange={changeFields} onSelect={setSelected} />
                 </BlockStack>
