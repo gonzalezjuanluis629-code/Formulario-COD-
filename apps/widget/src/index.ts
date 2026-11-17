@@ -1,5 +1,5 @@
 import type { WidgetConfig, SubmitRequest, QuoteResponse } from '@cod/contracts';
-import { api, ApiError, DIRECT, readCart, clearCart, type ShopCartLine } from './core/api';
+import { api, ApiError, DIRECT, readCart, readCartFull, clearCart, type ShopCartLine } from './core/api';
 import { tokensToCss } from './core/theme';
 import { validateField, isVisible } from './core/validate';
 import { renderForm } from './ui/form';
@@ -118,7 +118,7 @@ export async function mount(opts: MountOptions): Promise<void> {
  */
 function renderCartInto(mountRoot: HTMLElement, config: WidgetConfig): void {
   mountRoot.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  readCart().then((lines) => {
+  readCartFull().then(({ lines, token, totalCents }) => {
     if (!mountRoot.isConnected) return;
     if (!lines.length) {
       mountRoot.innerHTML = '<div class="cod-form-error" role="alert">Tu carrito está vacío.</div>';
@@ -126,6 +126,10 @@ function renderCartInto(mountRoot: HTMLElement, config: WidgetConfig): void {
     }
     const state = new FormState(config);
     state.cart = lines.map((l) => ({ variantId: l.variantId, qty: l.qty }));
+    // Se cobra el TOTAL DEL CARRITO (con los descuentos de la tienda): el
+    // servidor lo lee de la tienda con este token.
+    state.cartToken = token;
+    state.cartTotalCents = totalCents;
     // Las tarjetas de cantidad son de un producto: en el carrito no se muestran.
     state.pageManagesQty = true;
     renderForm(mountRoot, config, state, { onSubmit: () => submit(mountRoot, config, state) });
@@ -314,6 +318,8 @@ export interface QuoteInput {
   formId: string; variantId: string; qty: number;
   province: string | null; discountCode: string | null; addonIds: string[];
   cart?: { variantId: string; qty: number }[];
+  cartToken?: string;
+  cartTotalCents?: number;
 }
 
 /** Estado del formulario. Deliberadamente simple: sin framework, sin peso. */
@@ -326,6 +332,8 @@ export class FormState {
   pageManagesQty = false;
   /** Pedido desde el carrito: todas sus líneas (si no, el producto del formulario). */
   cart: { variantId: string; qty: number }[] | null = null;
+  cartToken = '';
+  cartTotalCents = 0;
   private qtyListeners: ((q: number) => void)[] = [];
   location: SubmitRequest['location'] = null;
   discountCode: string | null = null;
@@ -371,7 +379,7 @@ export class FormState {
       province: this.values.province || this.values.provinceCode || null,
       discountCode,
       addonIds: this.acceptedAddons.map((a) => a.id),
-      ...(this.cart ? { cart: this.cart } : {}),
+      ...(this.cart ? { cart: this.cart, cartToken: this.cartToken, cartTotalCents: this.cartTotalCents } : {}),
     };
   }
 
@@ -430,7 +438,7 @@ async function submit(root: HTMLElement, config: WidgetConfig, state: FormState)
     discountCode: state.discountCode,
     acceptedAddons: state.acceptedAddons,
     fields: state.values,
-    ...(state.cart ? { cart: state.cart } : {}),
+    ...(state.cart ? { cart: state.cart, cartToken: state.cartToken, cartTotalCents: state.cartTotalCents } : {}),
     location: state.location,
     startedAt: state.startedAt,
     hp: '', // honeypot: si un bot lo rellena, el backend rechaza
