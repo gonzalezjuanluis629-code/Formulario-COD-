@@ -40,9 +40,13 @@ export async function connectFromFigui(input: { shop: string; accessToken: strin
   // eso, una cuenta con una conexión vieja podría seguir entrando al editor.
   let info: { name: string; email: string; currencyCode: string; ianaTimezone: string; billingAddress: { countryCodeV2: string } | null };
   try {
-    const data = await shopifyGraphql<{ shop: typeof info }>(input.shop, input.accessToken,
-      'query { shop { name email currencyCode ianaTimezone billingAddress { countryCodeV2 } } }');
+    const data = await shopifyGraphql<{ shop: typeof info; currentAppInstallation?: { accessScopes: { handle: string }[] } }>(input.shop, input.accessToken,
+      'query { shop { name email currencyCode ianaTimezone billingAddress { countryCodeV2 } } currentAppInstallation { accessScopes { handle } } }');
     info = data.shop;
+    // Los permisos que Shopify concedió DE VERDAD (si se aprobaron en Shopify
+    // sin reconectar en Figui, ya cuentan).
+    const granted = data.currentAppInstallation?.accessScopes?.map((x) => x.handle) ?? [];
+    if (granted.length) input = { ...input, scopes: granted.join(',') };
   } catch (e) {
     if (e instanceof ShopifyCallError && e.accessDenied) throw new FiguiError('Shopify no aceptó el acceso de Figui. Reconecta Shopify en Figui.', 401);
     throw new FiguiError(`No se pudo leer la tienda en Shopify: ${(e as Error).message}`, 502);
