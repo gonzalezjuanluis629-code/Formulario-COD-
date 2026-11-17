@@ -93,11 +93,25 @@ export async function mount(opts: MountOptions): Promise<void> {
         + 'z-index:2147482000;display:flex;justify-content:center;transition:opacity .25s ease,transform .25s ease;';
       hideWhileInlineVisible(host);
     }
+    let opening = false;
     renderTrigger(root, config.tokens.trigger, () => {
       // Si en la página ya está el formulario completo, el botón flotante lleva hasta él.
       const inlineForm = floating ? findInline('form') : null;
-      if (inlineForm) inlineForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else openModal(shadow, config, renderInto);
+      if (inlineForm) { inlineForm.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      if (isCart || !DIRECT?.cartButton) { openModal(shadow, config, renderInto); return; }
+      // Si este producto ya está en el carrito (la tienda lo mete al elegir una
+      // oferta o un combo), se cobra EL CARRITO: todos sus productos con los
+      // descuentos que les aplica la tienda. Con el carrito vacío, el producto.
+      if (opening) return;
+      opening = true;
+      readCart()
+        .then((lines) => lines.some((l) => l.productId === opts.productId))
+        .catch(() => false)
+        .then((inCart) => {
+          opening = false;
+          if (inCart) openModal(shadow, config, (r) => renderCartInto(r, config));
+          else openModal(shadow, config, renderInto);
+        });
     });
     try { api.track(config.formId, 'view', config.formVersionId); } catch { /* nunca bloquea */ }
     if (!floating && !isCart) ensureFloating(host);
