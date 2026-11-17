@@ -6,8 +6,8 @@ import type { WidgetConfig, QuoteResponse, SubmitRequest, SubmitResponse, Revers
  * tienda viene sin que nosotros expongamos tokens ni abramos CORS.
  */
 /** Tiendas conectadas desde Figui: el cargador deja aquí la API y la clave. */
-type Direct = { api: string; shop: string; k: string };
-const DIRECT = (globalThis as { __CODF__?: Direct }).__CODF__;
+type Direct = { api: string; shop: string; k: string; floating?: boolean; cartButton?: boolean };
+export const DIRECT = (globalThis as { __CODF__?: Direct }).__CODF__;
 const BASE = DIRECT?.api ?? '/apps/cod';
 
 /** Sin App Proxy, cada llamada lleva la tienda y su clave pública. */
@@ -37,7 +37,7 @@ export const api = {
   config: (productId: string, variantId: string) =>
     call<WidgetConfig>(`/form?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`),
 
-  quote: (body: { formId: string; variantId: string; qty: number; province?: string | null; discountCode?: string | null; addonIds?: string[] }) =>
+  quote: (body: { formId: string; variantId: string; qty: number; province?: string | null; discountCode?: string | null; addonIds?: string[]; cart?: { variantId: string; qty: number }[] }) =>
     call<QuoteResponse>('/quote', { method: 'POST', body: JSON.stringify(body) }),
 
   /** La API key de Google no toca jamás el navegador. */
@@ -62,3 +62,26 @@ export const api = {
     void fetch(url('/track'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true });
   },
 };
+
+/* ── Carrito de la tienda (la API Ajax de Shopify, en el mismo dominio) ── */
+export type ShopCartLine = { variantId: string; productId: string; qty: number };
+
+const shopRoot = () => ((window as { Shopify?: { routes?: { root?: string } } }).Shopify?.routes?.root ?? '/').replace(/\/?$/, '/');
+
+export async function readCart(): Promise<ShopCartLine[]> {
+  const res = await fetch(`${shopRoot()}cart.js`, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error('cart');
+  const cart = (await res.json()) as { items?: { variant_id: number; product_id: number; quantity: number }[] };
+  return (cart.items ?? []).filter((i) => i.quantity > 0).slice(0, 50).map((i) => ({
+    variantId: `gid://shopify/ProductVariant/${i.variant_id}`,
+    productId: `gid://shopify/Product/${i.product_id}`,
+    qty: Math.min(i.quantity, 99),
+  }));
+}
+
+/** Tras pedir por el formulario, el carrito se vacía (si no, el cliente lo vería lleno). */
+export function clearCart(): void {
+  void fetch(`${shopRoot()}cart/clear.js`, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } })
+    .then(() => document.dispatchEvent(new CustomEvent('cart:refresh', { bubbles: true })))
+    .catch(() => undefined);
+}

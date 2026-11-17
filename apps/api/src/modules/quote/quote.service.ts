@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { QuoteRequest, QuoteResponse, Offer } from '@cod/contracts';
+import type { QuoteRequest, QuoteResponse, Offer, CartLine } from '@cod/contracts';
 import { ShopSettingsSchema, OfferSchema } from '@cod/contracts';
 import { quote as runPricing } from '@cod/pricing';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -24,16 +24,29 @@ export class QuoteService {
 
   async compute(ctx: ShopContext, dto: QuoteRequest): Promise<QuoteResponse> {
     const settings = { ...ShopSettingsSchema.parse(ctx.settings ?? {}), ...(ctx.currency ? { currency: ctx.currency } : {}) };
-    const unitPriceCents = await this.variantPrice(ctx, dto.variantId);
+    const lines = orderLines(dto);
 
-    const offers = await this.prisma.offer.findMany({
-      where: { shopId: ctx.shopId, active: true, type: 'QUANTITY' },
-      orderBy: { priority: 'desc' },
-    });
-
-    const parsed: Offer[] = offers.map((o) =>
-      OfferSchema.parse({ id: o.id, label: o.name, type: 'QUANTITY', ...(o.payload as object) }),
-    );
+    // Un solo producto (aunque venga del carrito): precio × cantidad y las
+    // ofertas por cantidad aplican. Varios productos: la suma de cada línea
+    // con su precio real; las ofertas por cantidad son de un producto, no aplican.
+    let qty: number;
+    let unitPriceCents: number;
+    let parsed: Offer[] = [];
+    const [only] = lines;
+    if (lines.length === 1 && only) {
+      qty = only.qty;
+      unitPriceCents = await this.variantPrice(ctx, only.variantId);
+      const offers = await this.prisma.offer.findMany({
+        where: { shopId: ctx.shopId, active: true, type: 'QUANTITY' },
+        orderBy: { priority: 'desc' },
+      });
+      parsed = offers.map((o) =>
+        OfferSchema.parse({ id: o.id, label: o.name, type: 'QUANTITY', ...(o.payload as object) }),
+      );
+    } else {
+      qty = 1;
+      unitPriceCents = await this.cartPrice(ctx, lines);
+    }
 
     const discount = await this.discounts.validate(ctx, dto.discountCode ?? null);
 
@@ -48,7 +61,7 @@ export class QuoteService {
         : null;
 
     return runPricing({
-      qty: dto.qty,
+      qty,
       unitPriceCents,
       currency: settings.currency,
       offers: parsed,
@@ -61,6 +74,22 @@ export class QuoteService {
     });
   }
 
+  /** Suma del carrito con el precio real de cada variante en Shopify. */
+  private async cartPrice(ctx: ShopContext, lines: CartLine[]): Promise<number> {
+    const data = await this.admin.graphql<{ nodes: ({ id: string; price?: string } | null)[] }>(
+      ctx, `query($ids: [ID!]!){ nodes(ids:$ids){ ... on ProductVariant { id price } } }`,
+      { ids: lines.map((l) => l.variantId) },
+    );
+    const price = new Map(data.nodes.filter((n): n is { id: string; price: string } => !!n?.price).map((n) => [n.id, n.price]));
+    let total = 0;
+    for (const l of lines) {
+      const p = price.get(l.variantId);
+      if (p == null) throw new NotFoundException('Un producto del carrito ya no está disponible. Recarga la página.');
+      total += Math.round(parseFloat(p) * 100) * l.qty;
+    }
+    return total;
+  }
+
   /** Precio real de la variante, cacheado 60 s. */
   private async variantPrice(ctx: ShopContext, variantId: string): Promise<number> {
     const data = await this.admin.graphql<{
@@ -70,4 +99,20 @@ export class QuoteService {
     if (!data.productVariant) throw new NotFoundException('Variante no encontrada');
     return Math.round(parseFloat(data.productVariant.price) * 100);
   }
+}
+
+const VARIANT_GID = (id: string) => (/^\d+$/.test(id) ? `gid://shopify/ProductVariant/${id}` : id);
+
+/**
+ * Las líneas que se cobran: el carrito si viene (juntando la misma variante),
+ * si no, el producto del formulario. Lo usan la cotización y el pedido.
+ */
+export function orderLines(dto: { variantId: string; qty: number; cart?: CartLine[] }): CartLine[] {
+  if (!dto.cart?.length) return [{ variantId: VARIANT_GID(dto.variantId), qty: dto.qty }];
+  const merged = new Map<string, number>();
+  for (const l of dto.cart) {
+    const id = VARIANT_GID(l.variantId);
+    merged.set(id, (merged.get(id) ?? 0) + l.qty);
+  }
+  return [...merged].map(([variantId, qty]) => ({ variantId, qty }));
 }

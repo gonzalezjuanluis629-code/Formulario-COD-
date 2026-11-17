@@ -46,6 +46,24 @@ const api = {
     void fetch(url("/track"), { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true });
   }
 };
+const shopRoot = () => {
+  var _a2, _b, _c;
+  return ((_c = (_b = (_a2 = window.Shopify) == null ? void 0 : _a2.routes) == null ? void 0 : _b.root) != null ? _c : "/").replace(/\/?$/, "/");
+};
+async function readCart() {
+  var _a2;
+  const res = await fetch(`${shopRoot()}cart.js`, { credentials: "same-origin", headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error("cart");
+  const cart = await res.json();
+  return ((_a2 = cart.items) != null ? _a2 : []).filter((i) => i.quantity > 0).slice(0, 50).map((i) => ({
+    variantId: `gid://shopify/ProductVariant/${i.variant_id}`,
+    productId: `gid://shopify/Product/${i.product_id}`,
+    qty: Math.min(i.quantity, 99)
+  }));
+}
+function clearCart() {
+  void fetch(`${shopRoot()}cart/clear.js`, { method: "POST", credentials: "same-origin", headers: { Accept: "application/json" } }).then(() => document.dispatchEvent(new CustomEvent("cart:refresh", { bubbles: true }))).catch(() => void 0);
+}
 const ANIMATION_SPEEDS = { slow: 1.6, normal: 1, fast: 0.6 };
 function buttonAnimationCss(cls, color) {
   const k = (n) => `${cls}-k-${n}`;
@@ -556,7 +574,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-CeCcZEvx.js").then(({ renderAddons }) => {
+    void import("./addons-SHsGeWS_.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1105,7 +1123,12 @@ async function mount(opts) {
   style.textContent = `:host{${tokensToCss(config.tokens)}}
 ${CSS}
 ${config.tokens.customCss}`;
+  const isCart = host.dataset.cart === "true";
   const renderInto = (mountRoot) => {
+    if (isCart) {
+      renderCartInto(mountRoot, config);
+      return;
+    }
     const state = new FormState(config);
     const fromPage = pageQuantityInfo(config.product.variantId);
     if (fromPage && (fromPage.qty > 1 || fromPage.managed)) {
@@ -1126,9 +1149,9 @@ ${config.tokens.customCss}`;
     }, 60);
     document.addEventListener("change", follow, true);
   };
-  const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
+  const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-BFOZUbsU.js");
+    const { renderTrigger } = await import("./trigger-DR7pcaHV.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1146,22 +1169,56 @@ ${config.tokens.customCss}`;
       api.track(config.formId, "view", config.formVersionId);
     } catch {
     }
+    if (!floating && !isCart) ensureFloating(host);
     return;
   }
   root.innerHTML = "";
   host.dataset.codRendered = "form";
   renderInto(root);
+  ensureFloating(host);
   try {
     api.track(config.formId, "view", config.formVersionId);
   } catch {
   }
 }
+function renderCartInto(mountRoot, config) {
+  mountRoot.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
+  readCart().then((lines) => {
+    if (!mountRoot.isConnected) return;
+    if (!lines.length) {
+      mountRoot.innerHTML = '<div class="cod-form-error" role="alert">Tu carrito está vacío.</div>';
+      return;
+    }
+    const state = new FormState(config);
+    state.cart = lines.map((l) => ({ variantId: l.variantId, qty: l.qty }));
+    state.pageManagesQty = true;
+    renderForm(mountRoot, config, state, { onSubmit: () => submit(mountRoot, config, state) });
+  }).catch(() => {
+    if (mountRoot.isConnected) mountRoot.innerHTML = '<div class="cod-form-error" role="alert">No pudimos leer tu carrito. Recarga la página e inténtalo de nuevo.</div>';
+  });
+}
 function inlineHosts() {
   return [...document.querySelectorAll("[data-cod-form]")].filter((el) => el.dataset.floating !== "true");
 }
+function fixedHosts() {
+  return inlineHosts().filter((el) => el.dataset.cart !== "true" && el.isConnected);
+}
 function findInline(kind) {
   var _a2;
-  return (_a2 = inlineHosts().find((el) => el.isConnected && el.dataset.codRendered === kind && el.getClientRects().length > 0)) != null ? _a2 : null;
+  return (_a2 = fixedHosts().find((el) => el.dataset.codRendered === kind && el.getClientRects().length > 0)) != null ? _a2 : null;
+}
+function ensureFloating(from) {
+  var _a2, _b;
+  if (!(DIRECT == null ? void 0 : DIRECT.floating) || from.dataset.floating === "true" || from.dataset.cart === "true") return;
+  if (document.querySelector('[data-cod-form][data-floating="true"]')) return;
+  const el = document.createElement("div");
+  el.setAttribute("data-cod-form", "");
+  el.dataset.mode = "popup";
+  el.dataset.floating = "true";
+  el.dataset.codAutoFloat = "1";
+  el.dataset.productId = (_a2 = from.dataset.productId) != null ? _a2 : "";
+  el.dataset.variantId = (_b = from.dataset.variantId) != null ? _b : "";
+  document.body.appendChild(el);
 }
 function hideWhileInlineVisible(floatingHost) {
   if (!("IntersectionObserver" in window)) return;
@@ -1182,7 +1239,14 @@ function hideWhileInlineVisible(floatingHost) {
     apply();
   }, { threshold: 0.15 });
   const watched = /* @__PURE__ */ new WeakSet();
+  let mo = null;
   const scan = () => {
+    if (floatingHost.dataset.codAutoFloat && !fixedHosts().length) {
+      floatingHost.remove();
+      io.disconnect();
+      mo == null ? void 0 : mo.disconnect();
+      return;
+    }
     inlineHosts().forEach((el) => {
       if (!watched.has(el)) {
         watched.add(el);
@@ -1192,7 +1256,8 @@ function hideWhileInlineVisible(floatingHost) {
     apply();
   };
   scan();
-  new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
+  mo = new MutationObserver(scan);
+  mo.observe(document.body, { childList: true, subtree: true });
 }
 function openModal(shadow, config, renderInto) {
   document.querySelectorAll("[data-cod-modal]").forEach((el) => el.remove());
@@ -1244,6 +1309,8 @@ class FormState {
     __publicField(this, "qtyFromPage", false);
     /** La página tiene su propia caja de ofertas: el formulario no las repite. */
     __publicField(this, "pageManagesQty", false);
+    /** Pedido desde el carrito: todas sus líneas (si no, el producto del formulario). */
+    __publicField(this, "cart", null);
     __publicField(this, "qtyListeners", []);
     __publicField(this, "location", null);
     __publicField(this, "discountCode", null);
@@ -1283,7 +1350,8 @@ class FormState {
       qty: this.qty,
       province: this.values.province || this.values.provinceCode || null,
       discountCode,
-      addonIds: this.acceptedAddons.map((a) => a.id)
+      addonIds: this.acceptedAddons.map((a) => a.id),
+      ...this.cart ? { cart: this.cart } : {}
     };
   }
   /** Recotiza (con pausa de 300 ms) solo si cambió algo que afecta al precio. */
@@ -1339,6 +1407,7 @@ async function submit(root, config, state) {
     discountCode: state.discountCode,
     acceptedAddons: state.acceptedAddons,
     fields: state.values,
+    ...state.cart ? { cart: state.cart } : {},
     location: state.location,
     startedAt: state.startedAt,
     hp: ""
@@ -1346,6 +1415,7 @@ async function submit(root, config, state) {
   };
   try {
     const res = await api.submit(payload);
+    if (state.cart) clearCart();
     try {
       api.track(config.formId, "submit_attempt", state.idempotencyKey);
     } catch {
@@ -1422,7 +1492,8 @@ function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 function autoPlace() {
-  const manualShown = () => inlineHosts().some((el) => !el.dataset.codAuto && el.isConnected && el.getClientRects().length > 0);
+  placeCartButtons();
+  const manualShown = () => fixedHosts().some((el) => !el.dataset.codAuto && el.getClientRects().length > 0);
   if (manualShown()) document.querySelectorAll("[data-cod-auto]").forEach((el) => el.remove());
   document.querySelectorAll("[data-cod-autoplace]").forEach((marker) => {
     var _a2, _b, _c;
@@ -1441,6 +1512,26 @@ function autoPlace() {
     el.style.margin = "10px 0";
     anchor.insertAdjacentElement("afterend", el);
     marker.remove();
+  });
+}
+const CHECKOUT = 'button[name="checkout"], input[name="checkout"], button#checkout, a[href$="/checkout"]';
+function placeCartButtons() {
+  if (!(DIRECT == null ? void 0 : DIRECT.cartButton)) return;
+  document.querySelectorAll(CHECKOUT).forEach((btn) => {
+    var _a2;
+    if (btn.closest("[data-cod-form], [data-cod-modal]")) return;
+    const parent = btn.parentElement;
+    const row = parent && parent.tagName !== "FORM" && getComputedStyle(parent).display.includes("flex") && !getComputedStyle(parent).flexDirection.startsWith("column");
+    const anchor = row ? parent : btn;
+    const next = anchor.nextElementSibling;
+    if ((next == null ? void 0 : next.dataset.cart) === "true") return;
+    if ((_a2 = anchor.parentElement) == null ? void 0 : _a2.querySelector(':scope > [data-cod-form][data-cart="true"]')) return;
+    const el = document.createElement("div");
+    el.setAttribute("data-cod-form", "");
+    el.dataset.mode = "popup";
+    el.dataset.cart = "true";
+    el.style.cssText = "display:block;width:100%;margin:10px 0 0;";
+    anchor.insertAdjacentElement("afterend", el);
   });
 }
 function pageQuantity(variantId) {
@@ -1482,6 +1573,10 @@ function boot() {
   document.querySelectorAll("[data-cod-form]:not([data-cod-mounted])").forEach((el) => {
     var _a2, _b, _c, _d;
     el.dataset.codMounted = "1";
+    if (el.dataset.cart === "true") {
+      void mountCart(el);
+      return;
+    }
     if (/^\d+$/.test((_a2 = el.dataset.productId) != null ? _a2 : "")) el.dataset.productId = `gid://shopify/Product/${el.dataset.productId}`;
     if (/^\d+$/.test((_b = el.dataset.variantId) != null ? _b : "")) el.dataset.variantId = `gid://shopify/ProductVariant/${el.dataset.variantId}`;
     if (!/\d+$/.test((_c = el.dataset.variantId) != null ? _c : "") || !/\d+$/.test((_d = el.dataset.productId) != null ? _d : "")) {
@@ -1494,6 +1589,35 @@ function boot() {
       container: el
     });
   });
+}
+async function mountCart(el) {
+  let lines;
+  try {
+    lines = await readCart();
+  } catch {
+    el.remove();
+    return;
+  }
+  if (!lines.length) {
+    el.style.display = "none";
+    return;
+  }
+  const seen = /* @__PURE__ */ new Set();
+  for (const l of lines) {
+    if (seen.has(l.productId)) continue;
+    seen.add(l.productId);
+    try {
+      await api.config(l.productId, l.variantId);
+    } catch {
+      continue;
+    }
+    el.dataset.productId = l.productId;
+    el.dataset.variantId = l.variantId;
+    if (!el.isConnected) return;
+    await mount({ productId: l.productId, variantId: l.variantId, container: el });
+    return;
+  }
+  el.remove();
 }
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", boot);
@@ -1541,6 +1665,10 @@ new MutationObserver((muts) => {
   for (const m of muts) {
     for (const n of m.addedNodes) {
       if (n instanceof HTMLElement && (n.matches("[data-cod-form]") || n.querySelector("[data-cod-form]"))) {
+        queueBoot();
+        return;
+      }
+      if ((DIRECT == null ? void 0 : DIRECT.cartButton) && n instanceof HTMLElement && (n.matches(CHECKOUT) || n.querySelector(CHECKOUT))) {
         queueBoot();
         return;
       }

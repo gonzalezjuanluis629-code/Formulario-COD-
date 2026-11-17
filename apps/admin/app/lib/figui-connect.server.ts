@@ -19,6 +19,7 @@ export type FiguiStatus = {
   storefront: {
     autoPlace: boolean;
     floating: boolean;
+    cartButton: boolean;
     installed: boolean;
     themeName: string | null;
     canInstall: boolean;
@@ -110,22 +111,23 @@ export async function statusFor(domain: string): Promise<FiguiStatus> {
     shop: { domain, name: shop.name, currency: shop.currency },
     managedBy,
     form,
-    storefront: { autoPlace: settings.storefront.autoPlace, floating: settings.storefront.floating, installed, themeName, canInstall, error },
+    storefront: { autoPlace: settings.storefront.autoPlace, floating: settings.storefront.floating, cartButton: settings.storefront.cartButton, installed, themeName, canInstall, error },
     manualSnippet: manualSnippet(domain, 'popup'),
     manualFormSnippet: manualSnippet(domain, 'embedded'),
   };
 }
 
 /** Encender/apagar en la tienda y dónde sale el botón. */
-export async function updateStorefront(domain: string, input: { enabled?: boolean; autoPlace?: boolean; floating?: boolean }) {
+export async function updateStorefront(domain: string, input: { enabled?: boolean; autoPlace?: boolean; floating?: boolean; cartButton?: boolean }) {
   const shop = await db.shop.findUnique({ where: { domain }, include: { shopifyApp: true } });
   if (!shop || shop.uninstalledAt) throw new FiguiError('La tienda no está conectada al formulario.', 404);
 
-  if (typeof input.autoPlace === 'boolean' || typeof input.floating === 'boolean') {
+  if (typeof input.autoPlace === 'boolean' || typeof input.floating === 'boolean' || typeof input.cartButton === 'boolean') {
     const current = ShopSettingsSchema.parse(shop.settings ?? {});
     const storefront = {
       autoPlace: input.autoPlace ?? current.storefront.autoPlace,
       floating: input.floating ?? current.storefront.floating,
+      cartButton: input.cartButton ?? current.storefront.cartButton,
     };
     await db.shop.update({ where: { id: shop.id }, data: { settings: { ...(shop.settings as object), storefront } } });
   }

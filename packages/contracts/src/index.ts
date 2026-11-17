@@ -267,8 +267,10 @@ export const ShopSettingsSchema = z.object({
   storefront: z.object({
     /** Botón fijo debajo de «Agregar al carrito» (o del precio). */
     autoPlace: z.boolean().default(true),
-    /** Botón flotante abajo de la pantalla al bajar. */
+    /** Botón flotante abajo de la pantalla al bajar (solo donde hay un botón fijo). */
     floating: z.boolean().default(true),
+    /** Botón «Comprar ahora» en el carrito (página y carrito lateral): cobra todo el carrito. */
+    cartButton: z.boolean().default(true),
   }).default({}),
 });
 export type ShopSettings = z.infer<typeof ShopSettingsSchema>;
@@ -355,6 +357,13 @@ export const WidgetConfigSchema = z.object({
 export type WidgetConfig = z.infer<typeof WidgetConfigSchema>;
 
 /* ─────────────── Cotización ─────────────── */
+/** Líneas del carrito de la tienda (formulario abierto desde el carrito). */
+export const CartLineSchema = z.object({
+  variantId: z.string(),
+  qty: z.number().int().min(1).max(99),
+});
+export type CartLine = z.infer<typeof CartLineSchema>;
+
 export const QuoteRequestSchema = z.object({
   formId: z.string(),
   variantId: z.string(),
@@ -363,6 +372,8 @@ export const QuoteRequestSchema = z.object({
   discountCode: z.string().max(64).nullable().optional(),
   /** IDs de addons aceptados (order bumps / upsells / downsells). */
   addonIds: z.array(z.string()).default([]),
+  /** Si viene, se cobra TODO el carrito (variantId/qty se ignoran). */
+  cart: z.array(CartLineSchema).min(1).max(50).optional(),
 });
 export type QuoteRequest = z.infer<typeof QuoteRequestSchema>;
 
@@ -393,6 +404,8 @@ export const SubmitRequestSchema = z.object({
   discountCode: z.string().max(64).nullable().optional(),
   /** Addons aceptados: se convierten en líneas extra del pedido. */
   acceptedAddons: z.array(AcceptedAddonSchema).default([]),
+  /** Pedido desde el carrito: todas sus líneas (variantId/qty se ignoran). */
+  cart: z.array(CartLineSchema).min(1).max(50).optional(),
   /** Valores de los campos dinámicos, indexados por `key`. */
   fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
   location: LocationSchema.nullable(),

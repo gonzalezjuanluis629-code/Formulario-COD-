@@ -25,7 +25,7 @@ export class StorefrontController {
     // Dirección fija del servidor (variable PUBLIC_API_URL): no se arma con
     // cabeceras que el visitante podría falsear (el script se guarda en caché).
     const base = (process.env.PUBLIC_API_URL || `${req.protocol}://${req.headers.host}`).replace(/\/+$/, '');
-    const cfg = { api: `${base}/apps/cod`, widget: `${base}/storefront/widget/widget.js`, shop: ctx.domain, k, autoPlace: sf.autoPlace, floating: sf.floating };
+    const cfg = { api: `${base}/apps/cod`, widget: `${base}/storefront/widget/widget.js`, shop: ctx.domain, k, autoPlace: sf.autoPlace, floating: sf.floating, cartButton: sf.cartButton };
     return LOADER.replace('__CFG__', JSON.stringify(cfg));
   }
 }
@@ -47,15 +47,25 @@ const LOADER = `/* Formulario COD */
   }
   function place(ids) {
     // Si el tema ya trae los botones de la app (extensión), no se duplican.
+    // El botón flotante lo pone el widget, y solo donde haya un botón fijo.
     if (C.autoPlace && !document.querySelector('[data-cod-autoplace],[data-cod-auto]')) {
       div(Object.assign({ hidden: '', 'data-cod-autoplace': '' }, ids));
     }
-    if (C.floating && !document.querySelector('[data-cod-form][data-floating]')) {
-      div(Object.assign({ 'data-cod-form': '', 'data-mode': 'popup', 'data-floating': 'true' }, ids));
-    }
     load();
   }
+  // Botón del carrito: el widget se carga cuando aparece un «Pagar» del tema
+  // (página del carrito o carrito lateral al añadir un producto).
+  var CHECKOUT = 'button[name="checkout"],input[name="checkout"],button#checkout,a[href$="/checkout"]';
+  function watchCart() {
+    if (!C.cartButton) return;
+    if (document.querySelector(CHECKOUT)) { load(); return; }
+    var mo = new MutationObserver(function () {
+      if (document.querySelector(CHECKOUT)) { mo.disconnect(); load(); }
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+  }
   function go() {
+    watchCart();
     // El tema (snippet de Figui) ya dice el producto de la página.
     var pd = document.querySelector('[data-cod-product]');
     if (pd) {
