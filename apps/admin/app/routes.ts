@@ -7,6 +7,9 @@ export default [
   route("figui-api/connect", "routes/figui-api.connect.ts"),
   route("figui-api/storefront", "routes/figui-api.storefront.ts"),
   route("figui-api/resources", "routes/figui-api.resources.ts"),
+  route("figui-api/disconnect", "routes/figui-api.disconnect.ts"),
+  route("figui-api/session", "routes/figui-api.session.ts"),
+  route("figui-api/token", "routes/figui-api.token.ts"),
   // El mismo editor, abierto desde Figui (sin Shopify App Bridge).
   route("figui", "routes/figui.tsx", [
     index("routes/app.forms._index.tsx", { id: "figui-forms-index" }),

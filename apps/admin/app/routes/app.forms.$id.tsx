@@ -208,7 +208,7 @@ export default function FormEditor() {
       <style>{EDITOR_CSS}</style>
       <Page
         fullWidth
-        backAction={{ content: 'Formularios', onAction: () => navigate(base === '/figui' ? '/figui' : '/app/forms') }}
+        backAction={{ content: 'Formularios', onAction: () => navigate(base === '/figui' ? '/figui?lista=1' : '/app/forms') }}
         title={name || 'Formulario'}
         titleMetadata={
           <InlineStack gap="200">
@@ -362,7 +362,8 @@ const EDITOR_CSS = `
 .cod-editor-preview{position:sticky;top:12px;height:calc(100vh - 130px);min-height:520px;border-radius:12px;overflow:hidden;
   box-shadow:0 1px 0 rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.06);background:#f1f1f1}
 @media (max-width: 860px){
-  .cod-editor{grid-template-columns:1fr}
+  .cod-editor{grid-template-columns:minmax(0,1fr)}
+  .cod-editor-side,.cod-editor-preview{min-width:0}
   .cod-editor-side{height:auto;min-height:0}
   .cod-editor-body{overflow:visible}
   .cod-editor-preview{position:relative;top:0;height:640px}

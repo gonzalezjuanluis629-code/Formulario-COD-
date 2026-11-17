@@ -5,7 +5,7 @@ import { Link, NavLink, Outlet, isRouteErrorResponse, useLoaderData, useLocation
 import type { HeadersFunction, LoaderFunctionArgs } from 'react-router';
 import polarisStyles from '@shopify/polaris/build/esm/styles.css?url';
 import { requireShop } from '../lib/shop.server';
-import { figuiToken } from '../lib/base';
+import { figuiToken, saveFiguiToken } from '../lib/base';
 import { ResourcePickerHost } from '../components/ResourcePickerHost';
 
 /**
@@ -20,13 +20,24 @@ if (typeof window !== 'undefined' && !(window as unknown as { __codFetch?: boole
   const original = window.fetch.bind(window);
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const token = figuiToken();
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    const sameOrigin = url.startsWith('/') || url.startsWith(window.location.origin);
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    let sameOrigin = false;
+    try { sameOrigin = new URL(raw, window.location.href).origin === window.location.origin; } catch { /* URL rara: no se toca */ }
     if (!token || !sameOrigin) return original(input, init);
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
     headers.set('X-Figui-Token', token);
     return original(input, { ...init, headers });
   };
+  // El enlace trae un token corto (minutos): se cambia por la sesión de trabajo,
+  // que solo viaja en cabeceras (nunca en URLs ni registros).
+  const boot = new URL(window.location.href).searchParams.get('ft');
+  if (boot) {
+    saveFiguiToken(boot);
+    void original('/figui-api/session', { method: 'POST', headers: { 'X-Figui-Token': boot } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { token?: string } | null) => { if (d?.token) saveFiguiToken(d.token); })
+      .catch(() => undefined);
+  }
 }
 
 export const links = () => [{ rel: 'stylesheet', href: polarisStyles }];
@@ -53,7 +64,7 @@ function PolarisLink({ url, children, external, ...rest }: { url: string; childr
 }
 
 const NAV: { to: string; label: string; end?: boolean }[] = [
-  { to: '/figui', label: 'Formularios', end: true },
+  { to: '/figui?lista=1', label: 'Formularios', end: true },
   { to: '/figui/offers', label: 'Ofertas y descuentos' },
   { to: '/figui/shipping', label: 'Envíos' },
   { to: '/figui/orders', label: 'Pedidos del formulario' },
@@ -65,6 +76,14 @@ const NAV: { to: string; label: string; end?: boolean }[] = [
 export default function FiguiLayout() {
   useLoaderData<typeof loader>();
   const { pathname } = useLocation();
+  // Quita el token de la barra de direcciones (no queda en el historial).
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('ft')) {
+      url.searchParams.delete('ft');
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    }
+  }, []);
   return (
     <PolarisAppProvider i18n={esTranslations} linkComponent={PolarisLink}>
       <style>{CSS}</style>

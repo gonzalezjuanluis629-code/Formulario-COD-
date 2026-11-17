@@ -42,14 +42,14 @@ export function verifyFiguiToken(token: string | null | undefined, aud: 'cod-ser
     const auds = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
     if (!auds.includes(aud)) return null;
     if (typeof claims.exp !== 'number' || claims.exp * 1000 < Date.now()) return null;
-    if (typeof claims.shop !== 'string' || !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$|^localhost(:\d+)?$/.test(claims.shop)) return null;
+    if (typeof claims.shop !== 'string' || !/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(claims.shop)) return null;
     return { shop: claims.shop, aud, exp: claims.exp, sub: claims.sub };
   } catch {
     return null;
   }
 }
 
-/** Solo para pruebas locales: firma un token igual que Figui. */
+/** Firma un token igual que Figui (renovar la sesión del editor y pruebas). */
 export function signFiguiToken(claims: Omit<FiguiClaims, 'exp'> & { ttlSec?: number }): string {
   const key = secret();
   if (!key) throw new Error('Falta FIGUI_COD_SECRET');
@@ -92,7 +92,8 @@ export function loaderUrl(domain: string): string {
 
 /* ─────────────── Shopify con el token que llega de Figui ─────────────── */
 
-const API_VERSION = '2025-07';
+export const FIGUI_API_VERSION = '2026-07';
+const API_VERSION = FIGUI_API_VERSION;
 
 export class ShopifyCallError extends Error {
   constructor(message: string, readonly status: number, readonly accessDenied = false) { super(message); }

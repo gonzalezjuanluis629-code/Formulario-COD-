@@ -36,12 +36,8 @@ export async function connectFromFigui(input: { shop: string; accessToken: strin
   const app = await figuiApp();
   const existing = await db.shop.findUnique({ where: { domain: input.shop }, include: { shopifyApp: true } });
 
-  // Si la tienda tiene instalada la app de Shopify, esa manda (su token y su
-  // extensión del tema). Figui solo la edita, sin cambiar nada de su conexión.
-  if (existing && !existing.uninstalledAt && existing.shopifyApp.handle !== 'figui' && existing.accessTokenEnc.length) {
-    return existing;
-  }
-
+  // SIEMPRE se comprueba que el acceso de Figui sigue valiendo en Shopify: sin
+  // eso, una cuenta con una conexión vieja podría seguir entrando al editor.
   let info: { name: string; email: string; currencyCode: string; ianaTimezone: string; billingAddress: { countryCodeV2: string } | null };
   try {
     const data = await shopifyGraphql<{ shop: typeof info }>(input.shop, input.accessToken,
@@ -50,6 +46,12 @@ export async function connectFromFigui(input: { shop: string; accessToken: strin
   } catch (e) {
     if (e instanceof ShopifyCallError && e.accessDenied) throw new FiguiError('Shopify no aceptó el acceso de Figui. Reconecta Shopify en Figui.', 401);
     throw new FiguiError(`No se pudo leer la tienda en Shopify: ${(e as Error).message}`, 502);
+  }
+
+  // Si la tienda tiene instalada la app de Shopify, esa manda (su token y su
+  // extensión del tema). Figui solo la edita, sin cambiar nada de su conexión.
+  if (existing && !existing.uninstalledAt && existing.shopifyApp.handle !== 'figui' && existing.accessTokenEnc.length) {
+    return existing;
   }
 
   const { encryptForShop } = await import('./crypto.server');
@@ -163,4 +165,34 @@ export async function searchResources(shopId: string, domain: string, enc: Uint8
     id: p.id, title: p.title, image: p.featuredMedia?.preview?.image?.url ?? '',
     variants: p.variants.nodes.map((v) => ({ id: v.id, title: v.title, price: v.price })),
   }));
+}
+
+/**
+ * Figui va a desconectar Shopify (o borrar la cuenta): se quita el formulario
+ * del tema mientras el acceso aún vale y la tienda deja de recibir pedidos por
+ * aquí (si no, el formulario seguiría visible y los pedidos no llegarían).
+ */
+export async function disconnectFromFigui(domain: string): Promise<{ removed: boolean }> {
+  const shop = await db.shop.findUnique({ where: { domain }, include: { shopifyApp: true } });
+  if (!shop || shop.uninstalledAt || shop.shopifyApp.handle !== 'figui') return { removed: false };
+  let removed = false;
+  if (hasThemeScopes(shop.scopes) && shop.accessTokenEnc.length) {
+    try {
+      await removeFromTheme(domain, await shopToken(shop.id, shop.accessTokenEnc));
+      removed = true;
+    } catch (e) {
+      console.warn('[figui] no se pudo quitar el formulario del tema al desconectar', domain, (e as Error).message);
+    }
+  }
+  await db.shop.update({ where: { id: shop.id }, data: { uninstalledAt: new Date(), accessTokenEnc: Buffer.alloc(0) } });
+  return { removed };
+}
+
+/** Figui se reconectó a Shopify: si la tienda ya usa el formulario, se actualiza su acceso. */
+export async function refreshTokenFromFigui(domain: string, accessToken: string, scopes: string): Promise<{ updated: boolean }> {
+  const shop = await db.shop.findUnique({ where: { domain }, include: { shopifyApp: true } });
+  if (!shop || shop.uninstalledAt || shop.shopifyApp.handle !== 'figui') return { updated: false };
+  const { encryptForShop } = await import('./crypto.server');
+  await db.shop.update({ where: { id: shop.id }, data: { accessTokenEnc: encryptForShop(shop.id, accessToken), scopes } });
+  return { updated: true };
 }

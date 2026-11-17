@@ -6,24 +6,21 @@ export function useBase(): '/app' | '/figui' {
 }
 
 const KEY = 'cod-figui-token';
+let memoryToken: string | null = null;
 
-/** Token del editor (llega en ?ft= y se guarda para las peticiones siguientes). */
+/** Token del editor (llega en ?ft= al abrirlo y luego se cambia por la sesión). */
 export function figuiToken(): string | null {
   if (typeof window === 'undefined') return null;
-  const fromUrl = new URL(window.location.href).searchParams.get('ft');
   try {
-    if (fromUrl) sessionStorage.setItem(KEY, fromUrl);
-    return fromUrl || sessionStorage.getItem(KEY);
-  } catch {
-    return fromUrl;
-  }
+    const saved = sessionStorage.getItem(KEY);
+    if (saved) return saved;
+  } catch { /* almacenamiento bloqueado: se usa la memoria */ }
+  return memoryToken ?? new URL(window.location.href).searchParams.get('ft');
 }
 
-/** URL para abrir fuera de fetch (descargas): lleva el token. */
-export function withFiguiToken(url: string): string {
-  const t = figuiToken();
-  if (!t) return url;
-  return `${url}${url.includes('?') ? '&' : '?'}ft=${encodeURIComponent(t)}`;
+export function saveFiguiToken(token: string): void {
+  memoryToken = token;
+  try { sessionStorage.setItem(KEY, token); } catch { /* solo en memoria */ }
 }
 
 export type PickedResource = {

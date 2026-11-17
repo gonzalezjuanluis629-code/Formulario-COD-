@@ -1,10 +1,10 @@
 import { Badge, Button, Card, IndexTable, Page, Text, Banner, InlineStack, Tabs } from '@shopify/polaris';
 import { IntentButton } from '../components/IntentButton';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Form, useLoaderData, useSearchParams } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { requireShop } from '../lib/shop.server';
-import { useBase, withFiguiToken } from '../lib/base';
+import { useBase } from '../lib/base';
 import { decryptForShop } from '../lib/crypto.server';
 import { db } from '../db.server';
 
@@ -107,9 +107,17 @@ export default function Orders() {
   const { orders, failed, held, currency } = useLoaderData<typeof loader>();
   const [params, setParams] = useSearchParams();
   const base = useBase();
-  // Descarga fuera de fetch: desde Figui la URL lleva el token (solo en el navegador).
-  const [exportUrl, setExportUrl] = useState(`${base}/orders/export`);
-  useEffect(() => { if (base === '/figui') setExportUrl(withFiguiToken('/figui/orders/export')); }, [base]);
+  // Desde Figui la descarga va por fetch (con la sesión en la cabecera, no en la URL).
+  const downloadCsv = async () => {
+    const res = await fetch('/figui/orders/export');
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `pedidos-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
   const initial = params.get('status') === 'FAILED' ? 1 : params.get('status') === 'HELD' ? 2 : 0;
   const [tab, setTab] = useState(initial);
 
@@ -123,7 +131,7 @@ export default function Orders() {
     <Page
       title="Pedidos"
       subtitle="El resumen completo solo lo ves tú. El cliente nunca lo ve."
-      secondaryActions={[{ content: 'Exportar CSV', url: exportUrl, external: true }]}
+      secondaryActions={[{ content: 'Exportar CSV', ...(base === '/figui' ? { onAction: () => void downloadCsv() } : { url: '/app/orders/export', external: true }) }]}
     >
       {held > 0 && (
         <div style={{ marginBottom: 16 }}>

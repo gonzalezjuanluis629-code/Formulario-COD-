@@ -22,9 +22,9 @@ export class StorefrontController {
     if (!shop || !k || !isValidStorefrontKey(shop, k)) throw new UnauthorizedException('Clave de la tienda inválida');
     const ctx = await this.shops.byDomain(shop);
     const sf = ShopSettingsSchema.parse(ctx.settings ?? {}).storefront;
-    const proto = String(req.headers['x-forwarded-proto'] ?? req.protocol).split(',')[0];
-    const host = String(req.headers['x-forwarded-host'] ?? req.headers.host);
-    const base = `${proto}://${host}`;
+    // Dirección fija del servidor (variable PUBLIC_API_URL): no se arma con
+    // cabeceras que el visitante podría falsear (el script se guarda en caché).
+    const base = (process.env.PUBLIC_API_URL || `${req.protocol}://${req.headers.host}`).replace(/\/+$/, '');
     const cfg = { api: `${base}/apps/cod`, widget: `${base}/storefront/widget/widget.js`, shop: ctx.domain, k, autoPlace: sf.autoPlace, floating: sf.floating };
     return LOADER.replace('__CFG__', JSON.stringify(cfg));
   }

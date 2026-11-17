@@ -115,7 +115,7 @@ export default function Shipping() {
                 </p>
               </Banner>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: 10 }}>
                 {DO_PROVINCES.map((p) => (
                   <InlineStack key={p.code} gap="200" blockAlign="center" wrap={false}>
                     <div style={{ flex: 1, minWidth: 0 }}>

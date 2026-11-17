@@ -1,4 +1,4 @@
-import { loaderUrl } from './figui.server';
+import { FIGUI_API_VERSION, loaderUrl } from './figui.server';
 
 /**
  * Pone (o quita) el formulario en el tema publicado de la tienda.
@@ -13,7 +13,7 @@ import { loaderUrl } from './figui.server';
 const SNIPPET_KEY = 'snippets/figui-cod-form.liquid';
 const RENDER_LINE = "{% render 'figui-cod-form' %}";
 const MARK = '{%- comment -%} Formulario COD (Figui) {%- endcomment -%}';
-const API_VERSION = '2025-07';
+const API_VERSION = FIGUI_API_VERSION;
 
 export class ThemeAccessError extends Error {
   constructor(message: string, readonly missingScope = false) { super(message); }
@@ -35,9 +35,23 @@ async function rest<T>(domain: string, token: string, path: string, init: Reques
 
 type Theme = { id: number; name: string; role: string };
 
+async function allThemes(domain: string, token: string): Promise<Theme[]> {
+  const r = await rest<{ themes: Theme[] } | null>(domain, token, 'themes.json');
+  return r?.themes ?? [];
+}
+
 export async function mainTheme(domain: string, token: string): Promise<Theme | null> {
-  const r = await rest<{ themes: Theme[] } | null>(domain, token, 'themes.json?role=main');
-  return r?.themes?.find((t) => t.role === 'main') ?? r?.themes?.[0] ?? null;
+  return (await allThemes(domain, token)).find((t) => t.role === 'main') ?? null;
+}
+
+/** Una operación sobre el tema de una tienda a la vez (dos clics seguidos no se pisan). */
+const locks = new Map<string, Promise<unknown>>();
+function withLock<T>(domain: string, fn: () => Promise<T>): Promise<T> {
+  const prev = locks.get(domain) ?? Promise.resolve();
+  const next = prev.catch(() => undefined).then(fn);
+  locks.set(domain, next);
+  void next.finally(() => { if (locks.get(domain) === next) locks.delete(domain); }).catch(() => undefined);
+  return next;
 }
 
 async function getAsset(domain: string, token: string, themeId: number, key: string): Promise<string | null> {
@@ -80,10 +94,16 @@ export async function themeStatus(domain: string, token: string): Promise<ThemeS
   const theme = await mainTheme(domain, token);
   if (!theme) return { installed: false, themeName: null };
   const layout = await getAsset(domain, token, theme.id, 'layout/theme.liquid');
-  return { installed: !!layout && layout.includes(RENDER_LINE), themeName: theme.name };
+  // Activo de verdad = la línea Y el snippet (sin snippet el tema daría error).
+  const installed = !!layout && layout.includes(RENDER_LINE) && (await getAsset(domain, token, theme.id, SNIPPET_KEY)) !== null;
+  return { installed, themeName: theme.name };
 }
 
-export async function installInTheme(domain: string, token: string): Promise<ThemeStatus> {
+export function installInTheme(domain: string, token: string): Promise<ThemeStatus> {
+  return withLock(domain, () => doInstall(domain, token));
+}
+
+async function doInstall(domain: string, token: string): Promise<ThemeStatus> {
   const theme = await mainTheme(domain, token);
   if (!theme) throw new ThemeAccessError('La tienda no tiene un tema publicado.');
   const layout = await getAsset(domain, token, theme.id, 'layout/theme.liquid');
@@ -99,14 +119,22 @@ export async function installInTheme(domain: string, token: string): Promise<The
   return { installed: true, themeName: theme.name };
 }
 
-export async function removeFromTheme(domain: string, token: string): Promise<ThemeStatus> {
-  const theme = await mainTheme(domain, token);
-  if (!theme) return { installed: false, themeName: null };
-  const layout = await getAsset(domain, token, theme.id, 'layout/theme.liquid');
-  if (layout && layout.includes(RENDER_LINE)) {
-    const next = layout.replace(new RegExp(`[ \\t]*${RENDER_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[ \\t]*\\n?`, 'g'), '');
-    await putAsset(domain, token, theme.id, 'layout/theme.liquid', next);
+/** Quita la línea y el snippet de TODOS los temas (por si la tienda cambió de tema). */
+export function removeFromTheme(domain: string, token: string): Promise<ThemeStatus> {
+  return withLock(domain, () => doRemove(domain, token));
+}
+
+const RENDER_RE = new RegExp(`[ \\t]*${RENDER_LINE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[ \\t]*\\n?`, 'g');
+
+async function doRemove(domain: string, token: string): Promise<ThemeStatus> {
+  const themes = await allThemes(domain, token);
+  for (const theme of themes) {
+    const layout = await getAsset(domain, token, theme.id, 'layout/theme.liquid');
+    if (layout && layout.includes(RENDER_LINE)) {
+      // Primero la línea y luego el snippet: nunca queda una línea sin su snippet.
+      await putAsset(domain, token, theme.id, 'layout/theme.liquid', layout.replace(RENDER_RE, ''));
+    }
+    if (layout !== null) await deleteAsset(domain, token, theme.id, SNIPPET_KEY).catch(() => undefined);
   }
-  await deleteAsset(domain, token, theme.id, SNIPPET_KEY).catch(() => undefined);
-  return { installed: false, themeName: theme.name };
+  return { installed: false, themeName: themes.find((t) => t.role === 'main')?.name ?? null };
 }

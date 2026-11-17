@@ -73,7 +73,7 @@ export function FieldList({
       <DndContext id="form-fields-dnd" sensors={sensors} collisionDetection={closestCenter}
         onDragStart={() => { lastDrag.current = Date.now(); }} onDragCancel={() => { lastDrag.current = Date.now(); }} onDragEnd={handleEnd}>
         <SortableContext items={sorted.map((f) => f.key)} strategy={verticalListSortingStrategy}>
-          <div style={{ display: 'grid', gap: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6 }}>
             {sorted.map((f) => (
               <Row key={f.key} field={f} onOpen={() => open(f.key)}
                 onRemove={() => remove(f.key)} onDuplicate={() => duplicate(f.key)} />
