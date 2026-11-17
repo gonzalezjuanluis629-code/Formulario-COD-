@@ -422,6 +422,8 @@ const quantityOffers = {
       const full = ctx.unitPriceCents * match.minQty;
       const rate = full > 0 ? Math.max(0, 1 - match.bundlePriceCents / full) : 0;
       d.discountCents += Math.round(d.subtotalCents * rate);
+    } else if (match.discountCents > 0) {
+      d.discountCents += Math.min(match.discountCents, d.subtotalCents);
     } else if (match.discountBps > 0) {
       d.discountCents += Math.round(d.subtotalCents * match.discountBps / 1e4);
     }
@@ -434,10 +436,11 @@ const discounts = {
   apply(d, ctx) {
     const x = ctx.discount;
     if (!x) return;
+    const base = ctx.discountBaseCents != null ? Math.min(ctx.discountBaseCents, d.subtotalCents) : d.subtotalCents;
     if (x.kind === "PERCENTAGE" && x.valueBps) {
-      d.discountCents += Math.round(d.subtotalCents * x.valueBps / 1e4);
+      d.discountCents += Math.round(base * x.valueBps / 1e4);
     } else if (x.kind === "FIXED" && x.valueCents) {
-      d.discountCents += x.valueCents;
+      d.discountCents += Math.min(x.valueCents, base);
     } else if (x.kind === "FREE_SHIPPING") {
       d.freeShipping = true;
     }
@@ -512,6 +515,8 @@ function renderOffers(host, config, state, onChange) {
     subtitle: "",
     badge: "",
     bundlePriceCents: null,
+    discountCents: 0,
+    productIds: [],
     preselected: false
   };
   const cards = [base, ...list.filter((o) => o.minQty > 1)];
@@ -523,7 +528,7 @@ function renderOffers(host, config, state, onChange) {
   wrap.setAttribute("aria-label", "Cantidad");
   wrap.innerHTML = cards.map((o) => {
     const full = unit * o.minQty;
-    const price = o.bundlePriceCents != null ? o.bundlePriceCents : Math.round(full * (1 - o.discountBps / 1e4));
+    const price = o.bundlePriceCents != null ? o.bundlePriceCents : o.discountCents > 0 ? Math.max(0, full - o.discountCents) : Math.round(full * (1 - o.discountBps / 1e4));
     const save = full > 0 && price < full ? Math.round((1 - price / full) * 100) : 0;
     const title = o.title || (o.minQty === 1 ? "1 unidad" : `${o.minQty} unidades`);
     return `
@@ -574,7 +579,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-SHsGeWS_.js").then(({ renderAddons }) => {
+    void import("./addons-BQjpa1Py.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1151,7 +1156,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-DR7pcaHV.js");
+    const { renderTrigger } = await import("./trigger-DkewmEBz.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";

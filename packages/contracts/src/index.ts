@@ -291,6 +291,10 @@ export const OfferSchema = z.object({
   badge: z.string().default(''),
   /** Precio fijo del paquete (en vez de %). Null = usa discountBps. */
   bundlePriceCents: z.number().int().min(0).nullable().default(null),
+  /** Monto fijo que se descuenta al paquete (RD$ 200 menos). 0 = no. */
+  discountCents: z.number().int().min(0).default(0),
+  /** Productos en los que vale (gid://shopify/Product/…). Vacío = todos. */
+  productIds: z.array(z.string()).default([]),
   /** Esta tarjeta viene marcada al abrir el formulario. */
   preselected: z.boolean().default(false),
 });

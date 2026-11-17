@@ -20,7 +20,7 @@ export function renderOffers(host: HTMLElement, config: WidgetConfig, state: For
   // La de 1 unidad: si el comerciante la configuró, se usa; si no, una básica.
   const base: Offer = list.find((o) => o.minQty === 1) ?? {
     id: 'base', type: 'QUANTITY', minQty: 1, discountBps: 0, freeShipping: false, label: '1 unidad',
-    title: '', subtitle: '', badge: '', bundlePriceCents: null, preselected: false,
+    title: '', subtitle: '', badge: '', bundlePriceCents: null, discountCents: 0, productIds: [], preselected: false,
   };
   const cards = [base, ...list.filter((o) => o.minQty > 1)];
 
@@ -37,7 +37,9 @@ export function renderOffers(host: HTMLElement, config: WidgetConfig, state: For
     const full = unit * o.minQty;
     const price = o.bundlePriceCents != null
       ? o.bundlePriceCents
-      : Math.round(full * (1 - o.discountBps / 10000));
+      : o.discountCents > 0
+        ? Math.max(0, full - o.discountCents)
+        : Math.round(full * (1 - o.discountBps / 10000));
     const save = full > 0 && price < full ? Math.round((1 - price / full) * 100) : 0;
     const title = o.title || (o.minQty === 1 ? '1 unidad' : `${o.minQty} unidades`);
     return `
