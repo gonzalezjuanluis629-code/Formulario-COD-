@@ -98,7 +98,7 @@ async function doProvision(session: ShopSession, admin: AdminGraphql): Promise<{
   return { id: shop.id };
 }
 
-async function ensureDefaults(shopId: string) {
+export async function ensureDefaults(shopId: string) {
   const exists = await db.form.findFirst({ where: { shopId } });
   if (exists) return;
 

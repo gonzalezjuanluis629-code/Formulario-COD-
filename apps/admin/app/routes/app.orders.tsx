@@ -1,9 +1,10 @@
 import { Badge, Button, Card, IndexTable, Page, Text, Banner, InlineStack, Tabs } from '@shopify/polaris';
 import { IntentButton } from '../components/IntentButton';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Form, useLoaderData, useSearchParams } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { requireShop } from '../lib/shop.server';
+import { useBase, withFiguiToken } from '../lib/base';
 import { decryptForShop } from '../lib/crypto.server';
 import { db } from '../db.server';
 
@@ -105,6 +106,10 @@ export async function action({ request }: ActionFunctionArgs) {
 export default function Orders() {
   const { orders, failed, held, currency } = useLoaderData<typeof loader>();
   const [params, setParams] = useSearchParams();
+  const base = useBase();
+  // Descarga fuera de fetch: desde Figui la URL lleva el token (solo en el navegador).
+  const [exportUrl, setExportUrl] = useState(`${base}/orders/export`);
+  useEffect(() => { if (base === '/figui') setExportUrl(withFiguiToken('/figui/orders/export')); }, [base]);
   const initial = params.get('status') === 'FAILED' ? 1 : params.get('status') === 'HELD' ? 2 : 0;
   const [tab, setTab] = useState(initial);
 
@@ -118,7 +123,7 @@ export default function Orders() {
     <Page
       title="Pedidos"
       subtitle="El resumen completo solo lo ves tú. El cliente nunca lo ve."
-      secondaryActions={[{ content: 'Exportar CSV', url: '/app/orders/export', external: true }]}
+      secondaryActions={[{ content: 'Exportar CSV', url: exportUrl, external: true }]}
     >
       {held > 0 && (
         <div style={{ marginBottom: 16 }}>

@@ -263,6 +263,13 @@ export const ShopSettingsSchema = z.object({
   confirmation: ConfirmationSchema.default({}),
   antifraud: AntifraudSettingsSchema.default({}),
   tracking: TrackingSettingsSchema.default({}),
+  /** Tiendas conectadas desde Figui: dónde pone la app el botón en la tienda. */
+  storefront: z.object({
+    /** Botón fijo debajo de «Agregar al carrito» (o del precio). */
+    autoPlace: z.boolean().default(true),
+    /** Botón flotante abajo de la pantalla al bajar. */
+    floating: z.boolean().default(true),
+  }).default({}),
 });
 export type ShopSettings = z.infer<typeof ShopSettingsSchema>;
 

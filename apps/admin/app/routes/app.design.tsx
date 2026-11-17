@@ -1,6 +1,7 @@
 import { redirect } from 'react-router';
 import type { LoaderFunctionArgs } from 'react-router';
 import { requireShop } from '../lib/shop.server';
+import { basePath } from '../lib/figui.server';
 import { db } from '../db.server';
 
 /**
@@ -15,9 +16,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   // Se conservan los parámetros de Shopify (shop, host, id_token…) para no perder la sesión.
   const params = new URL(request.url).searchParams;
-  if (!form) return redirect(`/app/forms?${params}`);
+  const base = basePath(request);
+  if (!form) return redirect(`${base === '/figui' ? '/figui' : '/app/forms'}?${params}`);
   params.set('tab', 'design');
-  return redirect(`/app/forms/${form.id}?${params}`);
+  return redirect(`${base}/forms/${form.id}?${params}`);
 }
 
 export default function Design() {

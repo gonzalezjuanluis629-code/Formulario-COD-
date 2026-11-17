@@ -6,6 +6,7 @@ import { useFetcher, useLoaderData, useNavigate, useSearchParams } from 'react-r
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { AddonSchema, FieldSchema, OfferSchema, ThemeTokensSchema, type Field, type ThemeTokens } from '@cod/contracts';
 import { requireShop } from '../lib/shop.server';
+import { pickResources, useBase } from '../lib/base';
 import { db } from '../db.server';
 import { FieldList } from '../features/builder/FieldList';
 import { FieldSettings } from '../features/builder/FieldSettings';
@@ -140,6 +141,7 @@ const TABS: { id: Tab; content: string }[] = [
 
 export default function FormEditor() {
   const navigate = useNavigate();
+  const base = useBase();
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionResult>();
   const [params] = useSearchParams();
@@ -181,10 +183,7 @@ export default function FormEditor() {
   }, []);
 
   const pickResource = useCallback(async (type: 'PRODUCT' | 'COLLECTION') => {
-    const shopify = (window as unknown as { shopify?: { resourcePicker: (o: unknown) => Promise<unknown> } }).shopify;
-    if (!shopify?.resourcePicker) return;
-    const picked = (await shopify.resourcePicker({ type: type === 'PRODUCT' ? 'product' : 'collection', action: 'select' })) as
-      { id: string; title: string }[] | undefined;
+    const picked = await pickResources({ type: type === 'PRODUCT' ? 'product' : 'collection' });
     if (picked?.length) { setAssignValue(picked[0].id); setAssignLabel(picked[0].title); setDirty(true); }
   }, []);
 
@@ -209,7 +208,7 @@ export default function FormEditor() {
       <style>{EDITOR_CSS}</style>
       <Page
         fullWidth
-        backAction={{ content: 'Formularios', onAction: () => navigate('/app/forms') }}
+        backAction={{ content: 'Formularios', onAction: () => navigate(base === '/figui' ? '/figui' : '/app/forms') }}
         title={name || 'Formulario'}
         titleMetadata={
           <InlineStack gap="200">

@@ -8,6 +8,7 @@ import { Form, useFetcher, useLoaderData, useSubmit } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { AddonSchema, OfferSchema, ThemeTokensSchema, type Addon, type Field, type Offer, type ThemeTokens } from '@cod/contracts';
 import { requireShop } from '../lib/shop.server';
+import { pickResources } from '../lib/base';
 import { db } from '../db.server';
 import { IntentButton } from '../components/IntentButton';
 import { Preview } from '../features/builder/Preview';
@@ -236,10 +237,7 @@ export default function Offers() {
   };
 
   const pickProduct = useCallback(async (id: string) => {
-    const shopify = (window as unknown as { shopify?: { resourcePicker: (o: unknown) => Promise<unknown> } }).shopify;
-    if (!shopify?.resourcePicker) return;
-    const picked = (await shopify.resourcePicker({ type: 'product', action: 'select', multiple: false })) as
-      { title: string; images?: { originalSrc?: string; url?: string }[]; variants?: { id: string; price?: string; title?: string }[] }[] | undefined;
+    const picked = await pickResources({ type: 'product' });
     const p = picked?.[0];
     const v = p?.variants?.[0];
     if (!p || !v) return;

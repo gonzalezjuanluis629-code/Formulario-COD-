@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "nest start --watch",
-    "build": "nest build",
+    "build": "pnpm --filter @cod/widget build && nest build",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit"
   },

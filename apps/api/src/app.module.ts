@@ -11,13 +11,14 @@ import { LocationModule } from './modules/location/location.module';
 import { DiscountsModule } from './modules/discounts/discounts.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { StorefrontModule } from './modules/storefront/storefront.module';
 import { HealthController } from './health.controller';
 
 @Module({
   imports: [
     LoggerModule.forRoot({ pinoHttp: { level: process.env.LOG_LEVEL ?? 'info' } }),
     PrismaModule, RedisModule, CryptoModule, ShopifyModule,
-    FormsModule, QuoteModule, DiscountsModule, LocationModule, SubmissionsModule, WebhooksModule, AnalyticsModule,
+    FormsModule, QuoteModule, DiscountsModule, LocationModule, SubmissionsModule, WebhooksModule, AnalyticsModule, StorefrontModule,
   ],
   controllers: [HealthController],
 })
