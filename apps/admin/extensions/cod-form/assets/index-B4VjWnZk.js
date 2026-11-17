@@ -413,22 +413,32 @@ const subtotal = {
     d.subtotalCents = ctx.unitPriceCents * ctx.qty;
   }
 };
+function offerDiscount(qty, unitPriceCents, offers) {
+  const subtotal2 = unitPriceCents * qty;
+  const match = offers.filter((o) => qty >= o.minQty).sort((a, b) => b.minQty - a.minQty)[0];
+  if (!match) return { discountCents: 0, freeShipping: false, label: null };
+  let discount = 0;
+  if (match.bundlePriceCents != null && unitPriceCents > 0) {
+    const full = unitPriceCents * match.minQty;
+    const rate = full > 0 ? Math.max(0, 1 - match.bundlePriceCents / full) : 0;
+    discount = Math.round(subtotal2 * rate);
+  } else if (match.discountCents > 0) {
+    discount = Math.min(match.discountCents, subtotal2);
+  } else if (match.discountBps > 0) {
+    discount = Math.round(subtotal2 * match.discountBps / 1e4);
+  }
+  if (discount <= 0 && !match.freeShipping) return { discountCents: 0, freeShipping: false, label: null };
+  return { discountCents: discount, freeShipping: match.freeShipping, label: match.label };
+}
 const quantityOffers = {
   name: "quantity-offers",
   apply(d, ctx) {
-    const match = ctx.offers.filter((o) => ctx.qty >= o.minQty).sort((a, b) => b.minQty - a.minQty)[0];
-    if (!match) return;
-    if (match.bundlePriceCents != null && ctx.unitPriceCents > 0) {
-      const full = ctx.unitPriceCents * match.minQty;
-      const rate = full > 0 ? Math.max(0, 1 - match.bundlePriceCents / full) : 0;
-      d.discountCents += Math.round(d.subtotalCents * rate);
-    } else if (match.discountCents > 0) {
-      d.discountCents += Math.min(match.discountCents, d.subtotalCents);
-    } else if (match.discountBps > 0) {
-      d.discountCents += Math.round(d.subtotalCents * match.discountBps / 1e4);
-    }
-    if (match.freeShipping) d.freeShipping = true;
-    d.appliedOffer = match.label;
+    var _a2, _b, _c;
+    const r = offerDiscount(ctx.qty, ctx.unitPriceCents, ctx.offers);
+    const x = ctx.lineOffers;
+    d.discountCents += r.discountCents + ((_a2 = x == null ? void 0 : x.discountCents) != null ? _a2 : 0);
+    if (r.freeShipping || (x == null ? void 0 : x.freeShipping)) d.freeShipping = true;
+    d.appliedOffer = (_c = (_b = r.label) != null ? _b : x == null ? void 0 : x.label) != null ? _c : null;
   }
 };
 const discounts = {
@@ -579,7 +589,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-BYjsRQFf.js").then(({ renderAddons }) => {
+    void import("./addons-CKP04oIb.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1156,7 +1166,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-Dw8pbe_i.js");
+    const { renderTrigger } = await import("./trigger-Dnv_oFYu.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";

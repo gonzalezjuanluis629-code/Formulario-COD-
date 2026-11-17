@@ -10,6 +10,7 @@ import { AddonSchema, OfferSchema, ThemeTokensSchema, type Addon, type Field, ty
 import { requireShop } from '../lib/shop.server';
 import { pickResources } from '../lib/base';
 import { db } from '../db.server';
+import { shopifyGraphql, shopToken } from '../lib/figui.server';
 import { IntentButton } from '../components/IntentButton';
 import { Preview } from '../features/builder/Preview';
 import { DEFAULT_FIELDS } from '../lib/defaults';
@@ -23,7 +24,9 @@ type OfferDraft = {
 } & ProductScopeDraft;
 
 /** En qué productos vale una oferta o un cupón. */
-type ProductScopeDraft = { scope: 'all' | 'some'; products: { id: string; title: string }[] };
+type ProductScopeDraft = { scope: 'all' | 'some'; products: ScopeProduct[] };
+/** priceCents: precio real en Shopify (para la vista previa y los ejemplos). */
+type ScopeProduct = { id: string; title: string; priceCents?: number | null };
 
 type AddonDraft = {
   id: string; active: boolean; kind: 'ORDER_BUMP' | 'UPSELL' | 'DOWNSELL';
@@ -43,7 +46,7 @@ function toOffer(d: OfferDraft): Offer {
     discountBps: d.priceMode === 'percent' ? Math.round((Number(d.percent) || 0) * 100) : 0,
     bundlePriceCents: d.priceMode === 'bundle' && d.bundlePrice ? cents(d.bundlePrice) : null,
     discountCents: d.priceMode === 'amount' ? cents(d.amount) : 0,
-    productIds: d.scope === 'some' ? d.products.map((p) => p.id) : [],
+    productIds: d.products.map((p) => p.id),
     freeShipping: d.freeShipping, label: d.title || `${qty} unidades`,
     title: d.title, subtitle: d.subtitle, badge: d.badge, preselected: d.preselected,
   };
@@ -63,7 +66,7 @@ function toAddon(d: AddonDraft): Addon {
 /* ─────────────── Servidor ─────────────── */
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const { shop } = await requireShop(request);
+  const { shop, admin } = await requireShop(request);
   const [offerRows, addonRows, discounts, form, theme] = await Promise.all([
     db.offer.findMany({ where: { shopId: shop.id, type: 'QUANTITY' }, orderBy: { priority: 'asc' } }),
     db.offer.findMany({ where: { shopId: shop.id, type: { in: ['UPSELL', 'ORDER_BUMP', 'DOWNSELL'] } }, orderBy: { priority: 'desc' } }),
@@ -73,6 +76,13 @@ export async function loader({ request }: LoaderFunctionArgs) {
   ]);
   const version = form?.currentVersionId ? await db.formVersion.findUnique({ where: { id: form.currentVersionId } }) : null;
 
+  // Precio REAL (y nombre actual) de los productos de las ofertas, leído de Shopify.
+  const ids = [...new Set(offerRows.flatMap((r) => {
+    const p = (r.payload as { productIds?: unknown }).productIds;
+    return Array.isArray(p) ? p.filter((x): x is string => typeof x === 'string') : [];
+  }))];
+  const live = await productInfo(shop, admin, ids);
+
   const offers: OfferDraft[] = offerRows.map((r) => {
     const o = OfferSchema.parse({ id: r.id, label: r.name, type: 'QUANTITY', ...(r.payload as object) });
     return {
@@ -81,7 +91,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       bundlePrice: fromCents(o.bundlePriceCents), percent: o.discountBps ? String(o.discountBps / 100) : '',
       amount: fromCents(o.discountCents),
       freeShipping: o.freeShipping, preselected: o.preselected,
-      ...scopeFrom(o.productIds, (r.payload as { productTitles?: unknown }).productTitles),
+      ...scopeFrom(o.productIds, (r.payload as { productTitles?: unknown }).productTitles, live),
     };
   });
   const addons: AddonDraft[] = addonRows.map((r) => {
@@ -122,8 +132,8 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result | 
     // Ofertas por cantidad: crear, actualizar y borrar las quitadas.
     const keepOffers: string[] = [];
     for (const d of body.offers) {
-      if (d.scope === 'some' && !d.products.length) {
-        return { ok: false, message: `Elige al menos un producto para la oferta «${d.title || `${d.minQty} unidades`}» o marca «Todos los productos».` };
+      if (!d.products.length) {
+        return { ok: false, message: `Elige el producto de la oferta «${d.title || `${d.minQty} unidades`}».` };
       }
       if (d.priceMode === 'amount' && !(cents(d.amount) > 0)) {
         return { ok: false, message: `Pon el monto de descuento de la oferta «${d.title || `${d.minQty} unidades`}».` };
@@ -135,7 +145,7 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result | 
           minQty: o.minQty, discountBps: o.discountBps, freeShipping: o.freeShipping, title: o.title,
           subtitle: o.subtitle, badge: o.badge, bundlePriceCents: o.bundlePriceCents, preselected: o.preselected,
           discountCents: o.discountCents, productIds: o.productIds,
-          productTitles: d.scope === 'some' ? d.products.map((p) => p.title) : [],
+          productTitles: d.products.map((p) => p.title),
         },
       };
       if (d.id.startsWith('new-')) keepOffers.push((await db.offer.create({ data: { shopId: shop.id, ...data } })).id);
@@ -223,7 +233,6 @@ export default function Offers() {
   const [offers, setOffers] = useState<OfferDraft[]>(data.offers);
   const [addons, setAddons] = useState<AddonDraft[]>(data.addons);
   const [card, setCard] = useState<ThemeTokens['offerCard']>(data.tokens.offerCard);
-  const [samplePrice, setSamplePrice] = useState('1799');
   const [open, setOpen] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -248,8 +257,8 @@ export default function Offers() {
     const qty = Math.max(1, ...used) + (offers.length ? 1 : 1);
     const d: OfferDraft = {
       id: newId(), active: true, minQty: String(offers.length ? qty : 2), title: '', subtitle: '', badge: '',
-      priceMode: 'percent', bundlePrice: '', percent: '10', amount: '', freeShipping: false, preselected: false,
-      scope: 'all', products: [],
+      priceMode: 'bundle', bundlePrice: '', percent: '10', amount: '', freeShipping: false, preselected: false,
+      scope: 'some', products: [],
     };
     setOffers((l) => [...l, d]); setOpen(d.id); setDirty(true);
   };
@@ -284,7 +293,15 @@ export default function Offers() {
   };
 
   // Vista previa: solo lo activo, ordenado como en la tienda.
-  const pvOffers = useMemo(() => offers.filter((o) => o.active).map(toOffer), [offers]);
+  // La vista previa usa el producto (y su precio real) de la oferta abierta,
+  // o el de la primera oferta con producto. Solo muestra las ofertas de ese producto.
+  const pvProduct = useMemo(() => {
+    const opened = offers.find((o) => o.id === open && o.products.length);
+    return (opened ?? offers.find((o) => o.products.length))?.products[0] ?? null;
+  }, [offers, open]);
+  const pvOffers = useMemo(() => offers
+    .filter((o) => o.active && pvProduct && o.products.some((p) => p.id === pvProduct.id))
+    .map(toOffer), [offers, pvProduct]);
   const pvAddons = useMemo(() => addons.filter((a) => a.active).map(toAddon), [addons]);
   const pvTokens = useMemo(() => ({ ...data.tokens, offerCard: card }), [data.tokens, card]);
 
@@ -348,10 +365,11 @@ export default function Offers() {
                         onChange={(v) => updOffer(o.id, { subtitle: v })} />
                       <Choice label="Precio" value={o.priceMode} onChange={(v) => updOffer(o.id, { priceMode: v as OfferDraft['priceMode'] })}
                         options={[['bundle', 'Paquete'], ['percent', '% menos'], ['amount', 'Monto fijo'], ['none', 'Normal']]} />
+                      {o.priceMode === 'percent' && <Text as="p" variant="bodySm" tone="subdued">{priceHint(o, 'percent')}</Text>}
                       {o.priceMode === 'bundle' && (
                         <TextField label={`Precio total por ${o.minQty || 'X'} unidades`} prefix="RD$" type="number" value={o.bundlePrice}
                           autoComplete="off" onChange={(v) => updOffer(o.id, { bundlePrice: v })}
-                          helpText="El «antes» tachado y el «Ahorras %» se calculan solos con el precio del producto." />
+                          helpText={priceHint(o, 'bundle')} />
                       )}
                       {o.priceMode === 'percent' && (
                         <TextField label="Descuento" suffix="%" type="number" value={o.percent} autoComplete="off"
@@ -360,9 +378,9 @@ export default function Offers() {
                       {o.priceMode === 'amount' && (
                         <TextField label={`Cuánto se descuenta al llevar ${o.minQty || 'X'} unidades`} prefix="RD$" type="number" value={o.amount}
                           autoComplete="off" onChange={(v) => updOffer(o.id, { amount: v })}
-                          helpText="Se resta del precio normal. Ej.: 2 unidades de RD$ 1,799 con RD$ 300 de descuento = RD$ 3,298." />
+                          helpText={priceHint(o, 'amount')} />
                       )}
-                      <ProductScope value={o} onChange={(p) => updOffer(o.id, p)} />
+                      <ProductScope required value={o} onChange={(p) => updOffer(o.id, p)} />
                       <TextField label="Cinta destacada" value={o.badge} autoComplete="off" placeholder="Ej. MÁS VENDIDO (vacío = sin cinta)"
                         onChange={(v) => updOffer(o.id, { badge: v })} />
                       <Checkbox label="Envío gratis con esta oferta" checked={o.freeShipping} onChange={(v) => updOffer(o.id, { freeShipping: v })} />
@@ -490,20 +508,15 @@ export default function Offers() {
                 </BlockStack>
               )}
 
-              <Box paddingBlockStart="400">
-                <Divider />
-                <Box paddingBlockStart="300">
-                  <TextField label="Precio del producto para la vista previa" prefix="RD$" type="number" value={samplePrice}
-                    autoComplete="off" onChange={setSamplePrice}
-                    helpText="Solo para ver los precios aquí. En la tienda se usa el precio real de cada producto." />
-                </Box>
-              </Box>
             </div>
           </div>
 
           <div className="cod-editor-preview">
             <Preview fields={data.fields} tokens={pvTokens} offers={pvOffers} addons={pvAddons}
-              unitPriceCents={cents(samplePrice)} focus={tab === 'extras' ? 'addons' : tab === 'qty' ? 'offers' : null} hint="Así se ven tus ofertas en el formulario. Pulsa las tarjetas para probarlas." />
+              unitPriceCents={pvProduct?.priceCents ?? 0} focus={tab === 'extras' ? 'addons' : tab === 'qty' ? 'offers' : null}
+              hint={pvProduct
+                ? `Así se ven en «${pvProduct.title}» (precio en Shopify: ${money(pvProduct.priceCents ?? 0)}). Pulsa las tarjetas para probarlas.`
+                : 'Elige el producto de una oferta para verla aquí con su precio real.'} />
           </div>
         </div>
 
@@ -616,44 +629,97 @@ function CouponModal({ open, onClose }: { open: boolean; onClose: () => void }) 
 }
 
 /** «Todos los productos» o «Solo estos productos» (con selector de productos). */
-function ProductScope({ value, onChange }: { value: ProductScopeDraft; onChange: (p: ProductScopeDraft) => void }) {
+function ProductScope({ value, onChange, required = false }: { value: ProductScopeDraft; onChange: (p: ProductScopeDraft) => void; required?: boolean }) {
   const add = async () => {
     const picked = await pickResources({ type: 'product' });
     const p = picked?.[0];
     if (!p || value.products.some((x) => x.id === p.id)) return;
-    onChange({ scope: 'some', products: [...value.products, { id: p.id, title: p.title }] });
+    const price = p.variants?.[0]?.price;
+    onChange({ scope: 'some', products: [...value.products, { id: p.id, title: p.title, priceCents: price ? cents(price) : null }] });
   };
   return (
     <BlockStack gap="200">
-      <Choice label="¿En qué productos vale?" value={value.scope}
-        onChange={(v) => onChange({ scope: v as ProductScopeDraft['scope'], products: value.products })}
-        options={[['all', 'Todos los productos'], ['some', 'Solo algunos']]} />
-      {value.scope === 'some' && (
+      {required
+        ? <Text as="span" variant="bodyMd">¿A qué producto se aplica?</Text>
+        : <Choice label="¿En qué productos vale?" value={value.scope}
+            onChange={(v) => onChange({ scope: v as ProductScopeDraft['scope'], products: value.products })}
+            options={[['all', 'Todos los productos'], ['some', 'Solo algunos']]} />}
+      {(required || value.scope === 'some') && (
         <BlockStack gap="150">
           {value.products.map((p) => (
             <InlineStack key={p.id} align="space-between" blockAlign="center" wrap={false} gap="200">
-              <div style={{ minWidth: 0, flex: 1 }}><Text as="span" variant="bodyMd" truncate>{p.title}</Text></div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <Text as="span" variant="bodyMd" fontWeight="semibold" truncate>{p.title}</Text>
+                {p.priceCents != null && <Text as="span" variant="bodySm" tone="subdued"> · precio en Shopify {money(p.priceCents)}</Text>}
+              </div>
               <Button variant="plain" tone="critical" icon={DeleteIcon} accessibilityLabel={`Quitar ${p.title}`}
                 onClick={() => onChange({ scope: 'some', products: value.products.filter((x) => x.id !== p.id) })} />
             </InlineStack>
           ))}
-          {!value.products.length && <Text as="p" variant="bodySm" tone="critical">Elige al menos un producto.</Text>}
-          <div><Button icon={PlusIcon} onClick={() => void add()}>Añadir producto</Button></div>
+          {!value.products.length && <Text as="p" variant="bodySm" tone="critical">
+            {required && value.scope === 'all' ? 'Esta oferta vale para todos los productos. Elige su producto para ver el precio real.' : 'Elige al menos un producto.'}
+          </Text>}
+          <div><Button icon={PlusIcon} onClick={() => void add()}>{value.products.length ? 'Añadir otro producto' : 'Elegir producto'}</Button></div>
         </BlockStack>
       )}
     </BlockStack>
   );
 }
 
-function scopeFrom(ids: string[], titles: unknown): ProductScopeDraft {
+function scopeFrom(ids: string[], titles: unknown, live?: Map<string, { title: string; priceCents: number | null }>): ProductScopeDraft {
   const t = Array.isArray(titles) ? titles : [];
   return ids.length
-    ? { scope: 'some', products: ids.map((id, i) => ({ id, title: typeof t[i] === 'string' && t[i] ? String(t[i]) : 'Producto' })) }
+    ? { scope: 'some', products: ids.map((id, i) => ({
+        id,
+        title: live?.get(id)?.title ?? (typeof t[i] === 'string' && t[i] ? String(t[i]) : 'Producto'),
+        priceCents: live?.get(id)?.priceCents ?? null,
+      })) }
     : { scope: 'all', products: [] };
 }
 
+const money = (c: number) => `RD$ ${(c / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+
+/** Ejemplo con el precio real del producto elegido: «2 × RD$ 1,799 = RD$ 3,598 → pagas RD$ 2,950». */
+function priceHint(o: OfferDraft, mode: 'bundle' | 'amount' | 'percent'): string {
+  const unit = o.products[0]?.priceCents;
+  const qty = Math.max(1, parseInt(o.minQty, 10) || 1);
+  if (!unit) return 'Elige el producto para ver el precio real y el ahorro.';
+  const full = unit * qty;
+  const name = o.products[0]!.title;
+  const base = `${qty} × ${money(unit)} (${name}) = ${money(full)}.`;
+  const pay = mode === 'bundle' ? (o.bundlePrice ? cents(o.bundlePrice) : null)
+    : mode === 'amount' ? (o.amount ? full - cents(o.amount) : null)
+    : (o.percent ? Math.round(full * (1 - (Number(o.percent) || 0) / 100)) : null);
+  if (pay == null) return `Precio normal: ${base}`;
+  if (pay >= full) return `Precio normal: ${base} Con este valor no hay descuento.`;
+  return `Precio normal: ${base} Con la oferta paga ${money(Math.max(0, pay))} (ahorra ${money(full - Math.max(0, pay))}).`;
+}
+
+/** Nombre y precio actual en Shopify de unos productos (primera variante). */
+async function productInfo(
+  shop: { id: string; domain: string; accessTokenEnc: Uint8Array },
+  admin: { graphql: (q: string, o?: { variables?: Record<string, unknown> }) => Promise<Response> } | null,
+  ids: string[],
+): Promise<Map<string, { title: string; priceCents: number | null }>> {
+  const out = new Map<string, { title: string; priceCents: number | null }>();
+  if (!ids.length) return out;
+  const q = 'query($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title variants(first: 1) { nodes { price } } } } }';
+  type Node = { id?: string; title?: string; variants?: { nodes: { price: string }[] } } | null;
+  try {
+    let nodes: Node[];
+    if (admin) nodes = ((await (await admin.graphql(q, { variables: { ids } })).json()) as { data: { nodes: Node[] } }).data.nodes;
+    else nodes = (await shopifyGraphql<{ nodes: Node[] }>(shop.domain, await shopToken(shop.id, shop.accessTokenEnc), q, { ids })).nodes;
+    for (const n of nodes) {
+      if (!n?.id) continue;
+      const price = n.variants?.nodes[0]?.price;
+      out.set(n.id, { title: n.title ?? 'Producto', priceCents: price ? Math.round(parseFloat(price) * 100) : null });
+    }
+  } catch { /* sin precio en vivo: se muestra sin ejemplo */ }
+  return out;
+}
+
 function scopeLabel(d: ProductScopeDraft): string {
-  if (d.scope !== 'some') return '';
+  if (!d.products.length) return ' · sin producto';
   return d.products.length === 1 ? ` · solo ${d.products[0]!.title}` : ` · ${d.products.length} productos`;
 }
 
