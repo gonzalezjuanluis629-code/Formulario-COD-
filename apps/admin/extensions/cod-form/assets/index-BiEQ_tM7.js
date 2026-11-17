@@ -508,7 +508,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-CDoaoszg.js").then(({ renderAddons }) => {
+    void import("./addons-DClX5O13.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1055,7 +1055,7 @@ ${config.tokens.customCss}`;
   };
   const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-BpY6_IGN.js");
+    const { renderTrigger } = await import("./trigger-s-27LW6h.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1322,10 +1322,11 @@ function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 function autoPlace() {
-  if (inlineHosts().some((el) => !el.dataset.codAuto)) document.querySelectorAll("[data-cod-auto]").forEach((el) => el.remove());
+  const manualShown = () => inlineHosts().some((el) => !el.dataset.codAuto && el.isConnected && el.getClientRects().length > 0);
+  if (manualShown()) document.querySelectorAll("[data-cod-auto]").forEach((el) => el.remove());
   document.querySelectorAll("[data-cod-autoplace]").forEach((marker) => {
     var _a, _b, _c;
-    if (inlineHosts().some((el2) => !el2.dataset.codAuto)) {
+    if (manualShown()) {
       marker.remove();
       return;
     }
@@ -1382,7 +1383,31 @@ if (document.readyState === "loading") {
 window.addEventListener("load", () => {
   autoPlace();
   boot();
+  if (/[?&]cod_debug=1/.test(location.search)) setTimeout(showDebug, 2500);
 });
+function showDebug() {
+  var _a;
+  const shown = (e) => e.getClientRects().length > 0;
+  const desc = (e) => e ? `<${e.tagName.toLowerCase()}${e.id ? "#" + e.id : ""}${e.className && typeof e.className === "string" ? "." + e.className.trim().split(/\s+/).slice(0, 2).join(".") : ""}>` : "ninguno";
+  const hosts = [...document.querySelectorAll("[data-cod-form]")];
+  const marker = document.querySelector("[data-cod-autoplace]");
+  const lines = [
+    `Incrustación «COD Forms»: ${document.querySelector('[data-floating="true"], [data-cod-auto], [data-cod-autoplace]') ? "activa" : "NO activa o sin producto"}`,
+    `Botón automático: ${document.querySelector("[data-cod-auto]") ? "puesto" : marker ? "sin sitio (no encontré «Agregar al carrito» ni el precio)" : "no pedido / quitado"}`,
+    `Sitio elegido: ${desc(findBuyAnchor(((_a = marker == null ? void 0 : marker.dataset.variantId) != null ? _a : "").replace(/\D/g, "")))}`,
+    `Formularios de compra del tema: ${document.querySelectorAll('form[action*="/cart/add"]').length}`,
+    ...hosts.map((h, i) => {
+      var _a2;
+      return `#${i + 1} ${h.dataset.floating ? "flotante" : h.dataset.codAuto ? "automático" : "bloque manual"} · muestra: ${(_a2 = h.dataset.codRendered) != null ? _a2 : "nada"} · visible: ${shown(h) ? "sí" : "no"} · dentro de ${desc(h.parentElement)}`;
+    })
+  ];
+  const box = document.createElement("pre");
+  box.style.cssText = "position:fixed;top:8px;left:8px;right:8px;z-index:2147483647;background:#111;color:#0f0;font:12px/1.4 monospace;padding:10px;border-radius:8px;white-space:pre-wrap;max-height:60vh;overflow:auto";
+  box.textContent = "COD Forms — diagnóstico\n" + lines.join("\n");
+  box.addEventListener("click", () => box.remove());
+  document.body.appendChild(box);
+  console.log(box.textContent);
+}
 let bootQueued = false;
 const queueBoot = () => {
   if (bootQueued) return;

@@ -379,9 +379,10 @@ declare global {
  */
 function autoPlace(): void {
   // Si el comerciante puso su propio bloque, manda ese: fuera el automático.
-  if (inlineHosts().some((el) => !el.dataset.codAuto)) document.querySelectorAll('[data-cod-auto]').forEach((el) => el.remove());
+  const manualShown = () => inlineHosts().some((el) => !el.dataset.codAuto && el.isConnected && el.getClientRects().length > 0);
+  if (manualShown()) document.querySelectorAll('[data-cod-auto]').forEach((el) => el.remove());
   document.querySelectorAll<HTMLElement>('[data-cod-autoplace]').forEach((marker) => {
-    if (inlineHosts().some((el) => !el.dataset.codAuto)) { marker.remove(); return; }
+    if (manualShown()) { marker.remove(); return; }
     const anchor = findBuyAnchor((marker.dataset.variantId ?? '').replace(/\D/g, ''));
     if (!anchor) return; // se reintenta cuando el tema termine de cargar
     const el = document.createElement('div');
@@ -435,7 +436,30 @@ if (document.readyState === 'loading') {
 } else {
   boot();
 }
-window.addEventListener('load', () => { autoPlace(); boot(); });
+window.addEventListener('load', () => {
+  autoPlace(); boot();
+  if (/[?&]cod_debug=1/.test(location.search)) setTimeout(showDebug, 2500);
+});
+
+function showDebug(): void {
+  const shown = (e: Element) => e.getClientRects().length > 0;
+  const desc = (e: Element | null) => e ? `<${e.tagName.toLowerCase()}${e.id ? '#' + e.id : ''}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/).slice(0, 2).join('.') : ''}>` : 'ninguno';
+  const hosts = [...document.querySelectorAll<HTMLElement>('[data-cod-form]')];
+  const marker = document.querySelector<HTMLElement>('[data-cod-autoplace]');
+  const lines = [
+    `Incrustación «COD Forms»: ${document.querySelector('[data-floating="true"], [data-cod-auto], [data-cod-autoplace]') ? 'activa' : 'NO activa o sin producto'}`,
+    `Botón automático: ${document.querySelector('[data-cod-auto]') ? 'puesto' : marker ? 'sin sitio (no encontré «Agregar al carrito» ni el precio)' : 'no pedido / quitado'}`,
+    `Sitio elegido: ${desc(findBuyAnchor((marker?.dataset.variantId ?? '').replace(/\D/g, '')))}`,
+    `Formularios de compra del tema: ${document.querySelectorAll('form[action*="/cart/add"]').length}`,
+    ...hosts.map((h, i) => `#${i + 1} ${h.dataset.floating ? 'flotante' : h.dataset.codAuto ? 'automático' : 'bloque manual'} · muestra: ${h.dataset.codRendered ?? 'nada'} · visible: ${shown(h) ? 'sí' : 'no'} · dentro de ${desc(h.parentElement)}`),
+  ];
+  const box = document.createElement('pre');
+  box.style.cssText = 'position:fixed;top:8px;left:8px;right:8px;z-index:2147483647;background:#111;color:#0f0;font:12px/1.4 monospace;padding:10px;border-radius:8px;white-space:pre-wrap;max-height:60vh;overflow:auto';
+  box.textContent = 'COD Forms — diagnóstico\n' + lines.join('\n');
+  box.addEventListener('click', () => box.remove());
+  document.body.appendChild(box);
+  console.log(box.textContent);
+}
 
 // Editor del tema (y temas que cargan secciones después): al añadir o recargar
 // una sección, su bloque aparece al momento, sin recargar la página.
