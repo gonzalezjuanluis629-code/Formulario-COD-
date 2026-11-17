@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from 'react-router';
-import { authenticate } from '../shopify.server';
+import { authenticate, provisionShop } from '../shopify.server';
 import { db } from '../db.server';
 
 /**
@@ -9,6 +9,11 @@ import { db } from '../db.server';
  */
 export async function requireShop(request: LoaderFunctionArgs['request']) {
   const { session, admin } = await authenticate.admin(request);
-  const shop = await db.shop.findUniqueOrThrow({ where: { domain: session.shop } });
+  let shop = await db.shop.findUnique({ where: { domain: session.shop } });
+  if (!shop || shop.uninstalledAt || !shop.accessTokenEnc.length) {
+    // Primera vez (o instalación anterior a este servidor): se registra ahora.
+    await provisionShop(session, admin);
+    shop = await db.shop.findUniqueOrThrow({ where: { domain: session.shop } });
+  }
   return { shop, admin, session };
 }
