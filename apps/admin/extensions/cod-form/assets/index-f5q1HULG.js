@@ -556,7 +556,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-DKa9cpMU.js").then(({ renderAddons }) => {
+    void import("./addons-CeCcZEvx.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1128,7 +1128,7 @@ ${config.tokens.customCss}`;
   };
   const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-D5OU60kI.js");
+    const { renderTrigger } = await import("./trigger-BFOZUbsU.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1195,30 +1195,42 @@ function hideWhileInlineVisible(floatingHost) {
   new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
 }
 function openModal(shadow, config, renderInto) {
+  document.querySelectorAll("[data-cod-modal]").forEach((el) => el.remove());
+  const portal = document.createElement("div");
+  portal.setAttribute("data-cod-modal", "");
+  portal.style.cssText = "position:fixed;inset:0;z-index:2147483600;";
+  const pshadow = portal.attachShadow({ mode: "open" });
+  shadow.querySelectorAll("style").forEach((st) => pshadow.appendChild(st.cloneNode(true)));
+  document.body.appendChild(portal);
   const overlay = document.createElement("div");
   overlay.className = "cod-modal-overlay";
   const modal = document.createElement("div");
   modal.className = "cod-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
   modal.innerHTML = `<button class="cod-modal-close" aria-label="Cerrar">✕</button><div class="cod-modal-body"></div>`;
   overlay.appendChild(modal);
-  shadow.appendChild(overlay);
+  pshadow.appendChild(overlay);
+  const prevOverflow = document.body.style.overflow;
   document.body.style.overflow = "hidden";
   requestAnimationFrame(() => overlay.classList.add("cod-open"));
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     overlay.classList.remove("cod-open");
-    document.body.style.overflow = "";
-    setTimeout(() => overlay.remove(), 250);
+    document.body.style.overflow = prevOverflow;
+    document.removeEventListener("keydown", esc2);
+    setTimeout(() => portal.remove(), 250);
+  };
+  const esc2 = (e) => {
+    if (e.key === "Escape") close();
   };
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) close();
   });
   modal.querySelector(".cod-modal-close").addEventListener("click", close);
-  document.addEventListener("keydown", function esc2(e) {
-    if (e.key === "Escape") {
-      close();
-      document.removeEventListener("keydown", esc2);
-    }
-  });
+  document.addEventListener("keydown", esc2);
   const formRoot = document.createElement("div");
   formRoot.className = "cod-root";
   modal.querySelector(".cod-modal-body").appendChild(formRoot);
