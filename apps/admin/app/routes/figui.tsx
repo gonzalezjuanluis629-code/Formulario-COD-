@@ -64,7 +64,8 @@ function PolarisLink({ url, children, external, ...rest }: { url: string; childr
 }
 
 const NAV: { to: string; label: string; end?: boolean }[] = [
-  { to: '/figui?lista=1', label: 'Formularios', end: true },
+  { to: '/figui/facil', label: '✏️ Editar fácil' },
+  { to: '/figui?lista=1', label: 'Opciones avanzadas', end: true },
   { to: '/figui/offers', label: 'Ofertas y descuentos' },
   { to: '/figui/shipping', label: 'Envíos' },
   { to: '/figui/orders', label: 'Pedidos del formulario' },

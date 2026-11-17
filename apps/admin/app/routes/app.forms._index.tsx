@@ -16,12 +16,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
     orderBy: { updatedAt: 'desc' },
     include: { _count: { select: { submissions: true } }, versions: { select: { version: true } } },
   });
-  // Desde Figui, con un solo formulario se abre directo el editor (más simple).
-  // ?lista=1 muestra la lista igualmente (botón «Formularios» y la flecha de volver).
+  // Desde Figui se abre directo el EDITOR FÁCIL. ?lista=1 muestra la lista
+  // (botón «Opciones avanzadas» y la flecha de volver).
   const url = new URL(request.url);
-  if (basePath(request) === '/figui' && forms.length === 1 && !url.searchParams.has('lista')) {
+  if (basePath(request) === '/figui' && forms.length >= 1 && !url.searchParams.has('lista')) {
     const ft = url.searchParams.get('ft');
-    throw redirect(`/figui/forms/${forms[0].id}${ft ? `?ft=${encodeURIComponent(ft)}` : ''}`);
+    throw redirect(`/figui/facil${ft ? `?ft=${encodeURIComponent(ft)}` : ''}`);
   }
   return { forms };
 }

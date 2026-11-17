@@ -10,7 +10,7 @@ import { AddonSchema, OfferSchema, ShopSettingsSchema, ThemeTokensSchema, type A
 import { requireShop } from '../lib/shop.server';
 import { pickResources } from '../lib/base';
 import { db } from '../db.server';
-import { shopifyGraphql, shopToken } from '../lib/figui.server';
+import { productInfo } from '../lib/products.server';
 import { IntentButton } from '../components/IntentButton';
 import { Preview } from '../features/builder/Preview';
 import { DEFAULT_FIELDS } from '../lib/defaults';
@@ -699,28 +699,7 @@ function priceHint(o: OfferDraft, mode: 'bundle' | 'amount' | 'percent'): string
   return `Precio normal: ${base} Con la oferta paga ${money(Math.max(0, pay))} (ahorra ${money(full - Math.max(0, pay))}).`;
 }
 
-/** Nombre y precio actual en Shopify de unos productos (primera variante). */
-async function productInfo(
-  shop: { id: string; domain: string; accessTokenEnc: Uint8Array },
-  admin: { graphql: (q: string, o?: { variables?: Record<string, unknown> }) => Promise<Response> } | null,
-  ids: string[],
-): Promise<Map<string, { title: string; priceCents: number | null }>> {
-  const out = new Map<string, { title: string; priceCents: number | null }>();
-  if (!ids.length) return out;
-  const q = 'query($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title variants(first: 1) { nodes { price } } } } }';
-  type Node = { id?: string; title?: string; variants?: { nodes: { price: string }[] } } | null;
-  try {
-    let nodes: Node[];
-    if (admin) nodes = ((await (await admin.graphql(q, { variables: { ids } })).json()) as { data: { nodes: Node[] } }).data.nodes;
-    else nodes = (await shopifyGraphql<{ nodes: Node[] }>(shop.domain, await shopToken(shop.id, shop.accessTokenEnc), q, { ids })).nodes;
-    for (const n of nodes) {
-      if (!n?.id) continue;
-      const price = n.variants?.nodes[0]?.price;
-      out.set(n.id, { title: n.title ?? 'Producto', priceCents: price ? Math.round(parseFloat(price) * 100) : null });
-    }
-  } catch { /* sin precio en vivo: se muestra sin ejemplo */ }
-  return out;
-}
+
 
 function scopeLabel(d: ProductScopeDraft): string {
   if (!d.products.length) return ' · sin producto';
