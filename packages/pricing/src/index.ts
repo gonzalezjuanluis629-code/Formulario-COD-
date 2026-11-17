@@ -22,6 +22,8 @@ export interface PricingContext {
   discount: ValidatedDiscount | null;
   /** Precio total de los addons aceptados (order bumps + upsells), en centavos. */
   addonsCents?: number;
+  /** Carrito con varios productos: suma de las ofertas por cantidad de cada línea. */
+  lineOffers?: { discountCents: number; freeShipping: boolean; label: string | null } | null;
   /** Cupón solo para algunos productos: lo que suman esos productos (base del descuento). */
   discountBaseCents?: number | null;
 }
@@ -62,29 +64,46 @@ const subtotal: PricingStep = {
   },
 };
 
-/* 2 — Ofertas por cantidad ("compra 2, 10 % off"). Gana la de mayor minQty aplicable. */
+/**
+ * Descuento de la oferta por cantidad que toca a una línea (un producto):
+ * gana la de mayor minQty aplicable. Se usa también línea a línea en el carrito.
+ */
+export function offerDiscount(qty: number, unitPriceCents: number, offers: Offer[]):
+  { discountCents: number; freeShipping: boolean; label: string | null } {
+  const subtotal = unitPriceCents * qty;
+  const match = offers
+    .filter((o) => qty >= o.minQty)
+    .sort((a, b) => b.minQty - a.minQty)[0];
+  if (!match) return { discountCents: 0, freeShipping: false, label: null };
+
+  let discount = 0;
+  if (match.bundlePriceCents != null && unitPriceCents > 0) {
+    // Precio fijo del paquete: «2 por RD$ 2,950». Se reparte proporcionalmente
+    // si el cliente lleva más unidades que el mínimo del paquete.
+    const full = unitPriceCents * match.minQty;
+    const rate = full > 0 ? Math.max(0, 1 - match.bundlePriceCents / full) : 0;
+    discount = Math.round(subtotal * rate);
+  } else if (match.discountCents > 0) {
+    // Monto fijo: «llévate 2 y ahorra RD$ 200».
+    discount = Math.min(match.discountCents, subtotal);
+  } else if (match.discountBps > 0) {
+    discount = Math.round((subtotal * match.discountBps) / 10000);
+  }
+  // Una oferta que no rebaja nada (ni da envío gratis) no cuenta como aplicada.
+  if (discount <= 0 && !match.freeShipping) return { discountCents: 0, freeShipping: false, label: null };
+  return { discountCents: discount, freeShipping: match.freeShipping, label: match.label };
+}
+
+/* 2 — Ofertas por cantidad ("compra 2, 10 % off"). */
 const quantityOffers: PricingStep = {
   name: 'quantity-offers',
   apply(d, ctx) {
-    const match = ctx.offers
-      .filter((o) => ctx.qty >= o.minQty)
-      .sort((a, b) => b.minQty - a.minQty)[0];
-    if (!match) return;
-
-    if (match.bundlePriceCents != null && ctx.unitPriceCents > 0) {
-      // Precio fijo del paquete: «2 por RD$ 2,950». Se reparte proporcionalmente
-      // si el cliente lleva más unidades que el mínimo del paquete.
-      const full = ctx.unitPriceCents * match.minQty;
-      const rate = full > 0 ? Math.max(0, 1 - match.bundlePriceCents / full) : 0;
-      d.discountCents += Math.round(d.subtotalCents * rate);
-    } else if (match.discountCents > 0) {
-      // Monto fijo: «llévate 2 y ahorra RD$ 200».
-      d.discountCents += Math.min(match.discountCents, d.subtotalCents);
-    } else if (match.discountBps > 0) {
-      d.discountCents += Math.round((d.subtotalCents * match.discountBps) / 10000);
-    }
-    if (match.freeShipping) d.freeShipping = true;
-    d.appliedOffer = match.label;
+    const r = offerDiscount(ctx.qty, ctx.unitPriceCents, ctx.offers);
+    // Carrito con varios productos: las ofertas ya se calcularon línea a línea.
+    const x = ctx.lineOffers;
+    d.discountCents += r.discountCents + (x?.discountCents ?? 0);
+    if (r.freeShipping || x?.freeShipping) d.freeShipping = true;
+    d.appliedOffer = r.label ?? x?.label ?? null;
   },
 };
 

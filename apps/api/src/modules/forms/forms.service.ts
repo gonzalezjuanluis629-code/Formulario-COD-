@@ -3,6 +3,7 @@ import { ThemeTokensSchema, LocationConfigSchema, ShopSettingsSchema, OfferSchem
 import type { WidgetConfig } from '@cod/contracts';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AdminClientService } from '../../infra/shopify/admin-client.service';
+import { PageOffersService } from '../page-offers/page-offers.service';
 import type { ShopContext } from '../../infra/shopify/shop-context.service';
 
 /**
@@ -12,7 +13,7 @@ import type { ShopContext } from '../../infra/shopify/shop-context.service';
  */
 @Injectable()
 export class FormsService {
-  constructor(private prisma: PrismaService, private admin: AdminClientService) {}
+  constructor(private prisma: PrismaService, private admin: AdminClientService, private pageOffers: PageOffersService) {}
 
   async resolve(ctx: ShopContext, productGid: string, variantGid: string): Promise<WidgetConfig> {
     // Páginas sin producto (portada, colecciones…): no hay formulario que mostrar.
@@ -79,6 +80,10 @@ export class FormsService {
 
     if (!variant.productVariant) throw new NotFoundException('Variante no encontrada');
 
+    // Si la página del producto tiene su propia caja de ofertas, esas mandan.
+    const unitPriceCents = Math.round(parseFloat(v.price) * 100);
+    const fromPage = await this.pageOffers.forProduct(ctx, productGid, unitPriceCents);
+
     return {
       formId: form.id,
       formVersionId: version.id,
@@ -89,7 +94,7 @@ export class FormsService {
         (ctx.settings as Record<string, unknown>).location ?? {},
       ),
       settings: this.publicSettings({ ...ShopSettingsSchema.parse(ctx.settings ?? {}), ...(ctx.currency ? { currency: ctx.currency } : {}) }),
-      offers: offers
+      offers: fromPage.length ? fromPage : offers
         .map((o) => OfferSchema.parse({ id: o.id, label: o.name, type: 'QUANTITY', ...(o.payload as object) }))
         // Solo las ofertas de este producto (o de todos).
         .filter((o) => !o.productIds.length || o.productIds.includes(productGid)),

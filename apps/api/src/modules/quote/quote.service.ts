@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { QuoteRequest, QuoteResponse, Offer, CartLine } from '@cod/contracts';
 import { ShopSettingsSchema, OfferSchema } from '@cod/contracts';
-import { quote as runPricing } from '@cod/pricing';
+import { quote as runPricing, offerDiscount } from '@cod/pricing';
+import { PageOffersService } from '../page-offers/page-offers.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AdminClientService } from '../../infra/shopify/admin-client.service';
 import { DiscountsService } from '../discounts/discounts.service';
@@ -20,6 +21,7 @@ export class QuoteService {
     private admin: AdminClientService,
     private discounts: DiscountsService,
     private addons: AddonsService,
+    private pageOffers: PageOffersService,
   ) {}
 
   async compute(ctx: ShopContext, dto: QuoteRequest): Promise<QuoteResponse> {
@@ -32,26 +34,41 @@ export class QuoteService {
     let qty: number;
     let unitPriceCents: number;
     let parsed: Offer[] = [];
+    let lineOffers: { discountCents: number; freeShipping: boolean; label: string | null } | null = null;
     // Lo que suma cada producto (para los cupones que valen solo en algunos).
     let byProduct: { productId: string; cents: number }[];
+    const shopOffers = (await this.prisma.offer.findMany({
+      where: { shopId: ctx.shopId, active: true, type: 'QUANTITY' },
+      orderBy: { priority: 'desc' },
+    })).map((o) => OfferSchema.parse({ id: o.id, label: o.name, type: 'QUANTITY', ...(o.payload as object) }));
+    // Ofertas de un producto: las de su página (si la tienda tiene su propia caja
+    // de ofertas, esos precios mandan) o, si no, las del panel para ese producto.
+    const offersFor = async (productId: string, unit: number): Promise<Offer[]> => {
+      const fromPage = await this.pageOffers.forProduct(ctx, productId, unit);
+      if (fromPage.length) return fromPage;
+      return shopOffers.filter((o) => !o.productIds.length || o.productIds.includes(productId));
+    };
+
     const [only] = lines;
     if (lines.length === 1 && only) {
       qty = only.qty;
       const v = await this.variant(ctx, only.variantId);
       unitPriceCents = v.priceCents;
       byProduct = [{ productId: v.productId, cents: v.priceCents * qty }];
-      const offers = await this.prisma.offer.findMany({
-        where: { shopId: ctx.shopId, active: true, type: 'QUANTITY' },
-        orderBy: { priority: 'desc' },
-      });
-      parsed = offers
-        .map((o) => OfferSchema.parse({ id: o.id, label: o.name, type: 'QUANTITY', ...(o.payload as object) }))
-        // Ofertas de otros productos no cuentan.
-        .filter((o) => !o.productIds.length || o.productIds.includes(v.productId));
+      parsed = await offersFor(v.productId, v.priceCents);
     } else {
+      // Carrito con varios productos: cada línea con su propia oferta por cantidad.
       qty = 1;
-      byProduct = await this.cartPrices(ctx, lines);
+      const priced = await this.cartPrices(ctx, lines);
+      byProduct = priced.map((l) => ({ productId: l.productId, cents: l.unitCents * l.qty }));
       unitPriceCents = byProduct.reduce((s, l) => s + l.cents, 0);
+      lineOffers = { discountCents: 0, freeShipping: false, label: null };
+      for (const l of priced) {
+        const r = offerDiscount(l.qty, l.unitCents, await offersFor(l.productId, l.unitCents));
+        lineOffers.discountCents += r.discountCents;
+        if (r.freeShipping) lineOffers.freeShipping = true;
+        if (r.label && !lineOffers.label) lineOffers.label = r.label;
+      }
     }
 
     let discount = await this.discounts.validate(ctx, dto.discountCode ?? null);
@@ -84,12 +101,13 @@ export class QuoteService {
       codFeeCents: settings.codFeeCents,
       discount,
       discountBaseCents,
+      lineOffers,
       addonsCents,
     });
   }
 
   /** Cada línea del carrito con el precio real de su variante en Shopify (× cantidad). */
-  private async cartPrices(ctx: ShopContext, lines: CartLine[]): Promise<{ productId: string; cents: number }[]> {
+  private async cartPrices(ctx: ShopContext, lines: CartLine[]): Promise<{ productId: string; unitCents: number; qty: number }[]> {
     type Node = { id: string; price?: string; product?: { id: string } } | null;
     const data = await this.admin.graphql<{ nodes: Node[] }>(
       ctx, `query($ids: [ID!]!){ nodes(ids:$ids){ ... on ProductVariant { id price product { id } } } }`,
@@ -99,7 +117,7 @@ export class QuoteService {
     return lines.map((l) => {
       const n = byId.get(l.variantId);
       if (!n?.price) throw new NotFoundException('Un producto del carrito ya no está disponible. Recarga la página.');
-      return { productId: n.product?.id ?? '', cents: Math.round(parseFloat(n.price) * 100) * l.qty };
+      return { productId: n.product?.id ?? '', unitCents: Math.round(parseFloat(n.price) * 100), qty: l.qty };
     });
   }
 
