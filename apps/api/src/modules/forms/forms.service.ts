@@ -15,6 +15,10 @@ export class FormsService {
   constructor(private prisma: PrismaService, private admin: AdminClientService) {}
 
   async resolve(ctx: ShopContext, productGid: string, variantGid: string): Promise<WidgetConfig> {
+    // Páginas sin producto (portada, colecciones…): no hay formulario que mostrar.
+    if (!/^gid:\/\/shopify\/ProductVariant\/\d+$/.test(variantGid ?? '') || !/^gid:\/\/shopify\/Product\/\d+$/.test(productGid ?? '')) {
+      throw new NotFoundException('Esta página no tiene producto');
+    }
     // Primero traemos el producto con sus colecciones y tags, para poder
     // resolver asignaciones por colección/etiqueta/proveedor, no solo por producto.
     const variant = await this.admin.graphql<{

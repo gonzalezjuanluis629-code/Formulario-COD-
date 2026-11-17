@@ -64,19 +64,67 @@ export async function mount(opts: MountOptions): Promise<void> {
     const { renderTrigger } = await import('./ui/trigger');
     root.innerHTML = '';
     root.classList.add('cod-root-trigger');
-    if (host.dataset.floating === 'true') {
+    const floating = host.dataset.floating === 'true';
+    host.dataset.codRendered = 'button';
+    if (floating) {
       // Botón flotante (App Embed): fijo abajo, siempre a mano en el móvil.
-      host.style.cssText = 'position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;display:flex;justify-content:center;';
+      host.style.cssText = 'position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));'
+        + 'z-index:2147482000;display:flex;justify-content:center;transition:opacity .25s ease,transform .25s ease;';
+      hideWhileInlineVisible(host);
     }
-    renderTrigger(root, config.tokens.trigger, () => openModal(shadow, config, renderInto));
+    renderTrigger(root, config.tokens.trigger, () => {
+      // Si en la página ya está el formulario completo, el botón flotante lleva hasta él.
+      const inlineForm = floating ? findInline('form') : null;
+      if (inlineForm) inlineForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else openModal(shadow, config, renderInto);
+    });
     try { api.track(config.formId, 'view', config.formVersionId); } catch { /* nunca bloquea */ }
     return;
   }
 
   root.innerHTML = '';
+  host.dataset.codRendered = 'form';
   renderInto(root);
   // Embudo: registramos la vista. sessionId estable por montaje.
   try { api.track(config.formId, 'view', config.formVersionId); } catch { /* nunca bloquea */ }
+}
+
+/** Formularios o botones puestos en la página (no flotantes). */
+function inlineHosts(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>('[data-cod-form]')].filter((el) => el.dataset.floating !== 'true');
+}
+
+function findInline(kind: 'form' | 'button'): HTMLElement | null {
+  return inlineHosts().find((el) => el.isConnected && el.dataset.codRendered === kind) ?? null;
+}
+
+/**
+ * El botón flotante se esconde mientras se ve en pantalla un botón o formulario
+ * puesto en la página, y vuelve a aparecer al pasarlo. Así nunca hay dos
+ * «Comprar ahora» a la vez.
+ */
+function hideWhileInlineVisible(floatingHost: HTMLElement): void {
+  if (!('IntersectionObserver' in window)) return;
+  const visible = new Set<Element>();
+  const apply = () => {
+    const hide = visible.size > 0;
+    floatingHost.style.opacity = hide ? '0' : '1';
+    floatingHost.style.transform = hide ? 'translateY(120%)' : 'none';
+    floatingHost.style.pointerEvents = hide ? 'none' : 'auto';
+    floatingHost.setAttribute('aria-hidden', String(hide));
+  };
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      // Un bloque que no llegó a montarse (sin formulario para el producto) no cuenta.
+      if (e.isIntersecting && e.target.isConnected) visible.add(e.target); else visible.delete(e.target);
+    }
+    apply();
+  }, { threshold: 0.15 });
+  const watched = new WeakSet<Element>();
+  const scan = () => inlineHosts().forEach((el) => { if (!watched.has(el)) { watched.add(el); io.observe(el); } });
+  scan();
+  // Por si el tema añade el bloque después (carga diferida, editor del tema).
+  new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
 }
 
 /** Modal para el modo popup. El formulario se monta fresco cada apertura. */
@@ -326,6 +374,8 @@ declare global {
 function boot() {
   document.querySelectorAll<HTMLElement>('[data-cod-form]:not([data-cod-mounted])').forEach((el) => {
     el.dataset.codMounted = '1';
+    // Sin producto (portada, colecciones…) no hay nada que mostrar.
+    if (!/\d+$/.test(el.dataset.variantId ?? '') || !/\d+$/.test(el.dataset.productId ?? '')) { el.remove(); return; }
     void mount({
       productId: el.dataset.productId!,
       variantId: el.dataset.variantId!,
