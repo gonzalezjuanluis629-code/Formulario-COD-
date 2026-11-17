@@ -23,7 +23,7 @@ export class QuoteService {
   ) {}
 
   async compute(ctx: ShopContext, dto: QuoteRequest): Promise<QuoteResponse> {
-    const settings = ShopSettingsSchema.parse(ctx.settings ?? {});
+    const settings = { ...ShopSettingsSchema.parse(ctx.settings ?? {}), ...(ctx.currency ? { currency: ctx.currency } : {}) };
     const unitPriceCents = await this.variantPrice(ctx, dto.variantId);
 
     const offers = await this.prisma.offer.findMany({

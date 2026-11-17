@@ -40,7 +40,7 @@ export class SubmitService {
   ) {}
 
   async submit(ctx: ShopContext, dto: SubmitRequest, ip: string, ua: string): Promise<SubmitResponse> {
-    const settings = ShopSettingsSchema.parse(ctx.settings ?? {});
+    const settings = { ...ShopSettingsSchema.parse(ctx.settings ?? {}), ...(ctx.currency ? { currency: ctx.currency } : {}) };
     const profile = getCountryProfile(ctx.countryCode);
 
     /* 1 ─ Idempotencia. Es la misma tecla pulsada dos veces, no dos pedidos. */

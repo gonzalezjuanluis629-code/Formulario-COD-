@@ -508,7 +508,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-Db-FCZFz.js").then(({ renderAddons }) => {
+    void import("./addons-2K9Wx-Cj.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1055,7 +1055,7 @@ ${config.tokens.customCss}`;
   };
   const mode = host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-BUv3oFOE.js");
+    const { renderTrigger } = await import("./trigger-VQGf-y6j.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1337,6 +1337,26 @@ if (document.readyState === "loading") {
 } else {
   boot();
 }
+let bootQueued = false;
+const queueBoot = () => {
+  if (bootQueued) return;
+  bootQueued = true;
+  requestAnimationFrame(() => {
+    bootQueued = false;
+    boot();
+  });
+};
+new MutationObserver((muts) => {
+  for (const m of muts) {
+    for (const n of m.addedNodes) {
+      if (n instanceof HTMLElement && (n.matches("[data-cod-form]") || n.querySelector("[data-cod-form]"))) {
+        queueBoot();
+        return;
+      }
+    }
+  }
+}).observe(document.documentElement, { childList: true, subtree: true });
+document.addEventListener("shopify:section:load", queueBoot);
 window.CodForm = { mount };
 export {
   ANIMATION_SPEEDS as A,
