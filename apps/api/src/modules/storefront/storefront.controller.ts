@@ -55,10 +55,11 @@ const LOADER = `/* Formulario COD */
   }
   // Botón del carrito: el widget se carga cuando aparece un «Pagar» del tema
   // (página del carrito o carrito lateral al añadir un producto).
-  var CHECKOUT = 'button[name="checkout"],input[name="checkout"],button#checkout,a[href$="/checkout"],[data-pd-rsi-cart],a[href*="pd_cod=1"],[data-cod-open-cart]';
+  var CHECKOUT = 'button[name="checkout"],input[name="checkout"],button#checkout,a[href$="/checkout"],[data-pd-rsi-cart],a[href*="pd_cod=1"],[data-cod-open-cart],#rsi_buy_now_button,.rsi_animation_shake,[data-rsi-cod-button]';
   function watchCart() {
     if (!C.cartButton) return;
-    if (/[?&](pd_)?cod=1/.test(location.search)) { load(); return; }
+    // Página del carrito: siempre (su botón de compra abre este formulario).
+    if (/[?&](pd_)?cod=1/.test(location.search) || /\\/cart\\/?$/.test(location.pathname)) { load(); return; }
     if (document.querySelector(CHECKOUT)) { load(); return; }
     var mo = new MutationObserver(function () {
       if (document.querySelector(CHECKOUT)) { mo.disconnect(); load(); }
