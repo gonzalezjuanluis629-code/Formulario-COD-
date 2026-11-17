@@ -25,6 +25,8 @@ export type FiguiStatus = {
     error: string | null;
   };
   manualSnippet: string;
+  /** El mismo código pero con el formulario completo a la vista. */
+  manualFormSnippet: string;
 };
 
 export class FiguiError extends Error {
@@ -109,7 +111,8 @@ export async function statusFor(domain: string): Promise<FiguiStatus> {
     managedBy,
     form,
     storefront: { autoPlace: settings.storefront.autoPlace, floating: settings.storefront.floating, installed, themeName, canInstall, error },
-    manualSnippet: manualSnippet(domain),
+    manualSnippet: manualSnippet(domain, 'popup'),
+    manualFormSnippet: manualSnippet(domain, 'embedded'),
   };
 }
 

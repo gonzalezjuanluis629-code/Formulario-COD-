@@ -82,9 +82,13 @@ export function snippetContent(domain: string): string {
 `;
 }
 
-/** Código para pegar a mano en un bloque «Liquid personalizado» (sitio exacto). */
-export function manualSnippet(domain: string): string {
-  return `<div data-cod-form data-product-id="{{ product.id }}" data-variant-id="{{ product.selected_or_first_available_variant.id }}"></div>
+/**
+ * Código para pegar a mano en un bloque «Liquid personalizado» (sitio exacto).
+ * Por defecto el BOTÓN «Comprar ahora» que abre el formulario; también el
+ * formulario completo, para quien lo quiera a la vista.
+ */
+export function manualSnippet(domain: string, mode: 'popup' | 'embedded' = 'popup'): string {
+  return `<div data-cod-form data-mode="${mode}" data-product-id="{{ product.id }}" data-variant-id="{{ product.selected_or_first_available_variant.id }}"></div>
 <script src="${loaderUrl(domain)}" defer></script>`;
 }
 
