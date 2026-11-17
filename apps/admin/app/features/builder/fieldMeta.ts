@@ -1,5 +1,5 @@
 import {
-  CalendarIcon, CheckboxIcon, CheckCircleIcon, ClockIcon, CodeIcon, EmailIcon, HashtagIcon,
+  CalendarIcon, CheckboxIcon, DiscountIcon, CheckCircleIcon, ClockIcon, CodeIcon, EmailIcon, HashtagIcon,
   ImageIcon, ListBulletedIcon, LocationIcon, MinusIcon, PhoneIcon, PlayIcon, SelectIcon,
   TextAlignLeftIcon, TextBlockIcon, TextFontIcon, TextIcon, TextTitleIcon, UploadIcon,
 } from '@shopify/polaris-icons';
@@ -24,6 +24,7 @@ export const FIELD_META: Record<Field['type'], FieldMeta> = {
   date: { label: 'Fecha', icon: CalendarIcon, group: 'datos', hint: 'Día de entrega preferido…' },
   time: { label: 'Hora', icon: ClockIcon, group: 'datos', hint: 'Horario preferido' },
   location: { label: 'Ubicación con mapa', icon: LocationIcon, group: 'datos', hint: 'GPS o dirección escrita' },
+  discount: { label: 'Código de descuento', icon: DiscountIcon, group: 'datos', hint: 'El cliente aplica un cupón' },
   select: { label: 'Lista desplegable', icon: SelectIcon, group: 'opciones', hint: 'Elegir una opción de una lista' },
   radio: { label: 'Opción única', icon: CheckCircleIcon, group: 'opciones', hint: 'Botones para elegir una' },
   multiselect: { label: 'Varias opciones', icon: ListBulletedIcon, group: 'opciones', hint: 'Elegir varias' },

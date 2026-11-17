@@ -1,4 +1,4 @@
-import type { WidgetConfig, SubmitRequest } from '@cod/contracts';
+import type { WidgetConfig, SubmitRequest, QuoteResponse } from '@cod/contracts';
 import { api, ApiError } from './core/api';
 import { tokensToCss } from './core/theme';
 import { validateField, isVisible } from './core/validate';
@@ -97,6 +97,11 @@ function openModal(config: WidgetConfig, renderInto: (el: HTMLElement) => void):
   renderInto(modal.querySelector<HTMLElement>('.cod-modal-body')!);
 }
 
+export interface QuoteInput {
+  formId: string; variantId: string; qty: number;
+  province: string | null; discountCode: string | null; addonIds: string[];
+}
+
 /** Estado del formulario. Deliberadamente simple: sin framework, sin peso. */
 export class FormState {
   values: Record<string, string> = {};
@@ -105,6 +110,14 @@ export class FormState {
   discountCode: string | null = null;
   acceptedAddons: { id: string; variantId: string; qty: number }[] = [];
   readonly idempotencyKey: string;
+
+  /** Última cotización del servidor (precio real, descuento validado). */
+  quote: QuoteResponse | null = null;
+  /** Quién cotiza: la API en la tienda; un cálculo local en la vista previa del panel. */
+  quoter: (r: QuoteInput) => Promise<QuoteResponse> = (r) => api.quote(r);
+  private quoteListeners: ((q: QuoteResponse) => void)[] = [];
+  private quoteKey = '';
+  private quoteTimer = 0;
   readonly startedAt = Date.now();
 
   constructor(readonly config: WidgetConfig) {
@@ -115,6 +128,42 @@ export class FormState {
     for (const f of config.fields) {
       if (f.defaultValue) this.values[f.key] = f.defaultValue;
     }
+  }
+
+  onQuote(fn: (q: QuoteResponse) => void) { this.quoteListeners.push(fn); }
+
+  private quoteInput(discountCode = this.discountCode): QuoteInput {
+    return {
+      formId: this.config.formId,
+      variantId: this.config.product.variantId,
+      qty: this.qty,
+      province: this.values.province || this.values.provinceCode || null,
+      discountCode,
+      addonIds: this.acceptedAddons.map((a) => a.id),
+    };
+  }
+
+  /** Recotiza (con pausa de 300 ms) solo si cambió algo que afecta al precio. */
+  requestQuote(): void {
+    const key = JSON.stringify(this.quoteInput());
+    if (key === this.quoteKey) return;
+    this.quoteKey = key;
+    window.clearTimeout(this.quoteTimer);
+    this.quoteTimer = window.setTimeout(() => {
+      this.quoter(this.quoteInput())
+        .then((q) => { this.quote = q; this.quoteListeners.forEach((fn) => fn(q)); })
+        .catch(() => { this.quoteKey = ''; /* el precio es informativo: nunca bloquea */ });
+    }, 300);
+  }
+
+  /** Valida un código en el servidor. Devuelve la cotización con o sin el descuento aplicado. */
+  async applyDiscount(code: string | null): Promise<QuoteResponse> {
+    const q = await this.quoter(this.quoteInput(code));
+    this.discountCode = q.appliedDiscount ? q.appliedDiscount.code : null;
+    this.quote = q;
+    this.quoteKey = JSON.stringify(this.quoteInput());
+    this.quoteListeners.forEach((fn) => fn(q));
+    return q;
   }
 
   visibleFields() {

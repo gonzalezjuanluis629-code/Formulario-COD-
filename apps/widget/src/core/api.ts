@@ -27,7 +27,7 @@ export const api = {
   config: (productId: string, variantId: string) =>
     call<WidgetConfig>(`/form?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`),
 
-  quote: (body: { formId: string; variantId: string; qty: number; province?: string | null; discountCode?: string | null }) =>
+  quote: (body: { formId: string; variantId: string; qty: number; province?: string | null; discountCode?: string | null; addonIds?: string[] }) =>
     call<QuoteResponse>('/quote', { method: 'POST', body: JSON.stringify(body) }),
 
   /** La API key de Google no toca jamás el navegador. */

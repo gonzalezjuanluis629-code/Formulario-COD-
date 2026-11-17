@@ -5,6 +5,8 @@
  *
  * Vive dentro del Shadow DOM: no puede ensuciar el tema, ni el tema a él.
  */
+import { buttonAnimationCss } from "./animations";
+
 export const CSS = `
 *,*::before,*::after{box-sizing:border-box}
 .cod-root{font-family:var(--cod-font);font-size:var(--cod-size);color:var(--cod-text);
@@ -70,6 +72,14 @@ export const CSS = `
 .cod-subheading{margin:0;font-size:1em;font-weight:600;color:var(--cod-muted)}
 .cod-divider{border:0;border-top:1px solid var(--cod-border);margin:4px 0}
 .cod-img{display:block;max-width:100%;height:auto;border-radius:var(--cod-radius)}
+.cod-submit-price{font-weight:600;opacity:.92;white-space:nowrap;margin-left:-3px}
+.cod-discount{display:flex;gap:8px}
+.cod-discount input{flex:1;min-width:0;text-transform:uppercase}
+.cod-discount input:disabled{opacity:.7}
+.cod-discount-btn{flex-shrink:0;padding:0 16px;border:0;border-radius:var(--cod-radius);background:var(--cod-text);
+  color:var(--cod-surface);font:inherit;font-weight:600;font-size:13px;cursor:pointer}
+.cod-discount-btn:disabled{opacity:.6;cursor:default}
+.cod-discount-ok{display:block;margin-top:5px;font-size:12px;font-weight:600;color:var(--cod-ok)}
 .cod-choices{display:grid;gap:7px}
 .cod-field .cod-choice{display:flex;align-items:center;gap:9px;margin:0;padding:10px 12px;cursor:pointer;
   font-size:13px;font-weight:500;border:1.5px solid var(--cod-border);border-radius:var(--cod-radius);background:var(--cod-field)}
@@ -147,19 +157,7 @@ export const CSS = `
 .cod-submit.cod-ready{background:var(--cod-btn-ready)}
 .cod-submit:disabled{opacity:.75;cursor:default}
 .cod-submit-icon{font-size:1.1em;line-height:1}
-.cod-submit{position:relative;overflow:hidden}
-.cod-submit-anim-pulse{animation:cod-sub-pulse 1.6s ease-in-out infinite}
-@keyframes cod-sub-pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(0,0,0,.25)}
-  50%{transform:scale(1.03);box-shadow:0 0 0 9px rgba(0,0,0,0)}}
-.cod-submit-anim-bounce{animation:cod-sub-bounce 1.4s cubic-bezier(.28,.84,.42,1) infinite}
-@keyframes cod-sub-bounce{0%,55%,100%{transform:translateY(0)}25%{transform:translateY(-6px)}40%{transform:translateY(0)}47%{transform:translateY(-2px)}}
-.cod-submit-anim-shake{animation:cod-sub-shake 2.6s ease-in-out infinite}
-@keyframes cod-sub-shake{0%,70%,100%{transform:rotate(0)}74%{transform:rotate(-2deg)}78%{transform:rotate(2deg)}
-  82%{transform:rotate(-1.5deg)}86%{transform:rotate(1.5deg)}90%{transform:rotate(-.5deg)}94%{transform:rotate(.5deg)}}
-.cod-submit-anim-shine::after{content:"";position:absolute;inset:0;pointer-events:none;
-  background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.5) 50%,transparent 75%);
-  transform:translateX(-100%);animation:cod-sub-shine 2.4s ease-in-out infinite}
-@keyframes cod-sub-shine{0%,50%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+${buttonAnimationCss('cod-submit', 'var(--cod-btn-solid)')}
 .cod-spinner{display:none;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);
   border-top-color:#fff;border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-loading .cod-spinner{display:block}

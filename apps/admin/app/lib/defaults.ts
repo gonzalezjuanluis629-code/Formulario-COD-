@@ -60,12 +60,13 @@ export function newField(type: Field['type'], order: number): Field {
     number: 'Cantidad', date: 'Fecha', time: 'Hora', select: 'Selecciona una opción',
     checkbox: 'Acepto', radio: 'Elige una', multiselect: 'Elige varias',
     location: 'Dirección de entrega', heading: 'Título', subheading: 'Subtítulo',
+    discount: '¿Tienes un código de descuento?',
   };
   return {
     key: `${type}_${Math.random().toString(36).slice(2, 7)}`,
     type,
     label: labels[type] ?? '',
-    placeholder: '',
+    placeholder: type === 'discount' ? 'Escribe tu código' : '',
     help: '',
     required: false,
     defaultValue: null,
@@ -78,7 +79,7 @@ export function newField(type: Field['type'], order: number): Field {
     conditions: [],
     content: ({
       heading: 'Título', subheading: 'Subtítulo', checkbox: 'Acepto los términos',
-      richtext: 'Escribe aquí tu texto.',
+      richtext: 'Escribe aquí tu texto.', discount: 'Aplicar',
     } as Partial<Record<Field['type'], string>>)[type] ?? '',
     validation: { minLength: null, maxLength: null, regex: null, message: null },
   };

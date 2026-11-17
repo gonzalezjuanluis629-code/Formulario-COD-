@@ -1,5 +1,5 @@
-import { C as CSS, t as tokensToCss, F as FormState, r as renderForm } from "./index-KHX-EjvW.js";
-import { renderTrigger } from "./trigger-Bb6O3sy_.js";
+import { C as CSS, t as tokensToCss, F as FormState, q as quote, r as renderForm } from "./index-uESjr13O.js";
+import { renderTrigger } from "./trigger-A2koWsFc.js";
 let lastSelected = null;
 let lastFormKey = "";
 let lastTriggerKey = "";
@@ -38,7 +38,8 @@ ${PREVIEW_CSS}`;
     tokens.submit.text,
     tokens.submit.iconType,
     tokens.submit.icon,
-    tokens.submit.animation
+    tokens.submit.animation,
+    tokens.submit.priceDisplay
   ]);
   let root = shadow.querySelector(".cod-root");
   if (formKey !== lastFormKey || !root) {
@@ -112,6 +113,16 @@ function buildForm(root, fields, tokens) {
     product: { variantId: "preview", title: "Producto de ejemplo", unitPriceCents: 189e3, image: null }
   };
   const state = new FormState(config);
+  state.quoter = async (r) => quote({
+    qty: r.qty,
+    unitPriceCents: config.product.unitPriceCents,
+    currency: config.settings.currency,
+    offers: config.offers,
+    defaultShippingCents: config.settings.defaultShippingCents,
+    freeShippingOverCents: config.settings.freeShippingOverCents,
+    codFeeCents: 0,
+    discount: r.discountCode ? { code: r.discountCode.toUpperCase(), source: "APP", label: "Ejemplo", kind: "PERCENTAGE", valueBps: 1e3 } : null
+  });
   renderForm(root, config, state, {
     onSubmit: () => {
       root.innerHTML = `

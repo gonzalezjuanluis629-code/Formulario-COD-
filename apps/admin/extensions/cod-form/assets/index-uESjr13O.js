@@ -39,11 +39,68 @@ const api = {
     void fetch(`${BASE}/track`, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true });
   }
 };
+const ANIMATION_SPEEDS = { slow: 1.6, normal: 1, fast: 0.6 };
+function buttonAnimationCss(cls, color) {
+  const k = (n) => `${cls}-k-${n}`;
+  const a = (n) => `.${cls}.${cls}-anim-${n}`;
+  const d = (s) => `calc(${s}s * var(--anim-speed, 1))`;
+  return `
+.${cls}{position:relative;isolation:isolate;will-change:transform}
+${a("pulse")}{animation:${k("pulse")} ${d(1.8)} ease-in-out infinite}
+@keyframes ${k("pulse")}{0%,100%{transform:scale(1);box-shadow:0 0 0 0 color-mix(in srgb,${color} 45%,transparent)}
+  50%{transform:scale(1.05);box-shadow:0 0 0 12px color-mix(in srgb,${color} 0%,transparent)}}
+
+${a("heartbeat")}{animation:${k("heartbeat")} ${d(2.2)} ease-in-out infinite}
+@keyframes ${k("heartbeat")}{0%,40%,100%{transform:scale(1)}8%{transform:scale(1.08)}16%{transform:scale(.98)}24%{transform:scale(1.08)}32%{transform:scale(1)}}
+
+${a("bounce")}{animation:${k("bounce")} ${d(2)} cubic-bezier(.28,.84,.42,1) infinite}
+@keyframes ${k("bounce")}{0%,50%,100%{transform:translateY(0)}15%{transform:translateY(-10px)}28%{transform:translateY(0)}
+  36%{transform:translateY(-4px)}44%{transform:translateY(0)}}
+
+${a("float")}{animation:${k("float")} ${d(3)} ease-in-out infinite}
+@keyframes ${k("float")}{0%,100%{transform:translateY(0);box-shadow:0 6px 14px -6px rgba(0,0,0,.35)}
+  50%{transform:translateY(-6px);box-shadow:0 14px 22px -8px rgba(0,0,0,.28)}}
+
+${a("shake")}{animation:${k("shake")} ${d(2.8)} ease-in-out infinite}
+@keyframes ${k("shake")}{0%,62%,100%{transform:translateX(0)}65%,71%,77%,83%{transform:translateX(-5px)}68%,74%,80%{transform:translateX(5px)}86%{transform:translateX(2px)}}
+
+${a("wobble")}{animation:${k("wobble")} ${d(2.8)} ease-in-out infinite}
+@keyframes ${k("wobble")}{0%,60%,100%{transform:rotate(0)}64%{transform:rotate(-4deg)}70%{transform:rotate(4deg)}
+  76%{transform:rotate(-3deg)}82%{transform:rotate(2deg)}88%{transform:rotate(-1deg)}}
+
+${a("jello")}{animation:${k("jello")} ${d(2.8)} ease-in-out infinite}
+@keyframes ${k("jello")}{0%,60%,100%{transform:none}66%{transform:scale3d(1.18,.82,1)}72%{transform:scale3d(.88,1.12,1)}
+  78%{transform:scale3d(1.06,.94,1)}84%{transform:scale3d(.97,1.03,1)}90%{transform:scale3d(1.01,.99,1)}}
+
+${a("tada")}{animation:${k("tada")} ${d(3)} ease-in-out infinite}
+@keyframes ${k("tada")}{0%,60%,100%{transform:none}63%,66%{transform:scale(.94) rotate(-3deg)}
+  70%,78%,86%{transform:scale(1.07) rotate(3deg)}74%,82%{transform:scale(1.07) rotate(-3deg)}90%{transform:scale(1)}}
+
+${a("shine")}{overflow:hidden}
+${a("shine")}::after{content:"";position:absolute;inset:-2px;pointer-events:none;z-index:1;
+  background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.6) 48%,rgba(255,255,255,.15) 55%,transparent 70%);
+  transform:translateX(-120%);animation:${k("shine")} ${d(2.6)} ease-in-out infinite}
+@keyframes ${k("shine")}{0%,45%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+
+${a("glow")}{animation:${k("glow")} ${d(2.2)} ease-in-out infinite}
+@keyframes ${k("glow")}{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,${color} 0%,transparent),0 0 6px 0 color-mix(in srgb,${color} 35%,transparent)}
+  50%{box-shadow:0 0 0 3px color-mix(in srgb,${color} 25%,transparent),0 0 26px 4px color-mix(in srgb,${color} 65%,transparent)}}
+
+${a("ripple")}{overflow:visible}
+${a("ripple")}::before,${a("ripple")}::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
+  border:2px solid ${color};animation:${k("ripple")} ${d(2.4)} cubic-bezier(.2,.6,.35,1) infinite}
+${a("ripple")}::after{animation-delay:calc(1.2s * var(--anim-speed, 1))}
+@keyframes ${k("ripple")}{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.18,1.45);opacity:0}}
+
+@media (prefers-reduced-motion: reduce){.${cls},.${cls}::before,.${cls}::after{animation:none!important}}
+`;
+}
 function buttonBackground(b) {
   var _a, _b;
   return b.bgType === "gradient" ? `linear-gradient(${(_a = b.gradientAngle) != null ? _a : 135}deg, ${b.bg}, ${(_b = b.bg2) != null ? _b : b.bg})` : b.bg;
 }
 function tokensToCss(t) {
+  var _a;
   const shadow = { none: "none", sm: "0 1px 3px rgba(0,0,0,.08)", md: "0 4px 20px rgba(0,0,0,.12)", lg: "0 10px 40px rgba(0,0,0,.18)" }[t.shadow];
   const gap = { compact: "11px", normal: "15px", relaxed: "20px" }[t.spacing];
   return `
@@ -63,6 +120,7 @@ function tokensToCss(t) {
     --cod-btn-size:${t.submit.fontSize}px;
     --cod-btn-bg:${buttonBackground(t.submit)};
     --cod-btn-solid:${t.submit.bg};
+    --anim-speed:${ANIMATION_SPEEDS[(_a = t.submit.animationSpeed) != null ? _a : "normal"]};
     --cod-btn-color:${t.submit.color};
     --cod-btn-ready:${t.submit.readyBg || t.readyColor};
     --cod-shadow:${shadow};
@@ -294,6 +352,88 @@ function renderOffers(host, config, state, onChange) {
 }
 const trimPct = (n) => Number.isInteger(n) ? String(n) : n.toFixed(1);
 const esc$1 = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const subtotal = {
+  name: "subtotal",
+  apply(d, ctx) {
+    d.subtotalCents = ctx.unitPriceCents * ctx.qty;
+  }
+};
+const quantityOffers = {
+  name: "quantity-offers",
+  apply(d, ctx) {
+    const match = ctx.offers.filter((o) => ctx.qty >= o.minQty).sort((a, b) => b.minQty - a.minQty)[0];
+    if (!match) return;
+    if (match.discountBps > 0) {
+      d.discountCents += Math.round(d.subtotalCents * match.discountBps / 1e4);
+    }
+    if (match.freeShipping) d.freeShipping = true;
+    d.appliedOffer = match.label;
+  }
+};
+const discounts = {
+  name: "discounts",
+  apply(d, ctx) {
+    const x = ctx.discount;
+    if (!x) return;
+    if (x.kind === "PERCENTAGE" && x.valueBps) {
+      d.discountCents += Math.round(d.subtotalCents * x.valueBps / 1e4);
+    } else if (x.kind === "FIXED" && x.valueCents) {
+      d.discountCents += x.valueCents;
+    } else if (x.kind === "FREE_SHIPPING") {
+      d.freeShipping = true;
+    }
+    d.discountCents = Math.min(d.discountCents, d.subtotalCents);
+  }
+};
+const shipping = {
+  name: "shipping",
+  apply(d, ctx) {
+    var _a;
+    const goods = d.subtotalCents - d.discountCents + d.addonsCents;
+    const free = d.freeShipping || ctx.freeShippingOverCents !== null && goods >= ctx.freeShippingOverCents;
+    const base = (_a = ctx.provinceShippingCents) != null ? _a : ctx.defaultShippingCents;
+    d.shippingCents = free ? 0 : base;
+  }
+};
+const addons = {
+  name: "addons",
+  apply(d, ctx) {
+    var _a;
+    d.addonsCents = (_a = ctx.addonsCents) != null ? _a : 0;
+  }
+};
+const codFee = {
+  name: "cod-fee",
+  apply(d, ctx) {
+    var _a;
+    d.codFeeCents = (_a = ctx.codFeeCents) != null ? _a : 0;
+  }
+};
+const PIPELINE = [subtotal, quantityOffers, discounts, addons, shipping, codFee];
+function quote(ctx) {
+  const d = {
+    subtotalCents: 0,
+    discountCents: 0,
+    shippingCents: 0,
+    addonsCents: 0,
+    codFeeCents: 0,
+    freeShipping: false,
+    appliedOffer: null
+  };
+  for (const step of PIPELINE) step.apply(d, ctx);
+  return {
+    subtotalCents: d.subtotalCents,
+    discountCents: d.discountCents,
+    shippingCents: d.shippingCents,
+    addonsCents: d.addonsCents,
+    codFeeCents: d.codFeeCents,
+    totalCents: d.subtotalCents - d.discountCents + d.addonsCents + d.shippingCents + d.codFeeCents,
+    currency: ctx.currency,
+    appliedOffer: d.appliedOffer,
+    appliedDiscount: ctx.discount ? { code: ctx.discount.code, source: ctx.discount.source, label: ctx.discount.label } : null
+  };
+}
+const money = (cents, currency = "DOP") => `${currency === "DOP" ? "RD$" : currency} ${(cents / 100).toLocaleString("en-US")}`;
 function renderForm(root, config, state, handlers) {
   root.innerHTML = `
     <form class="cod-form" novalidate>
@@ -304,6 +444,7 @@ function renderForm(root, config, state, handlers) {
       <div class="cod-form-error" role="alert"></div>
       <button type="submit" class="cod-submit cod-submit-anim-${config.tokens.submit.animation}">
         <span class="cod-submit-label">${esc(config.tokens.submit.text)}</span>
+        <span class="cod-submit-price" hidden></span>
         ${config.tokens.submit.iconType === "emoji" ? `<span class="cod-submit-icon">${esc(config.tokens.submit.icon)}</span>` : ""}
         <span class="cod-spinner" aria-hidden="true"></span>
       </button>
@@ -314,7 +455,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-BTJTFXLV.js").then(({ renderAddons }) => {
+    void import("./addons-CccQiQJy.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -329,7 +470,91 @@ function renderForm(root, config, state, handlers) {
     }
     handlers.onSubmit();
   });
+  state.onQuote(() => paintPrice(root, state));
   update(root, state);
+}
+function paintPrice(root, state) {
+  const el = root.querySelector(".cod-submit-price");
+  const mode = state.config.tokens.submit.priceDisplay;
+  const q = state.quote;
+  if (!el) return;
+  if (!q || !mode || mode === "none") {
+    el.hidden = true;
+    return;
+  }
+  const cents = mode === "total" ? q.totalCents : q.subtotalCents - q.discountCents + q.addonsCents;
+  el.textContent = `· ${money(cents, q.currency)}`;
+  el.hidden = false;
+}
+function renderDiscount(f, state, onChange, wrap) {
+  const id = `cod-${f.key}`;
+  const req = f.required ? '<span class="cod-req">*</span>' : '<span class="cod-opt">Opcional</span>';
+  wrap.innerHTML = `
+    ${f.label ? `<label for="${id}">${esc(f.label)} ${req}</label>` : ""}
+    <div class="cod-discount">
+      <input type="text" id="${id}" autocomplete="off" autocapitalize="characters" spellcheck="false"
+        placeholder="${esc(f.placeholder || "Escribe tu código")}">
+      <button type="button" class="cod-discount-btn">${esc(f.content || "Aplicar")}</button>
+    </div>
+    <span class="cod-discount-ok" hidden></span>
+    ${f.help ? `<span class="cod-help">${esc(f.help)}</span>` : ""}
+    <span class="cod-err"></span>`;
+  const input = wrap.querySelector("input");
+  const btn = wrap.querySelector(".cod-discount-btn");
+  const okEl = wrap.querySelector(".cod-discount-ok");
+  const label = f.content || "Aplicar";
+  let applied = false;
+  const reset = () => {
+    applied = false;
+    input.disabled = false;
+    btn.textContent = label;
+    okEl.hidden = true;
+    delete state.values[f.key];
+  };
+  const apply = async () => {
+    clearError(wrap);
+    if (applied) {
+      reset();
+      await state.applyDiscount(null).catch(() => void 0);
+      onChange();
+      return;
+    }
+    const code = input.value.trim();
+    if (!code) {
+      setError(wrap, "Escribe un código.");
+      return;
+    }
+    btn.disabled = true;
+    btn.classList.add("cod-loading");
+    try {
+      const q = await state.applyDiscount(code);
+      if (!q.appliedDiscount) {
+        setError(wrap, "Este código no es válido o ya caducó.");
+      } else {
+        applied = true;
+        input.disabled = true;
+        btn.textContent = "Quitar";
+        state.values[f.key] = q.appliedDiscount.code;
+        okEl.textContent = q.discountCents > 0 ? `Código ${q.appliedDiscount.code} aplicado: ahorras ${money(q.discountCents, q.currency)}` : `Código ${q.appliedDiscount.code} aplicado`;
+        okEl.hidden = false;
+      }
+    } catch {
+      setError(wrap, "No pudimos comprobar el código. Inténtalo de nuevo.");
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove("cod-loading");
+      onChange();
+    }
+  };
+  btn.addEventListener("click", () => void apply());
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void apply();
+    }
+  });
+  input.addEventListener("input", () => clearError(wrap));
+  return wrap;
 }
 function renderField(f, config, state, onChange) {
   const wrap = document.createElement("div");
@@ -367,6 +592,7 @@ function renderField(f, config, state, onChange) {
     wrap.className += " cod-hidden";
     return wrap;
   }
+  if (f.type === "discount") return renderDiscount(f, state, onChange, wrap);
   if (f.type === "location") {
     mountLocation(wrap, config, state, onChange);
     return wrap;
@@ -455,6 +681,8 @@ function update(root, state) {
       const show = visible.has(key) || !state.config.fields.some((f) => f.key === key);
       el.classList.toggle("cod-hidden", !show);
     });
+    if (state.config.tokens.submit.priceDisplay !== "none") state.requestQuote();
+    paintPrice(root, state);
     const bar = root.querySelector(".cod-progress span");
     if (bar) {
       const required = state.visibleFields().filter((f) => f.required);
@@ -557,6 +785,14 @@ const CSS = `
 .cod-subheading{margin:0;font-size:1em;font-weight:600;color:var(--cod-muted)}
 .cod-divider{border:0;border-top:1px solid var(--cod-border);margin:4px 0}
 .cod-img{display:block;max-width:100%;height:auto;border-radius:var(--cod-radius)}
+.cod-submit-price{font-weight:600;opacity:.92;white-space:nowrap;margin-left:-3px}
+.cod-discount{display:flex;gap:8px}
+.cod-discount input{flex:1;min-width:0;text-transform:uppercase}
+.cod-discount input:disabled{opacity:.7}
+.cod-discount-btn{flex-shrink:0;padding:0 16px;border:0;border-radius:var(--cod-radius);background:var(--cod-text);
+  color:var(--cod-surface);font:inherit;font-weight:600;font-size:13px;cursor:pointer}
+.cod-discount-btn:disabled{opacity:.6;cursor:default}
+.cod-discount-ok{display:block;margin-top:5px;font-size:12px;font-weight:600;color:var(--cod-ok)}
 .cod-choices{display:grid;gap:7px}
 .cod-field .cod-choice{display:flex;align-items:center;gap:9px;margin:0;padding:10px 12px;cursor:pointer;
   font-size:13px;font-weight:500;border:1.5px solid var(--cod-border);border-radius:var(--cod-radius);background:var(--cod-field)}
@@ -634,19 +870,7 @@ const CSS = `
 .cod-submit.cod-ready{background:var(--cod-btn-ready)}
 .cod-submit:disabled{opacity:.75;cursor:default}
 .cod-submit-icon{font-size:1.1em;line-height:1}
-.cod-submit{position:relative;overflow:hidden}
-.cod-submit-anim-pulse{animation:cod-sub-pulse 1.6s ease-in-out infinite}
-@keyframes cod-sub-pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(0,0,0,.25)}
-  50%{transform:scale(1.03);box-shadow:0 0 0 9px rgba(0,0,0,0)}}
-.cod-submit-anim-bounce{animation:cod-sub-bounce 1.4s cubic-bezier(.28,.84,.42,1) infinite}
-@keyframes cod-sub-bounce{0%,55%,100%{transform:translateY(0)}25%{transform:translateY(-6px)}40%{transform:translateY(0)}47%{transform:translateY(-2px)}}
-.cod-submit-anim-shake{animation:cod-sub-shake 2.6s ease-in-out infinite}
-@keyframes cod-sub-shake{0%,70%,100%{transform:rotate(0)}74%{transform:rotate(-2deg)}78%{transform:rotate(2deg)}
-  82%{transform:rotate(-1.5deg)}86%{transform:rotate(1.5deg)}90%{transform:rotate(-.5deg)}94%{transform:rotate(.5deg)}}
-.cod-submit-anim-shine::after{content:"";position:absolute;inset:0;pointer-events:none;
-  background:linear-gradient(110deg,transparent 25%,rgba(255,255,255,.5) 50%,transparent 75%);
-  transform:translateX(-100%);animation:cod-sub-shine 2.4s ease-in-out infinite}
-@keyframes cod-sub-shine{0%,50%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
 .cod-spinner{display:none;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);
   border-top-color:#fff;border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-loading .cod-spinner{display:block}
@@ -760,7 +984,7 @@ ${config.tokens.customCss}`;
     });
   };
   if (host.dataset.mode === "popup") {
-    const { renderTrigger } = await import("./trigger-Bb6O3sy_.js");
+    const { renderTrigger } = await import("./trigger-A2koWsFc.js");
     root.innerHTML = "";
     renderTrigger(root, config.tokens.trigger, () => openModal(config, renderInto));
     return;
@@ -807,12 +1031,56 @@ class FormState {
     __publicField(this, "discountCode", null);
     __publicField(this, "acceptedAddons", []);
     __publicField(this, "idempotencyKey");
+    /** Última cotización del servidor (precio real, descuento validado). */
+    __publicField(this, "quote", null);
+    /** Quién cotiza: la API en la tienda; un cálculo local en la vista previa del panel. */
+    __publicField(this, "quoter", (r) => api.quote(r));
+    __publicField(this, "quoteListeners", []);
+    __publicField(this, "quoteKey", "");
+    __publicField(this, "quoteTimer", 0);
     __publicField(this, "startedAt", Date.now());
     this.config = config;
     this.idempotencyKey = crypto.randomUUID();
     for (const f of config.fields) {
       if (f.defaultValue) this.values[f.key] = f.defaultValue;
     }
+  }
+  onQuote(fn) {
+    this.quoteListeners.push(fn);
+  }
+  quoteInput(discountCode = this.discountCode) {
+    return {
+      formId: this.config.formId,
+      variantId: this.config.product.variantId,
+      qty: this.qty,
+      province: this.values.province || this.values.provinceCode || null,
+      discountCode,
+      addonIds: this.acceptedAddons.map((a) => a.id)
+    };
+  }
+  /** Recotiza (con pausa de 300 ms) solo si cambió algo que afecta al precio. */
+  requestQuote() {
+    const key = JSON.stringify(this.quoteInput());
+    if (key === this.quoteKey) return;
+    this.quoteKey = key;
+    window.clearTimeout(this.quoteTimer);
+    this.quoteTimer = window.setTimeout(() => {
+      this.quoter(this.quoteInput()).then((q) => {
+        this.quote = q;
+        this.quoteListeners.forEach((fn) => fn(q));
+      }).catch(() => {
+        this.quoteKey = "";
+      });
+    }, 300);
+  }
+  /** Valida un código en el servidor. Devuelve la cotización con o sin el descuento aplicado. */
+  async applyDiscount(code) {
+    const q = await this.quoter(this.quoteInput(code));
+    this.discountCode = q.appliedDiscount ? q.appliedDiscount.code : null;
+    this.quote = q;
+    this.quoteKey = JSON.stringify(this.quoteInput());
+    this.quoteListeners.forEach((fn) => fn(q));
+    return q;
   }
   visibleFields() {
     return this.config.fields.filter((f) => isVisible(f, this.values));
@@ -942,10 +1210,14 @@ if (document.readyState === "loading") {
 }
 window.CodForm = { mount };
 export {
+  ANIMATION_SPEEDS as A,
   CSS as C,
   FormState as F,
+  buttonAnimationCss as a,
   buttonBackground as b,
-  mount as m,
+  mount as c,
+  money as m,
+  quote as q,
   renderForm as r,
   tokensToCss as t
 };

@@ -23,7 +23,7 @@ export const FieldTypeSchema = z.enum([
   'text', 'textarea', 'email', 'phone', 'number', 'date', 'time',
   'select', 'checkbox', 'radio', 'multiselect',
   'heading', 'subheading', 'richtext', 'divider', 'html', 'image', 'video',
-  'location', 'map', 'file',
+  'location', 'map', 'file', 'discount',
 ]);
 export type FieldType = z.infer<typeof FieldTypeSchema>;
 
@@ -86,7 +86,8 @@ export const TriggerButtonSchema = z.object({
     'Pago contra entrega',
   ]),
   descriptionIntervalMs: z.number().int().min(1000).max(10000).default(3000),
-  animation: z.enum(['none', 'pulse', 'shine', 'bounce', 'shake']).default('pulse'),
+  animation: z.enum(['none', 'pulse', 'heartbeat', 'bounce', 'float', 'shake', 'wobble', 'jello', 'tada', 'shine', 'glow', 'ripple']).catch('pulse').default('pulse'),
+  animationSpeed: z.enum(['slow', 'normal', 'fast']).default('normal'),
 });
 export type TriggerButton = z.infer<typeof TriggerButtonSchema>;
 
@@ -106,7 +107,10 @@ export const SubmitButtonSchema = z.object({
   readyBg: z.string().default('#16a34a'),
   iconType: z.enum(['none', 'emoji']).default('none'),
   icon: z.string().default('→'),
-  animation: z.enum(['none', 'pulse', 'shine', 'bounce', 'shake']).default('none'),
+  animation: z.enum(['none', 'pulse', 'heartbeat', 'bounce', 'float', 'shake', 'wobble', 'jello', 'tada', 'shine', 'glow', 'ripple']).catch('none').default('none'),
+  /** Precio dentro del botón: «Finalizar pedido · RD$ 2,140». Lo calcula el servidor. */
+  priceDisplay: z.enum(['none', 'total', 'subtotal']).default('none'),
+  animationSpeed: z.enum(['slow', 'normal', 'fast']).default('normal'),
 });
 export type SubmitButton = z.infer<typeof SubmitButtonSchema>;
 

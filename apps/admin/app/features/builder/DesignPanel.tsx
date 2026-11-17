@@ -6,6 +6,7 @@ import {
   ButtonIcon, CartIcon, ChevronDownIcon, ChevronRightIcon, ColorIcon, DeleteIcon, PlusIcon, SettingsIcon, TextFontIcon,
 } from '@shopify/polaris-icons';
 import type { SubmitButton, ThemeTokens, TriggerButton } from '@cod/contracts';
+import { AnimationPicker } from './AnimationPicker';
 
 export type DesignSection = 'colors' | 'shape' | 'submit' | 'trigger' | 'extras';
 
@@ -79,6 +80,16 @@ export function DesignPanel({
       {section('submit', 'Botón «Finalizar pedido»', ButtonIcon, (
         <>
           <TextField label="Texto del botón" value={t.submit.text} onChange={(v) => setSubmit({ text: v })} autoComplete="off" />
+          <Choice label="Precio dentro del botón" value={t.submit.priceDisplay}
+            onChange={(v) => setSubmit({ priceDisplay: v as SubmitButton['priceDisplay'] })}
+            options={[['none', 'No mostrar'], ['total', 'Total'], ['subtotal', 'Subtotal']]} />
+          {t.submit.priceDisplay !== 'none' && (
+            <Text as="p" variant="bodySm" tone="subdued">
+              {t.submit.priceDisplay === 'total'
+                ? 'Total: productos con descuentos + envío. Se actualiza al cambiar cantidad, provincia o código.'
+                : 'Subtotal: productos con descuentos, sin el envío.'}
+            </Text>
+          )}
           <ButtonFill b={t.submit} onChange={setSubmit} />
           <Color label="Color del texto" value={t.submit.color} onChange={(v) => setSubmit({ color: v })} />
           <Color label="Color cuando está todo completo" value={t.submit.readyBg} onChange={(v) => setSubmit({ readyBg: v })} />
@@ -88,8 +99,9 @@ export function DesignPanel({
             value={t.submit.fontSize} onChange={(v) => setSubmit({ fontSize: v as number })} />
           <RangeSlider label="Esquinas" output suffix={<Px v={t.submit.radius} />} min={0} max={40}
             value={t.submit.radius} onChange={(v) => setSubmit({ radius: v as number })} />
-          <Choice label="Animación" value={t.submit.animation} onChange={(v) => setSubmit({ animation: v as SubmitButton['animation'] })}
-            options={ANIMS} />
+          <AnimationPicker value={t.submit.animation} speed={t.submit.animationSpeed}
+            onChange={(v) => setSubmit({ animation: v })} onSpeed={(v) => setSubmit({ animationSpeed: v })}
+            background={fillCss(t.submit)} solid={t.submit.bg} />
         </>
       ))}
 
@@ -121,8 +133,9 @@ export function DesignPanel({
               onChange={(v) => setTrigger({ iconImageUrl: v || null })} autoComplete="off"
               helpText="Súbela en Contenido → Archivos de Shopify y pega su enlace." />
           )}
-          <Choice label="Animación" value={t.trigger.animation} onChange={(v) => setTrigger({ animation: v as TriggerButton['animation'] })}
-            options={ANIMS} />
+          <AnimationPicker value={t.trigger.animation} speed={t.trigger.animationSpeed}
+            onChange={(v) => setTrigger({ animation: v })} onSpeed={(v) => setTrigger({ animationSpeed: v })}
+            background={fillCss(t.trigger)} solid={t.trigger.bg} />
           <Divider />
           <Text as="h3" variant="headingSm">Frases que rotan bajo el texto</Text>
           {t.trigger.descriptions.map((d, i) => (
@@ -154,7 +167,8 @@ export function DesignPanel({
   );
 }
 
-const ANIMS = [['none', 'Ninguna'], ['pulse', 'Latido'], ['bounce', 'Rebote'], ['shake', 'Vibrar'], ['shine', 'Brillo']] as const;
+const fillCss = (b: { bg: string; bgType: string; bg2: string; gradientAngle: number }) =>
+  b.bgType === 'gradient' ? `linear-gradient(${b.gradientAngle}deg, ${b.bg}, ${b.bg2})` : b.bg;
 
 type Fill = { bg: string; bgType: 'solid' | 'gradient'; bg2: string; gradientAngle: number };
 

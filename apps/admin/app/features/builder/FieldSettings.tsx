@@ -71,6 +71,12 @@ export function FieldSettings({
             onChange={(v) => set('label', v)} autoComplete="off"
             placeholder={field.type === 'checkbox' ? 'Opcional' : 'Ej. Nombre completo'} />
 
+          {field.type === 'discount' && (
+            <TextField label="Texto del botón" value={field.content}
+              onChange={(v) => set('content', v)} autoComplete="off" placeholder="Aplicar"
+              helpText="Valida el código en tus descuentos de Shopify y en los creados en «Ofertas y descuentos»." />
+          )}
+
           {field.type === 'checkbox' && (
             <TextField label="Texto junto a la casilla" value={field.content}
               onChange={(v) => set('content', v)} autoComplete="off" multiline={2} />
@@ -144,7 +150,7 @@ export function FieldSettings({
             onChange={(v) => set('visible', v)}
             helpText="Desmárcalo para ocultarlo sin borrarlo." />
 
-          {!isContent && !OPTION_TYPES.includes(field.type) && field.type !== 'checkbox' && field.type !== 'location' && (
+          {!isContent && !OPTION_TYPES.includes(field.type) && !['checkbox', 'location', 'discount'].includes(field.type) && (
             <BlockStack gap="200">
               <Text as="h3" variant="headingSm">Validación</Text>
               <InlineStack gap="200" wrap={false}>

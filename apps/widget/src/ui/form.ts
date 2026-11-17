@@ -3,6 +3,7 @@ import type { FormState } from '../index';
 import { validateField } from '../core/validate';
 import { mountLocation } from './location';
 import { renderOffers } from './offers';
+import { money } from '@cod/pricing';
 
 /**
  * Renderiza los campos que vengan del panel. NO hay campos hardcodeados:
@@ -24,6 +25,7 @@ export function renderForm(
       <div class="cod-form-error" role="alert"></div>
       <button type="submit" class="cod-submit cod-submit-anim-${config.tokens.submit.animation}">
         <span class="cod-submit-label">${esc(config.tokens.submit.text)}</span>
+        <span class="cod-submit-price" hidden></span>
         ${config.tokens.submit.iconType === 'emoji'
           ? `<span class="cod-submit-icon">${esc(config.tokens.submit.icon)}</span>`
           : ''}
@@ -58,7 +60,90 @@ export function renderForm(
     handlers.onSubmit();
   });
 
+  state.onQuote(() => paintPrice(root, state));
   update(root, state);
+}
+
+/** «Finalizar pedido · RD$ 2,140» con el precio que dio el servidor. */
+function paintPrice(root: HTMLElement, state: FormState): void {
+  const el = root.querySelector<HTMLElement>('.cod-submit-price');
+  const mode = state.config.tokens.submit.priceDisplay;
+  const q = state.quote;
+  if (!el) return;
+  if (!q || !mode || mode === 'none') { el.hidden = true; return; }
+  const cents = mode === 'total' ? q.totalCents : q.subtotalCents - q.discountCents + q.addonsCents;
+  el.textContent = `· ${money(cents, q.currency)}`;
+  el.hidden = false;
+}
+
+/** Bloque «Código de descuento»: campo + «Aplicar», validado por el servidor. */
+function renderDiscount(f: Field, state: FormState, onChange: () => void, wrap: HTMLElement): HTMLElement {
+  const id = `cod-${f.key}`;
+  const req = f.required ? '<span class="cod-req">*</span>' : '<span class="cod-opt">Opcional</span>';
+  wrap.innerHTML = `
+    ${f.label ? `<label for="${id}">${esc(f.label)} ${req}</label>` : ''}
+    <div class="cod-discount">
+      <input type="text" id="${id}" autocomplete="off" autocapitalize="characters" spellcheck="false"
+        placeholder="${esc(f.placeholder || 'Escribe tu código')}">
+      <button type="button" class="cod-discount-btn">${esc(f.content || 'Aplicar')}</button>
+    </div>
+    <span class="cod-discount-ok" hidden></span>
+    ${f.help ? `<span class="cod-help">${esc(f.help)}</span>` : ''}
+    <span class="cod-err"></span>`;
+
+  const input = wrap.querySelector<HTMLInputElement>('input')!;
+  const btn = wrap.querySelector<HTMLButtonElement>('.cod-discount-btn')!;
+  const okEl = wrap.querySelector<HTMLElement>('.cod-discount-ok')!;
+  const label = f.content || 'Aplicar';
+  let applied = false;
+
+  const reset = () => {
+    applied = false;
+    input.disabled = false;
+    btn.textContent = label;
+    okEl.hidden = true;
+    delete state.values[f.key];
+  };
+
+  const apply = async () => {
+    clearError(wrap);
+    if (applied) {
+      reset();
+      await state.applyDiscount(null).catch(() => undefined);
+      onChange();
+      return;
+    }
+    const code = input.value.trim();
+    if (!code) { setError(wrap, 'Escribe un código.'); return; }
+    btn.disabled = true;
+    btn.classList.add('cod-loading');
+    try {
+      const q = await state.applyDiscount(code);
+      if (!q.appliedDiscount) {
+        setError(wrap, 'Este código no es válido o ya caducó.');
+      } else {
+        applied = true;
+        input.disabled = true;
+        btn.textContent = 'Quitar';
+        state.values[f.key] = q.appliedDiscount.code;
+        okEl.textContent = q.discountCents > 0
+          ? `Código ${q.appliedDiscount.code} aplicado: ahorras ${money(q.discountCents, q.currency)}`
+          : `Código ${q.appliedDiscount.code} aplicado`;
+        okEl.hidden = false;
+      }
+    } catch {
+      setError(wrap, 'No pudimos comprobar el código. Inténtalo de nuevo.');
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('cod-loading');
+      onChange();
+    }
+  };
+
+  btn.addEventListener('click', () => void apply());
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); void apply(); } });
+  input.addEventListener('input', () => clearError(wrap));
+  return wrap;
 }
 
 function renderField(
@@ -81,6 +166,8 @@ function renderField(
   if (f.type === 'video') { wrap.innerHTML = videoEmbed(f.content); return wrap; }
   // Tipos sin soporte en el envío (subir archivo, mapa antiguo): no se muestran.
   if (f.type === 'file' || f.type === 'map') { wrap.className += ' cod-hidden'; return wrap; }
+
+  if (f.type === 'discount') return renderDiscount(f, state, onChange, wrap);
 
   /* El bloque de ubicación es especial: trae su propio módulo (y su mapa lazy). */
   if (f.type === 'location') {
@@ -182,6 +269,9 @@ function update(root: HTMLElement, state: FormState): void {
       const show = visible.has(key) || !state.config.fields.some((f) => f.key === key);
       el.classList.toggle('cod-hidden', !show);
     });
+
+    if (state.config.tokens.submit.priceDisplay !== 'none') state.requestQuote();
+    paintPrice(root, state);
 
     const bar = root.querySelector<HTMLElement>('.cod-progress span');
     if (bar) {

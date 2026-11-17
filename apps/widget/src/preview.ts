@@ -4,6 +4,7 @@ import { renderForm } from './ui/form';
 import { CSS } from './ui/styles';
 import { FormState } from './index';
 import { renderTrigger } from './ui/trigger';
+import { quote } from '@cod/pricing';
 
 export interface PreviewOptions {
   /** Campo seleccionado en el editor: se resalta en la vista previa. */
@@ -58,7 +59,7 @@ export function renderPreview(host: HTMLElement, fields: Field[], tokens: ThemeT
 
   // 2) Los campos y textos se redibujan SOLO si cambiaron, y sin animación de entrada.
   const formKey = JSON.stringify([fields, tokens.progressBar, tokens.submit.text, tokens.submit.iconType,
-    tokens.submit.icon, tokens.submit.animation]);
+    tokens.submit.icon, tokens.submit.animation, tokens.submit.priceDisplay]);
   let root = shadow.querySelector<HTMLElement>('.cod-root');
   if (formKey !== lastFormKey || !root) {
     lastFormKey = formKey;
@@ -112,6 +113,19 @@ function buildForm(root: HTMLElement, fields: Field[], tokens: ThemeTokens): voi
   };
 
   const state = new FormState(config);
+  // Sin tienda detrás: precio de ejemplo y cualquier código vale un 10 % de muestra.
+  state.quoter = async (r) => quote({
+    qty: r.qty,
+    unitPriceCents: config.product.unitPriceCents,
+    currency: config.settings.currency,
+    offers: config.offers,
+    defaultShippingCents: config.settings.defaultShippingCents,
+    freeShippingOverCents: config.settings.freeShippingOverCents,
+    codFeeCents: 0,
+    discount: r.discountCode
+      ? { code: r.discountCode.toUpperCase(), source: 'APP', label: 'Ejemplo', kind: 'PERCENTAGE', valueBps: 1000 }
+      : null,
+  });
 
   renderForm(root, config, state, {
     onSubmit: () => {
