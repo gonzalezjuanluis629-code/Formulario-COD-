@@ -1,8 +1,8 @@
 # Camino A: UNA custom app por tienda. Este archivo se duplica por tienda
 # cambiando client_id y application_url. El backend es el mismo para todas.
-client_id = "ff96db52ce043d910bb3e194da76b0ce"
+client_id = "3dd58632f2a741ce3010edfb9c635b28"
 name = "COD Forms"
-handle = "cod-forms-4"
+handle = "cod-forms"
 application_url = "https://admin-production-d33e.up.railway.app/app"
 embedded = true
 
