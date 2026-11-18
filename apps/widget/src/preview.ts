@@ -70,7 +70,7 @@ export function renderPreview(host: HTMLElement, fields: Field[], tokens: ThemeT
 
   // 2) Los campos y textos se redibujan SOLO si cambiaron, y sin animación de entrada.
   const formKey = JSON.stringify([fields, tokens.progressBar, tokens.submit.text, tokens.submit.iconType,
-    tokens.submit.icon, tokens.submit.priceDisplay, tokens.offerCard.showCompare, tokens.offerCard.showSave, tokens.offerCard.showInForm,
+    tokens.submit.icon, tokens.submit.iconName, tokens.submit.priceDisplay, tokens.offerCard.showCompare, tokens.offerCard.showSave, tokens.offerCard.showInForm,
     opts.offers ?? [], opts.addons ?? [], opts.unitPriceCents ?? 0, opts.shipping ?? null]);
   let root = shadow.querySelector<HTMLElement>('.cod-root');
   if (formKey !== lastFormKey || !root) {

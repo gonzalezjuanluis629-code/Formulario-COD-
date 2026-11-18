@@ -11,6 +11,8 @@ import { productInfo } from '../lib/products.server';
 import { newField } from '../lib/defaults';
 import { db } from '../db.server';
 import { Preview } from '../features/builder/Preview';
+import { IconPicker } from '../components/IconPicker';
+import { DisplayPicker, type DisplayMode } from '../components/DisplayPicker';
 import {
   PersonIcon, PhoneIcon, EmailIcon, HomeIcon, LocationIcon, NoteIcon, CheckboxIcon, ListBulletedIcon,
   ChevronUpIcon, ChevronDownIcon, DeleteIcon, XIcon, PlusIcon, CheckIcon, ViewIcon, HideIcon, ProductIcon,
@@ -103,7 +105,7 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result> {
   const fd = await request.formData();
   const body = JSON.parse(String(fd.get('data') || '{}')) as {
     fields: Field[];
-    buttons: { trigger: string; triggerSub: string; submit: string; color: string; showPrice: boolean; offerColor?: string; offerGlow?: boolean };
+    buttons: { trigger: string; triggerSub: string; submit: string; color: string; showPrice: boolean; offerColor?: string; offerGlow?: boolean; triggerIcon?: string; submitIcon?: string; display?: DisplayMode };
     products: ProductPrices[];
     ship?: ShipDraft;
     coupons?: Coupon[];
@@ -131,8 +133,11 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result> {
   const descriptions = [body.buttons.triggerSub.trim(), ...t.trigger.descriptions.slice(1)].filter(Boolean).slice(0, 5);
   const tokens = ThemeTokensSchema.parse({
     ...t,
-    trigger: { ...t.trigger, text: body.buttons.trigger.trim() || 'Comprar ahora', descriptions, bg: color, bgType: 'solid' },
-    submit: { ...t.submit, text: body.buttons.submit.trim() || 'Finalizar pedido', bg: color, bgType: 'solid', priceDisplay: body.buttons.showPrice ? 'total' : 'none' },
+    trigger: { ...t.trigger, text: body.buttons.trigger.trim() || 'Comprar ahora', descriptions, bg: color, bgType: 'solid',
+      ...(body.buttons.triggerIcon === undefined ? {} : body.buttons.triggerIcon ? { iconType: 'svg' as const, iconName: body.buttons.triggerIcon } : { iconType: 'none' as const }) },
+    submit: { ...t.submit, text: body.buttons.submit.trim() || 'Finalizar pedido', bg: color, bgType: 'solid', priceDisplay: body.buttons.showPrice ? 'total' : 'none',
+      ...(body.buttons.submitIcon === undefined ? {} : body.buttons.submitIcon ? { iconType: 'svg' as const, iconName: body.buttons.submitIcon } : { iconType: 'none' as const }) },
+    display: body.buttons.display ?? t.display,
     offerCard: {
       ...t.offerCard,
       accent: /^#[0-9a-f]{6}$/i.test(body.buttons.offerColor ?? '') ? body.buttons.offerColor! : t.offerCard.accent,
@@ -260,6 +265,10 @@ export default function EditorFacil() {
   const [color, setColor] = useState(data.tokens.submit.bg);
   const [showPrice, setShowPrice] = useState(data.tokens.submit.priceDisplay !== 'none');
   const [offerColor, setOfferColor] = useState(data.tokens.offerCard.accent);
+  // Los iconos con emoji o imagen de antes se respetan hasta que elijas uno nuevo.
+  const [triggerIcon, setTriggerIcon] = useState<string | undefined>(data.tokens.trigger.iconType === 'svg' ? data.tokens.trigger.iconName : data.tokens.trigger.iconType === 'none' ? '' : undefined);
+  const [submitIcon, setSubmitIcon] = useState<string | undefined>(data.tokens.submit.iconType === 'svg' ? data.tokens.submit.iconName : data.tokens.submit.iconType === 'none' ? '' : undefined);
+  const [display, setDisplay] = useState<DisplayMode>(data.tokens.display);
   const [offerGlow, setOfferGlow] = useState(data.tokens.offerCard.glow !== false);
   const [products, setProducts] = useState<ProductPrices[]>(data.products);
   const [ship, setShip] = useState<ShipDraft>(data.ship);
@@ -299,17 +308,20 @@ export default function EditorFacil() {
   };
 
   const save = () => fetcher.submit(
-    { data: JSON.stringify({ fields, buttons: { trigger, triggerSub, submit: submitText, color, showPrice, offerColor, offerGlow }, products, ship, coupons, after }) },
+    { data: JSON.stringify({ fields, buttons: { trigger, triggerSub, submit: submitText, color, showPrice, offerColor, offerGlow, triggerIcon, submitIcon, display }, products, ship, coupons, after }) },
     { method: 'post' },
   );
 
   // Vista previa con lo que se está editando ahora mismo.
   const pvTokens = useMemo<ThemeTokens>(() => ({
     ...data.tokens,
-    trigger: { ...data.tokens.trigger, text: trigger, descriptions: [triggerSub, ...data.tokens.trigger.descriptions.slice(1)].filter(Boolean), bg: color, bgType: 'solid' },
-    submit: { ...data.tokens.submit, text: submitText, bg: color, bgType: 'solid', priceDisplay: showPrice ? 'total' : 'none' },
+    trigger: { ...data.tokens.trigger, text: trigger, descriptions: [triggerSub, ...data.tokens.trigger.descriptions.slice(1)].filter(Boolean), bg: color, bgType: 'solid',
+      ...(triggerIcon === undefined ? {} : triggerIcon ? { iconType: 'svg' as const, iconName: triggerIcon } : { iconType: 'none' as const }) },
+    submit: { ...data.tokens.submit, text: submitText, bg: color, bgType: 'solid', priceDisplay: showPrice ? 'total' : 'none',
+      ...(submitIcon === undefined ? {} : submitIcon ? { iconType: 'svg' as const, iconName: submitIcon } : { iconType: 'none' as const }) },
     offerCard: { ...data.tokens.offerCard, accent: offerColor, glow: offerGlow },
-  }), [data.tokens, trigger, triggerSub, submitText, color, showPrice, offerColor, offerGlow]);
+    display,
+  }), [data.tokens, trigger, triggerSub, submitText, color, showPrice, offerColor, offerGlow, triggerIcon, submitIcon, display]);
   const pvProduct = products[0];
   const pvOffers = useMemo<Offer[]>(() => (pvProduct?.rows ?? []).filter((r) => parseInt(r.qty, 10) >= 2 && cents(r.price) > 0).map((r) => {
     const q = parseInt(r.qty, 10);
@@ -381,16 +393,20 @@ export default function EditorFacil() {
 
           {/* 2 ─ Botones */}
           <section className="ef-card">
-            <h2><span className="ef-n">2</span> Los botones</h2>
+            <h2><span className="ef-n">2</span> Los botones y la ventana</h2>
             <label className="ef-label">Botón para abrir el formulario
               <input className="ef-input" value={trigger} onChange={(e) => { setTrigger(e.target.value); touch(); }} placeholder="Comprar ahora" />
             </label>
             <label className="ef-label">Frase pequeña debajo (opcional)
               <input className="ef-input" value={triggerSub} onChange={(e) => { setTriggerSub(e.target.value); touch(); }} placeholder="Pagas al recibir" />
             </label>
+            <span className="ef-label">Icono del botón para abrir el formulario</span>
+            <IconPicker label="Icono del botón para abrir el formulario" value={triggerIcon ?? ''} onChange={(n) => { setTriggerIcon(n); touch(); }} />
             <label className="ef-label">Botón para confirmar el pedido
               <input className="ef-input" value={submitText} onChange={(e) => { setSubmitText(e.target.value); touch(); }} placeholder="Finalizar pedido" />
             </label>
+            <span className="ef-label">Icono del botón para confirmar</span>
+            <IconPicker label="Icono del botón para confirmar" value={submitIcon ?? ''} onChange={(n) => { setSubmitIcon(n); touch(); }} />
             <span className="ef-label">Color de los botones</span>
             <div className="ef-colors" role="radiogroup" aria-label="Color de los botones">
               {COLORS.map((c) => (
@@ -405,6 +421,8 @@ export default function EditorFacil() {
               <input type="checkbox" checked={showPrice} onChange={(e) => { setShowPrice(e.target.checked); touch(); }} />
               {showPrice && <Ic s={CheckIcon} size={16} />}Mostrar el total en el botón de confirmar
             </label>
+            <span className="ef-label">¿Cómo aparece el formulario al tocar el botón?</span>
+            <DisplayPicker value={display} onChange={(v) => { setDisplay(v); touch(); }} />
           </section>
 
           {/* 3 ─ Precios */}

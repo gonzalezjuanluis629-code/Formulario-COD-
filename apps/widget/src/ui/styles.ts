@@ -259,19 +259,47 @@ ${buttonAnimationCss('cod-submit', 'var(--cod-btn-solid)')}
 .cod-upsell-on .cod-upsell-add{background:transparent;color:var(--cod-brand)}
 
 /* ── Modal (modo popup) ── */
-.cod-modal-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:flex-end;
-  justify-content:center;background:rgba(0,0,0,.5);opacity:0;transition:opacity .25s var(--cod-ease);
-  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.cod-ico{display:inline-flex;align-items:center}.cod-ico-svg{width:1.25em;height:1.25em;display:block}
+/* La capa ocupa SOLO la parte visible de la pantalla (--cod-vv-*): con el teclado
+   abierto la ventana se encoge en vez de taparlo todo, y la X siempre se ve. */
+.cod-modal-overlay{position:fixed;left:0;right:0;top:var(--cod-vv-top,0px);height:var(--cod-vv-h,100%);
+  z-index:2147483000;display:flex;align-items:flex-end;justify-content:center;
+  background:rgba(0,0,0,.5);opacity:0;transition:opacity .25s var(--cod-ease);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);overscroll-behavior:contain}
 .cod-modal-overlay.cod-open{opacity:1}
-@media(min-width:540px){.cod-modal-overlay{align-items:center}}
-.cod-modal{position:relative;width:100%;max-width:440px;max-height:92vh;overflow-y:auto;
-  background:var(--cod-surface);border-radius:20px 20px 0 0;padding:14px;
-  transform:translateY(40px);transition:transform .32s cubic-bezier(.34,1.42,.64,1)}
-@media(min-width:540px){.cod-modal{border-radius:18px}}
+.cod-modal{position:relative;display:flex;flex-direction:column;width:100%;max-width:440px;
+  max-height:calc(var(--cod-vv-h,100vh) - 28px);background:var(--cod-surface);border-radius:20px 20px 0 0;
+  transform:translateY(40px);transition:transform .32s cubic-bezier(.34,1.42,.64,1);overflow:hidden}
 .cod-modal-overlay.cod-open .cod-modal{transform:none}
-.cod-modal-close{position:absolute;top:12px;right:12px;z-index:2;width:32px;height:32px;border:0;
-  border-radius:50%;background:rgba(0,0,0,.06);color:var(--cod-text);font-size:14px;cursor:pointer}
-.cod-modal-body .cod-root{box-shadow:none;padding:8px}
+.cod-modal-head{position:relative;flex:none;height:44px}
+.cod-modal-head::before{content:'';position:absolute;left:50%;top:8px;width:38px;height:4px;margin-left:-19px;
+  border-radius:4px;background:rgba(0,0,0,.14)}
+.cod-modal-title{display:none}
+.cod-modal-close{position:absolute;top:8px;right:10px;z-index:2;display:grid;place-items:center;width:34px;height:34px;
+  border:0;border-radius:50%;background:rgba(0,0,0,.07);color:var(--cod-text);cursor:pointer;padding:0}
+.cod-modal-close svg{width:18px;height:18px}
+.cod-modal-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 14px 14px}
+.cod-modal-body .cod-root{box-shadow:none;padding:0 8px 8px}
+/* Desde abajo: en computadora se centra como ventana. */
+@media(min-width:540px){
+  .cod-mode-sheet{align-items:center}
+  .cod-mode-sheet .cod-modal{border-radius:18px}
+  .cod-mode-sheet .cod-modal-head::before{display:none}
+}
+/* Ventana flotante: centrada con margen, entra creciendo. */
+.cod-mode-popup{align-items:center;padding:14px}
+.cod-mode-popup .cod-modal{border-radius:18px;max-height:calc(var(--cod-vv-h,100vh) - 28px);transform:scale(.92);
+  box-shadow:0 24px 60px -12px rgba(0,0,0,.45)}
+.cod-mode-popup .cod-modal-head::before{display:none}
+/* Página completa: ocupa toda la pantalla con su barra arriba. */
+.cod-mode-page{align-items:stretch;background:var(--cod-surface);-webkit-backdrop-filter:none;backdrop-filter:none}
+.cod-mode-page .cod-modal{max-width:none;max-height:none;height:100%;border-radius:0;transform:translateY(16px)}
+.cod-mode-page .cod-modal-head{height:54px;border-bottom:1px solid var(--cod-border);display:flex;align-items:center;justify-content:center}
+.cod-mode-page .cod-modal-head::before{display:none}
+.cod-mode-page .cod-modal-title{display:block;font-weight:800;font-size:16px;color:var(--cod-text)}
+.cod-mode-page .cod-modal-close{top:10px}
+.cod-mode-page .cod-modal-body{padding-top:12px}
+.cod-mode-page .cod-modal-body>.cod-root{max-width:520px;margin:0 auto}
 
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 `;

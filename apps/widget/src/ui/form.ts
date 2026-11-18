@@ -1,4 +1,5 @@
 import type { WidgetConfig, Field } from '@cod/contracts';
+import { buttonIconSvg } from '@cod/contracts/dist/icons';
 import type { FormState } from '../index';
 import { validateField } from '../core/validate';
 import { mountLocation } from './location';
@@ -26,9 +27,11 @@ export function renderForm(
       <button type="submit" class="cod-submit cod-submit-anim-${config.tokens.submit.animation}">
         <span class="cod-submit-label">${esc(config.tokens.submit.text)}</span>
         <span class="cod-submit-price" hidden></span>
-        ${config.tokens.submit.iconType === 'emoji'
-          ? `<span class="cod-submit-icon">${esc(config.tokens.submit.icon)}</span>`
-          : ''}
+        ${config.tokens.submit.iconType === 'svg' && config.tokens.submit.iconName
+          ? `<span class="cod-submit-icon cod-ico">${buttonIconSvg(config.tokens.submit.iconName, 'cod-ico-svg')}</span>`
+          : config.tokens.submit.iconType === 'emoji'
+            ? `<span class="cod-submit-icon">${esc(config.tokens.submit.icon)}</span>`
+            : ''}
         <span class="cod-spinner" aria-hidden="true"></span>
       </button>
     </form>`;

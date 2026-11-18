@@ -17,6 +17,7 @@ const pkg = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
+      '@cod/contracts/dist/icons': pkg('../../packages/contracts/src/icons.ts'),
       '@cod/contracts': pkg('../../packages/contracts/src/index.ts'),
       '@cod/pricing': pkg('../../packages/pricing/src/index.ts'),
       '@cod/geo': pkg('../../packages/geo/src/index.ts'),
