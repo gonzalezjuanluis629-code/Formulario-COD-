@@ -28,7 +28,8 @@ const CSS = `
 .cod-icopick button:hover{box-shadow:0 4px 10px -4px rgba(16,24,40,.25)}
 .cod-icopick button:active{transform:translateY(1px)}
 .cod-icopick button svg{width:21px;height:21px}
-.cod-icopick button.on{background:linear-gradient(180deg,#4A9DF8,#1A73E8);border-color:transparent;color:#fff;
-  box-shadow:0 8px 18px -6px rgba(26,115,232,.55),inset 0 1px 0 rgba(255,255,255,.24)}
+.cod-icopick button.on{background:linear-gradient(180deg,#2B2F36,#0B0D10);border-color:transparent;color:#fff;
+  box-shadow:0 8px 16px -8px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.12)}
+html.cod-dark .cod-icopick button.on{background:linear-gradient(180deg,#FFFFFF,#E4E7EB);color:#0B0D10;box-shadow:0 8px 16px -8px rgba(0,0,0,.6),inset 0 1px 0 #fff}
 .cod-icopick-none{font:600 13px/1 Inter,-apple-system,sans-serif}
 `;

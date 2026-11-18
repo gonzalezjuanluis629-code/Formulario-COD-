@@ -9,6 +9,8 @@ html.cod-figui{
   --fg-blue-grad:linear-gradient(180deg,#4A9DF8 0%,#1A73E8 100%);
   --fg-blue-glow:0 8px 18px -6px rgba(26,115,232,.55),0 2px 4px rgba(26,115,232,.18),inset 0 1px 0 rgba(255,255,255,.24);
   --fg-blue-glow-hover:0 12px 24px -6px rgba(26,115,232,.6),0 3px 6px rgba(26,115,232,.2),inset 0 1px 0 rgba(255,255,255,.26);
+  --fg-sel-grad:linear-gradient(180deg,#2B2F36 0%,#0B0D10 100%);--fg-sel-ink:#fff;
+  --fg-sel-glow:0 8px 16px -8px rgba(0,0,0,.5),0 2px 4px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.12);
   --fg-red-grad:linear-gradient(180deg,#E5545A 0%,#C92F33 100%);
   --fg-red-glow:0 8px 18px -6px rgba(201,47,51,.5),0 2px 4px rgba(201,47,51,.16),inset 0 1px 0 rgba(255,255,255,.22);
   --fg-soft-grad:linear-gradient(180deg,#FFFFFF 0%,#F6F8FB 100%);
@@ -30,6 +32,7 @@ html.cod-figui.cod-dark{
   --fg-soft-shadow-hover:0 2px 4px rgba(0,0,0,.4),0 8px 16px -6px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.08);
   --fg-card-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
   --fg-line:#2f333a;--fg-ink:#e4e8ef;--fg-muted:#9fa5ae;--fg-page:#10141a;--fg-card:#1a1e25;--fg-input:#10141a;--fg-input-line:#3a3f48;
+  --fg-sel-grad:linear-gradient(180deg,#FFFFFF 0%,#E4E7EB 100%);--fg-sel-ink:#0B0D10;--fg-sel-glow:0 8px 16px -8px rgba(0,0,0,.6),inset 0 1px 0 #fff;
   --p-color-bg:#10141a}
 html.cod-figui body{background:var(--fg-page);font-family:var(--p-font-family-sans);-webkit-font-smoothing:antialiased}
 
@@ -51,8 +54,8 @@ html.cod-figui .Polaris-Button--variantPrimary.Polaris-Button--disabled{backgrou
 html.cod-figui .Polaris-Button--variantSecondary{background:var(--fg-soft-grad)!important;color:var(--fg-ink)!important;box-shadow:var(--fg-soft-shadow)!important;border:1px solid var(--fg-line)!important}
 html.cod-figui .Polaris-Button--variantSecondary:hover:not(.Polaris-Button--disabled){box-shadow:var(--fg-soft-shadow-hover)!important;border-color:#BFD5F2!important}
 html.cod-figui .Polaris-Button--variantSecondary.Polaris-Button--toneCritical{color:#D92D20!important}
-html.cod-figui .Polaris-Button--pressed,html.cod-figui .Polaris-Button[aria-pressed="true"]{background:var(--fg-blue-grad)!important;color:#fff!important;box-shadow:var(--fg-blue-glow)!important;border-color:transparent!important}
-html.cod-figui .Polaris-Button--pressed .Polaris-Icon__Svg,html.cod-figui .Polaris-Button[aria-pressed="true"] .Polaris-Icon__Svg{fill:#fff}
+html.cod-figui .Polaris-Button--pressed,html.cod-figui .Polaris-Button[aria-pressed="true"]{background:var(--fg-sel-grad)!important;color:var(--fg-sel-ink)!important;box-shadow:var(--fg-sel-glow)!important;border-color:transparent!important}
+html.cod-figui .Polaris-Button--pressed .Polaris-Icon__Svg,html.cod-figui .Polaris-Button[aria-pressed="true"] .Polaris-Icon__Svg{fill:var(--fg-sel-ink)}
 html.cod-figui .Polaris-Button--variantPlain,html.cod-figui .Polaris-Button--variantTertiary{color:#1A73E8}
 html.cod-figui.cod-dark .Polaris-Button--variantPlain{color:#5AA0F2}
 html.cod-figui .Polaris-ButtonGroup--variantSegmented{gap:6px;padding:4px;border-radius:13px;background:var(--fg-page);box-shadow:inset 0 1px 2px rgba(16,24,40,.08)}
@@ -63,8 +66,8 @@ html.cod-figui .Polaris-ButtonGroup--variantSegmented .Polaris-Button--variantSe
 html.cod-figui .Polaris-Tabs__Wrapper{border:0!important;padding:4px;gap:4px}
 html.cod-figui .Polaris-Tabs__Tab{border-radius:10px!important;font-weight:650}
 html.cod-figui .Polaris-Tabs__Tab .Polaris-Text--root{color:var(--fg-muted)}
-html.cod-figui .Polaris-Tabs__Tab--active,html.cod-figui .Polaris-Tabs__Tab[aria-selected="true"]{background:var(--fg-blue-grad)!important;box-shadow:var(--fg-blue-glow)}
-html.cod-figui .Polaris-Tabs__Tab--active .Polaris-Text--root,html.cod-figui .Polaris-Tabs__Tab[aria-selected="true"] .Polaris-Text--root{color:#fff!important}
+html.cod-figui .Polaris-Tabs__Tab--active,html.cod-figui .Polaris-Tabs__Tab[aria-selected="true"]{background:var(--fg-sel-grad)!important;box-shadow:var(--fg-sel-glow)}
+html.cod-figui .Polaris-Tabs__Tab--active .Polaris-Text--root,html.cod-figui .Polaris-Tabs__Tab[aria-selected="true"] .Polaris-Text--root{color:var(--fg-sel-ink)!important}
 
 /* Campos */
 html.cod-figui .Polaris-TextField__Backdrop,html.cod-figui .Polaris-Select__Backdrop{border-radius:11px!important;border:1px solid var(--fg-input-line)!important;background:var(--fg-input)!important;box-shadow:inset 0 1px 2px rgba(16,24,40,.05)}

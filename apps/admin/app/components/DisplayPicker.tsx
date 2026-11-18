@@ -29,7 +29,8 @@ const CSS = `
   box-shadow:0 1px 2px rgba(16,24,40,.06),0 3px 8px -3px rgba(16,24,40,.10);transition:box-shadow .15s ease,transform .12s ease}
 .cod-dpick button:hover{box-shadow:0 2px 4px rgba(16,24,40,.06),0 8px 16px -6px rgba(16,24,40,.18)}
 .cod-dpick button:active{transform:translateY(1px)}
-.cod-dpick button.on{border-color:#1A73E8;box-shadow:0 0 0 3px rgba(26,115,232,.18),0 8px 18px -8px rgba(26,115,232,.45)}
+.cod-dpick button.on{border-color:#0B0D10;box-shadow:0 0 0 3px rgba(0,0,0,.1),0 8px 18px -8px rgba(0,0,0,.35)}
+html.cod-dark .cod-dpick button.on{border-color:#FFFFFF;box-shadow:0 0 0 3px rgba(255,255,255,.14),0 8px 18px -8px rgba(0,0,0,.6)}
 .cod-dpick b{font-size:14px;font-weight:800}
 .cod-dpick small{font-size:12px;line-height:1.3;color:var(--p-color-text-secondary,#667085)}
 .cod-dpick-phone{position:relative;width:46px;height:78px;border-radius:9px;border:2px solid currentColor;opacity:.85;margin-bottom:4px;overflow:hidden;

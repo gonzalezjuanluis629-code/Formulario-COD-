@@ -726,6 +726,10 @@ const CSS = `
 .ef{
   --blue-grad:linear-gradient(180deg,#4A9DF8 0%,#1A73E8 100%);
   --blue-glow:0 8px 18px -6px rgba(26,115,232,.55),0 2px 4px rgba(26,115,232,.18),inset 0 1px 0 rgba(255,255,255,.24);
+  /* Lo elegido: negro en claro, blanco en oscuro (el azul queda para guardar y los números). */
+  --sel-grad:linear-gradient(180deg,#2B2F36 0%,#0B0D10 100%);
+  --sel-glow:0 8px 16px -8px rgba(0,0,0,.5),0 2px 4px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.12);
+  --sel-ink:#fff;
   --green-grad:linear-gradient(180deg,#34D07A 0%,#16A34A 100%);
   --green-glow:0 10px 22px -8px rgba(22,163,74,.6),0 2px 4px rgba(22,163,74,.2),inset 0 1px 0 rgba(255,255,255,.28);
   --soft-grad:linear-gradient(180deg,#FFFFFF 0%,#F6F8FB 100%);
@@ -769,7 +773,7 @@ const CSS = `
 .ef-pill{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--soft-grad);box-shadow:var(--soft-shadow);font-size:14px;font-weight:600;cursor:pointer;user-select:none;color:#475467;transition:box-shadow .15s ease}
 .ef-pill:hover{box-shadow:var(--soft-shadow-hover)}
 .ef-pill input{position:absolute;opacity:0;pointer-events:none}
-.ef-pill.on{background:var(--blue-grad);border-color:transparent;color:#fff;box-shadow:var(--blue-glow)}
+.ef-pill.on{background:var(--sel-grad);border-color:transparent;color:var(--sel-ink);box-shadow:var(--sel-glow)}
 .ef-pill.big{margin-top:12px;padding:12px 16px;font-size:15px}
 .ef-del{display:grid;place-items:center;color:#D92D20;border:1px solid #FECDCA;background:linear-gradient(180deg,#FFF6F5,#FEE4E2);box-shadow:0 1px 2px rgba(180,35,24,.08),inset 0 1px 0 #fff;width:40px;height:40px;border-radius:11px;font-size:17px;cursor:pointer;flex:none}
 .ef-sub{margin:16px 0 8px;font-weight:800;font-size:15px}
@@ -792,14 +796,14 @@ html.cod-dark .ef-detail{--detail:#10141a}
 .ef-label{display:flex;flex-direction:column;gap:6px;margin:10px 0 0;font-size:14px;font-weight:700;color:#344054}
 .ef-colors{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
 .ef-colors button,.ef-custom{width:42px;height:42px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #D0D5DD,0 4px 10px -4px rgba(16,24,40,.25),inset 0 1px 0 rgba(255,255,255,.3);cursor:pointer}
-.ef-colors button.on{box-shadow:0 0 0 3px #1A73E8,0 6px 14px -4px rgba(26,115,232,.45)}
+.ef-colors button.on{box-shadow:0 0 0 3px #0B0D10,0 6px 14px -4px rgba(0,0,0,.4)}
 .ef-custom{display:grid;place-items:center;background:var(--soft-grad);color:#475467;position:relative;overflow:hidden}
 .ef-custom input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .ef-seg{display:flex;gap:6px;padding:5px;border-radius:14px;background:#F2F4F7;box-shadow:inset 0 1px 2px rgba(16,24,40,.08);flex-wrap:wrap}
 .ef-seg.col{flex-direction:column}
 .ef-seg button{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-width:0;padding:11px 12px;border:0;border-radius:10px;background:transparent;font:inherit;font-size:15px;font-weight:700;color:#475467;cursor:pointer;text-align:center}
 .ef-seg.col button{justify-content:flex-start;text-align:left}
-.ef-seg button.on{background:var(--blue-grad);color:#fff;box-shadow:var(--blue-glow)}
+.ef-seg button.on{background:var(--sel-grad);color:var(--sel-ink);box-shadow:var(--sel-glow)}
 .ef-seg.small{padding:3px;flex:none}
 .ef-seg.small button{padding:8px 11px;font-size:14px}
 .ef-prod,.ef-coupon{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:var(--soft-grad);box-shadow:var(--soft-shadow)}
@@ -833,7 +837,8 @@ html.cod-dark .ef-detail{--detail:#10141a}
 html.cod-dark .ef{--soft-grad:linear-gradient(180deg,#262a32 0%,#20242b 100%);
   --soft-shadow:0 1px 2px rgba(0,0,0,.4),0 3px 8px -3px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);
   --soft-shadow-hover:0 2px 4px rgba(0,0,0,.45),0 8px 16px -6px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05);
-  --line:#2f333a;--ink:#e4e8ef;--muted:#9fa5ae;--page:#10141a}
+  --line:#2f333a;--ink:#e4e8ef;--muted:#9fa5ae;--page:#10141a;
+  --sel-grad:linear-gradient(180deg,#FFFFFF 0%,#E4E7EB 100%);--sel-glow:0 8px 16px -8px rgba(0,0,0,.6),inset 0 1px 0 #fff;--sel-ink:#0B0D10}
 html.cod-dark .ef-head p,html.cod-dark .ef-pill,html.cod-dark .ef-seg button{color:#b4bac4}
 html.cod-dark .ef-label{color:#c9ced6}
 html.cod-dark .ef-done-pv{background:#12161c;border-color:#2a3039}html.cod-dark .ef-done-pv b{color:#f3f4f6}html.cod-dark .ef-done-pv span{color:#aab2bf}
@@ -844,12 +849,12 @@ html.cod-dark .ef-money .ef-input{background:transparent}
 html.cod-dark .ef-input::placeholder{color:#6f7682}
 html.cod-dark .ef-move button,html.cod-dark .ef-custom{color:#c9ced6}
 html.cod-dark .ef-seg{background:#10141a;box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
-html.cod-dark .ef-seg button.on,html.cod-dark .ef-pill.on{color:#fff}
+html.cod-dark .ef-seg button.on,html.cod-dark .ef-pill.on{color:var(--sel-ink)}
 html.cod-dark .ef-del{background:linear-gradient(180deg,#3d1c24,#33171d);border-color:#5c2630;color:#ff8a80;box-shadow:none}
 html.cod-dark .ef-add-ic{background:#1c2b40;color:#5AA0F2}
 html.cod-dark .ef-add button:hover,html.cod-dark .ef-btn-ghost:hover{border-color:#3d5a80}
 html.cod-dark .ef-colors button,html.cod-dark .ef-custom{border-color:#1a1e25;box-shadow:0 0 0 1px #3a3f48,0 4px 10px -4px rgba(0,0,0,.6)}
-html.cod-dark .ef-colors button.on{box-shadow:0 0 0 3px #5AA0F2,0 6px 14px -4px rgba(26,115,232,.45)}
+html.cod-dark .ef-colors button.on{box-shadow:0 0 0 3px #FFFFFF,0 6px 14px -4px rgba(0,0,0,.6)}
 html.cod-dark .ef-x{color:#7f8692}
 html.cod-dark .ef-x:hover{background:#262a32;color:#c9ced6}
 html.cod-dark .ef-save{color:#4ade80}html.cod-dark .ef-warn{color:#fbbf24}
