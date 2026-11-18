@@ -111,6 +111,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 type Result = { ok: boolean; message: string };
 
+/**
+ * Al guardar, la pantalla ya tiene lo último: no se vuelve a pedir todo al
+ * servidor (menos llamadas a Shopify y nada que se pueda romper después de guardar).
+ */
+export function shouldRevalidate({ formMethod, defaultShouldRevalidate }: { formMethod?: string; defaultShouldRevalidate: boolean }) {
+  if (formMethod && formMethod.toUpperCase() === 'POST') return false;
+  return defaultShouldRevalidate;
+}
+
 export async function action({ request }: ActionFunctionArgs): Promise<Result> {
   const { shop } = await requireShop(request);
   const fd = await request.formData();
