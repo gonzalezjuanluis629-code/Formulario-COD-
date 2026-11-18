@@ -135,6 +135,15 @@ export class SubmitService {
       // Lo que llenó el cliente, con el nombre EXACTO de cada campo del formulario
       // (va a «Detalles adicionales» del pedido en Shopify).
       answers: await this.answers(dto),
+      // Para el CAPI de Meta (va cifrado como el resto): con esto Meta reconoce
+      // a la persona del anuncio y cuenta la compra.
+      meta: {
+        ip: ip && ip !== '0.0.0.0' ? ip : null,
+        ua: ua.slice(0, 500) || null,
+        url: dto.attribution?.url ?? null,
+        fbp: dto.attribution?.fbp ?? null,
+        fbc: dto.attribution?.fbc ?? null,
+      },
     });
 
     /* 8 ─ Persistir + (quizá) encolar.

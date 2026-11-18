@@ -250,8 +250,9 @@ export default function Settings() {
 
                 <Text as="h3" variant="headingSm">Meta (Facebook / Instagram)</Text>
                 <TextField label="Pixel ID" value={s.tracking.metaPixelId}
-                  onChange={(v) => setS({ ...s, tracking: { ...s.tracking, metaPixelId: v } })}
-                  autoComplete="off" />
+                  onChange={(v) => setS({ ...s, tracking: { ...s.tracking, metaPixelId: v.replace(/\D/g, '') } })}
+                  autoComplete="off" placeholder="Ej. 1234567890123456"
+                  helpText="Es el número de tu píxel: Meta Events Manager → Orígenes de datos → tu píxel (arriba sale el ID). Con esto, al abrir el formulario se envía «Inicio de pago» y al pedir, «Compra»." />
                 <TextField label="Token de Conversions API" value={s.tracking.metaCapiToken}
                   onChange={(v) => setS({ ...s, tracking: { ...s.tracking, metaCapiToken: v } })}
                   autoComplete="off" type="password"

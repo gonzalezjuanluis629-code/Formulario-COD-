@@ -625,7 +625,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-CgzT3d1z.js").then(({ renderAddons }) => {
+    void import("./addons-Bjg9VRU5.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1251,7 +1251,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-v88yfsHr.js");
+    const { renderTrigger } = await import("./trigger-CorPpcL4.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1270,6 +1270,7 @@ ${config.tokens.customCss}`;
         void openCartForm();
         return;
       }
+      fireCheckoutPixel(config);
       openModal(shadow, config, renderInto);
     });
     try {
@@ -1287,6 +1288,7 @@ ${config.tokens.customCss}`;
     api.track(config.formId, "view", config.formVersionId);
   } catch {
   }
+  root.addEventListener("focusin", () => fireCheckoutPixel(config), { once: true });
 }
 function renderCartInto(mountRoot, config) {
   mountRoot.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
@@ -1446,6 +1448,7 @@ async function openCartForm() {
         api.track(config.formId, "view", config.formVersionId);
       } catch {
       }
+      fireCheckoutPixel(config);
       return;
     }
   } catch {
@@ -1625,8 +1628,9 @@ async function submit(root, config, state) {
     ...state.cart ? { cart: state.cart, cartToken: state.cartToken, cartTotalCents: state.cartTotalCents } : {},
     location: state.location,
     startedAt: state.startedAt,
-    hp: ""
+    hp: "",
     // honeypot: si un bot lo rellena, el backend rechaza
+    attribution: metaAttribution()
   };
   try {
     const res = await api.submit(payload);
@@ -1669,36 +1673,69 @@ function showConfirmation(root, res) {
     }, res.redirectDelayMs);
   }
 }
+function metaAttribution() {
+  try {
+    const ck = (n) => {
+      var _a2;
+      return (_a2 = document.cookie.split("; ").find((c) => c.startsWith(n + "="))) == null ? void 0 : _a2.slice(n.length + 1);
+    };
+    let fbc = ck("_fbc");
+    const fbclid = new URLSearchParams(location.search).get("fbclid");
+    if (!fbc && fbclid) fbc = `fb.1.${Date.now()}.${fbclid}`;
+    return { fbp: ck("_fbp") || void 0, fbc: fbc || void 0, url: location.href.slice(0, 1e3) };
+  } catch {
+    return {};
+  }
+}
+function ensureFbq(pixelId) {
+  var _a2, _b;
+  const w = window;
+  if (!w.fbq) {
+    (function(f, b, e, v) {
+      if (f.fbq) return;
+      const n = f.fbq = function() {
+        n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+      };
+      if (!f._fbq) f._fbq = n;
+      n.push = n;
+      n.loaded = true;
+      n.version = "2.0";
+      n.queue = [];
+      const t = b.createElement(e);
+      t.async = true;
+      t.src = v;
+      const s = b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t, s);
+    })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+  }
+  (_a2 = w.__codFbqInit) != null ? _a2 : w.__codFbqInit = {};
+  if (!w.__codFbqInit[pixelId]) {
+    w.__codFbqInit[pixelId] = true;
+    w.fbq("init", pixelId);
+  }
+  return (_b = w.fbq) != null ? _b : null;
+}
+let checkoutFired = false;
+function fireCheckoutPixel(config) {
+  var _a2, _b, _c;
+  try {
+    const id = config.settings.tracking.metaPixelId;
+    if (!id || checkoutFired) return;
+    checkoutFired = true;
+    (_c = ensureFbq(id)) == null ? void 0 : _c("track", "InitiateCheckout", { currency: config.settings.currency, value: ((_b = (_a2 = config.product) == null ? void 0 : _a2.unitPriceCents) != null ? _b : 0) / 100 });
+  } catch {
+  }
+}
 function firePurchasePixel(p) {
-  var _a2;
+  var _a2, _b;
   const value = p.valueCents / 100;
   try {
     if (p.metaPixelId) {
-      const w = window;
-      if (!w.fbq) {
-        (function(f, b, e, v) {
-          if (f.fbq) return;
-          const n = f.fbq = function() {
-            n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
-          };
-          if (!f._fbq) f._fbq = n;
-          n.push = n;
-          n.loaded = true;
-          n.version = "2.0";
-          n.queue = [];
-          const t = b.createElement(e);
-          t.async = true;
-          t.src = v;
-          const s = b.getElementsByTagName(e)[0];
-          s.parentNode.insertBefore(t, s);
-        })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
-        w.fbq("init", p.metaPixelId);
-      }
-      w.fbq("track", p.eventName, { currency: p.currency, value }, { eventID: p.eventId });
+      (_a2 = ensureFbq(p.metaPixelId)) == null ? void 0 : _a2("track", p.eventName, { currency: p.currency, value }, { eventID: p.eventId });
     }
     if (p.tiktokPixelId) {
       const w = window;
-      (_a2 = w.ttq) == null ? void 0 : _a2.track("CompletePayment", { currency: p.currency, value, event_id: p.eventId });
+      (_b = w.ttq) == null ? void 0 : _b.track("CompletePayment", { currency: p.currency, value, event_id: p.eventId });
     }
   } catch {
   }

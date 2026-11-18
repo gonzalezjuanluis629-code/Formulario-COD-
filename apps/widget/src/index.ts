@@ -100,6 +100,7 @@ export async function mount(opts: MountOptions): Promise<void> {
       // Con el carrito lateral abierto, el toque es para pagar EL CARRITO (este
       // botón puede quedar encima del «Comprar ahora» del carrito).
       if (!isCart && DIRECT?.cartButton && cartOpen()) { void openCartForm(); return; }
+      fireCheckoutPixel(config); // «Inicio de pago»: al abrir el formulario, no al cargar la página
       openModal(shadow, config, renderInto);
     });
     try { api.track(config.formId, 'view', config.formVersionId); } catch { /* nunca bloquea */ }
@@ -113,6 +114,8 @@ export async function mount(opts: MountOptions): Promise<void> {
   ensureFloating(host);
   // Embudo: registramos la vista. sessionId estable por montaje.
   try { api.track(config.formId, 'view', config.formVersionId); } catch { /* nunca bloquea */ }
+  // Formulario en la página: «Inicio de pago» cuando el cliente empieza a llenarlo.
+  root.addEventListener('focusin', () => fireCheckoutPixel(config), { once: true });
 }
 
 /**
@@ -296,6 +299,7 @@ async function openCartForm(): Promise<void> {
       try { config = await api.config(l.productId, l.variantId); } catch { continue; }
       openModal(null, config, (root) => renderCartInto(root, config));
       try { api.track(config.formId, 'view', config.formVersionId); } catch { /* no bloquea */ }
+      fireCheckoutPixel(config);
       return;
     }
   } catch { /* sin carrito: no se abre nada */ } finally {
@@ -499,6 +503,7 @@ async function submit(root: HTMLElement, config: WidgetConfig, state: FormState)
     location: state.location,
     startedAt: state.startedAt,
     hp: '', // honeypot: si un bot lo rellena, el backend rechaza
+    attribution: metaAttribution(),
   };
 
   try {
@@ -562,6 +567,48 @@ function showConfirmation(root: HTMLElement, res: import('@cod/contracts').Submi
   }
 }
 
+/** Cookies de Meta (_fbp/_fbc) y la página: así Meta une la compra con el anuncio. */
+function metaAttribution(): { fbp?: string; fbc?: string; url?: string } {
+  try {
+    const ck = (n: string) => document.cookie.split('; ').find((c) => c.startsWith(n + '='))?.slice(n.length + 1);
+    let fbc = ck('_fbc');
+    const fbclid = new URLSearchParams(location.search).get('fbclid');
+    if (!fbc && fbclid) fbc = `fb.1.${Date.now()}.${fbclid}`;
+    return { fbp: ck('_fbp') || undefined, fbc: fbc || undefined, url: location.href.slice(0, 1000) };
+  } catch {
+    return {};
+  }
+}
+
+/** Carga el píxel de Meta si el tema no lo tiene (solo con el ID que puso la tienda). */
+function ensureFbq(pixelId: string): ((...a: unknown[]) => void) | null {
+  const w = window as unknown as { fbq?: (...a: unknown[]) => void; __codFbqInit?: Record<string, boolean> };
+  if (!w.fbq) {
+    (function (f: any, b, e, v) {
+      if (f.fbq) return; const n: any = (f.fbq = function () {
+        n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+      });
+      if (!f._fbq) f._fbq = n; n.push = n; n.loaded = true; n.version = '2.0'; n.queue = [];
+      const t = b.createElement(e) as HTMLScriptElement; t.async = true; t.src = v;
+      const s = b.getElementsByTagName(e)[0]!; s.parentNode!.insertBefore(t, s);
+    })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+  }
+  w.__codFbqInit ??= {};
+  if (!w.__codFbqInit[pixelId]) { w.__codFbqInit[pixelId] = true; w.fbq!('init', pixelId); }
+  return w.fbq ?? null;
+}
+
+/** «Inicio de pago» en Meta al abrir el formulario (una vez por página). */
+let checkoutFired = false;
+function fireCheckoutPixel(config: WidgetConfig): void {
+  try {
+    const id = config.settings.tracking.metaPixelId;
+    if (!id || checkoutFired) return;
+    checkoutFired = true;
+    ensureFbq(id)?.('track', 'InitiateCheckout', { currency: config.settings.currency, value: (config.product?.unitPriceCents ?? 0) / 100 });
+  } catch { /* nunca bloquea el formulario */ }
+}
+
 /**
  * Dispara el evento de compra en los píxeles del navegador que el merchant
  * haya configurado. Si el píxel base (fbq/ttq) no está cargado en el tema, lo
@@ -572,20 +619,7 @@ function firePurchasePixel(p: NonNullable<import('@cod/contracts').SubmitRespons
 
   try {
     if (p.metaPixelId) {
-      const w = window as unknown as { fbq?: (...a: unknown[]) => void };
-      if (!w.fbq) {
-        // Snippet mínimo de Meta Pixel.
-        (function (f: any, b, e, v) {
-          if (f.fbq) return; const n: any = (f.fbq = function () {
-            n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
-          });
-          if (!f._fbq) f._fbq = n; n.push = n; n.loaded = true; n.version = '2.0'; n.queue = [];
-          const t = b.createElement(e) as HTMLScriptElement; t.async = true; t.src = v;
-          const s = b.getElementsByTagName(e)[0]!; s.parentNode!.insertBefore(t, s);
-        })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
-        w.fbq!('init', p.metaPixelId);
-      }
-      w.fbq!('track', p.eventName, { currency: p.currency, value }, { eventID: p.eventId });
+      ensureFbq(p.metaPixelId)?.('track', p.eventName, { currency: p.currency, value }, { eventID: p.eventId });
     }
 
     if (p.tiktokPixelId) {
