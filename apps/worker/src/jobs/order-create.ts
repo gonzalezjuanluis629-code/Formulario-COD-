@@ -5,7 +5,10 @@ import { getCountryProfile } from '@cod/geo';
 import { ShopSettingsSchema } from '@cod/contracts';
 
 const MAX_ATTEMPTS = 6;
-const BATCH = 10;
+/** Pedidos que se crean en Shopify a la vez (Shopify permite ráfagas; el resto espera su turno). */
+const CONCURRENCY = Number(process.env.ORDER_CONCURRENCY ?? 6);
+/** Si un proceso se cae a mitad, el pedido vuelve a la cola pasado este tiempo. */
+const LEASE_MS = 3 * 60_000;
 
 /**
  * Backoff exponencial: 5s → 15s → 45s → 2m → 7m → 20m.
@@ -13,53 +16,76 @@ const BATCH = 10;
  */
 const backoffMs = (attempt: number) => Math.min(20 * 60_000, 5_000 * 3 ** attempt);
 
-export async function processOutbox(prisma: PrismaClient, log: Logger): Promise<void> {
+/**
+ * Crea en Shopify los pedidos pendientes, varios a la vez. Devuelve cuántos
+ * tomó (si llenó el lote, quien llama vuelve a pasar enseguida).
+ */
+export async function processOutbox(prisma: PrismaClient, log: Logger): Promise<number> {
+  // Pedidos «en proceso» de un worker que se cayó: vuelven a la cola.
+  await prisma.outboxEvent.updateMany({
+    where: { type: 'ORDER_CREATE', status: 'PROCESSING', nextRetryAt: { lt: new Date() } },
+    data: { status: 'PENDING' },
+  }).catch(() => undefined);
+
   const events = await prisma.outboxEvent.findMany({
     where: { status: 'PENDING', nextRetryAt: { lte: new Date() }, type: 'ORDER_CREATE' },
     orderBy: { nextRetryAt: 'asc' },
-    take: BATCH,
+    take: CONCURRENCY * 4,
   });
-  if (!events.length) return;
+  if (!events.length) return 0;
 
-  for (const ev of events) {
-    // Lock optimista: si otro worker ya lo cogió, updateMany afecta a 0 filas.
-    const locked = await prisma.outboxEvent.updateMany({
-      where: { id: ev.id, status: 'PENDING' },
-      data: { status: 'PROCESSING' },
+  let next = 0;
+  const lane = async () => {
+    while (next < events.length) {
+      const ev = events[next++]!;
+      await handle(prisma, log, ev);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, events.length) }, lane));
+  return events.length;
+}
+
+async function handle(
+  prisma: PrismaClient, log: Logger,
+  ev: { id: string; attempts: number; payload: unknown },
+): Promise<void> {
+  // Lock optimista con «alquiler»: si otro worker ya lo cogió, updateMany afecta a 0 filas.
+  const locked = await prisma.outboxEvent.updateMany({
+    where: { id: ev.id, status: 'PENDING' },
+    data: { status: 'PROCESSING', nextRetryAt: new Date(Date.now() + LEASE_MS) },
+  });
+  if (locked.count === 0) return;
+
+  try {
+    await createOrder(prisma, log, (ev.payload as { submissionId: string }).submissionId);
+    await prisma.outboxEvent.update({
+      where: { id: ev.id },
+      data: { status: 'DONE', attempts: { increment: 1 } },
     });
-    if (locked.count === 0) continue;
+  } catch (e) {
+    const attempts = ev.attempts + 1;
+    const dead = attempts >= MAX_ATTEMPTS;
+    const msg = (e as Error).message.slice(0, 500);
 
-    try {
-      await createOrder(prisma, log, (ev.payload as { submissionId: string }).submissionId);
-      await prisma.outboxEvent.update({
-        where: { id: ev.id },
-        data: { status: 'DONE', attempts: { increment: 1 } },
+    await prisma.outboxEvent.update({
+      where: { id: ev.id },
+      data: {
+        status: dead ? 'DEAD' : 'PENDING',
+        attempts,
+        nextRetryAt: new Date(Date.now() + backoffMs(attempts)),
+        lastError: msg,
+      },
+    });
+
+    if (dead) {
+      // No se pierde: queda en el panel como "pedido con error", con botón de reintento.
+      await prisma.submission.update({
+        where: { id: (ev.payload as { submissionId: string }).submissionId },
+        data: { status: 'FAILED', lastError: msg },
       });
-    } catch (e) {
-      const attempts = ev.attempts + 1;
-      const dead = attempts >= MAX_ATTEMPTS;
-      const msg = (e as Error).message.slice(0, 500);
-
-      await prisma.outboxEvent.update({
-        where: { id: ev.id },
-        data: {
-          status: dead ? 'DEAD' : 'PENDING',
-          attempts,
-          nextRetryAt: new Date(Date.now() + backoffMs(attempts)),
-          lastError: msg,
-        },
-      });
-
-      if (dead) {
-        // No se pierde: queda en el panel como "pedido con error", con botón de reintento.
-        await prisma.submission.update({
-          where: { id: (ev.payload as { submissionId: string }).submissionId },
-          data: { status: 'FAILED', lastError: msg },
-        });
-        log.error({ outboxId: ev.id, msg }, 'Pedido agotó los reintentos — requiere revisión manual');
-      } else {
-        log.warn({ outboxId: ev.id, attempts, msg }, 'Reintentando creación de pedido');
-      }
+      log.error({ outboxId: ev.id, msg }, 'Pedido agotó los reintentos — requiere revisión manual');
+    } else {
+      log.warn({ outboxId: ev.id, attempts, msg }, 'Reintentando creación de pedido');
     }
   }
 }
@@ -214,22 +240,41 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
 
   type OrderCreateBody = {
     data?: { orderCreate: { order: { id: string; name: string } | null; userErrors: { field: string[] | null; message: string }[] } };
-    errors?: { message: string }[];
+    errors?: { message: string; extensions?: { code?: string } }[];
+    extensions?: { cost?: { requestedQueryCost?: number; throttleStatus?: { currentlyAvailable: number; restoreRate: number } } };
   };
+  // Si llegan muchos pedidos a la vez y Shopify pide esperar (límite de su API),
+  // se espera lo justo y se reintenta aquí mismo: el pedido no pierde su turno.
   const send = async (vars: typeof variables): Promise<OrderCreateBody> => {
-    const res = await fetch(
-      `https://${shop.domain}/admin/api/${shop.shopifyApp.apiVersion}/graphql.json`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': accessToken },
-        body: JSON.stringify({ query: MUTATION, variables: vars }),
-      },
-    );
-    if (!res.ok) throw new Error(`Shopify HTTP ${res.status}`);
-    return (await res.json()) as OrderCreateBody;
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(
+        `https://${shop.domain}/admin/api/${shop.shopifyApp.apiVersion}/graphql.json`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': accessToken },
+          body: JSON.stringify({ query: MUTATION, variables: vars }),
+        },
+      );
+      if (res.status === 429 && attempt < 8) {
+        await sleep(Math.max(1000, Number(res.headers.get('Retry-After') ?? 1) * 1000));
+        continue;
+      }
+      if (!res.ok) throw new Error(`Shopify HTTP ${res.status}`);
+      const body = (await res.json()) as OrderCreateBody;
+      const throttled = body.errors?.some((e) => e.extensions?.code === 'THROTTLED');
+      if (throttled && attempt < 8) {
+        const t = body.extensions?.cost?.throttleStatus;
+        const need = body.extensions?.cost?.requestedQueryCost ?? 10;
+        await sleep(t ? Math.max(300, Math.ceil((need - t.currentlyAvailable) / Math.max(1, t.restoreRate)) * 1000) : 1000);
+        continue;
+      }
+      return body;
+    }
   };
 
+  const tShopify = Date.now();
   let body = await send(variables);
+  const shopifyMs = Date.now() - tShopify;
   if (body.errors?.length) throw new Error(body.errors.map((e) => e.message).join('; '));
 
   // Si Shopify no reconoce la provincia del país, se reintenta sin ella: la
@@ -302,7 +347,8 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
     },
   }).catch(() => undefined);
 
-  log.info({ order: order.name, shop: shop.domain }, 'Pedido COD creado');
+  // Tiempos: en cola (desde que el cliente pulsó) y lo que tardó Shopify.
+  log.info({ order: order.name, shop: shop.domain, queueMs: tShopify - sub.createdAt.getTime(), shopifyMs }, 'Pedido COD creado');
 }
 
 /* ── Cripto (misma derivación que la API) ── */
@@ -344,3 +390,5 @@ const MUTATION = /* GraphQL */ `
     }
   }
 `;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

@@ -38,10 +38,18 @@ export class AntifraudService {
   }
 
   /** Mismo teléfono + mismo carrito en 10 minutos = doble envío, no dos pedidos. */
-  async assertNotDuplicate(shopId: string, phoneHash: string, cartHash: string) {
+  async assertNotDuplicate(shopId: string, phoneHash: string, cartHash: string, sendKey = '') {
     const key = this.redis.key(shopId, 'dedup', phoneHash, cartHash);
-    const first = await this.redis.client.set(key, '1', 'EX', 600, 'NX');
-    if (!first) throw new ConflictException('Ya recibimos este pedido hace un momento.');
+    // Se guarda la clave del envío: si el MISMO envío se reintenta (se cortó la
+    // conexión a mitad), pasa; solo se frena un pedido nuevo igual. Si Redis no
+    // responde, no se bloquea el pedido.
+    const check = (async () => {
+      const first = await this.redis.client.set(key, sendKey || '1', 'EX', 600, 'NX');
+      if (first) return true;
+      return !!sendKey && (await this.redis.client.get(key)) === sendKey;
+    })();
+    const ok = await Promise.race([check, new Promise<boolean>((r) => setTimeout(() => r(true), 400))]).catch(() => true);
+    if (!ok) throw new ConflictException('Ya recibimos este pedido hace un momento.');
   }
 
   /**

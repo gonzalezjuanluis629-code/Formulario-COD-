@@ -3,46 +3,57 @@ import Redis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
 import { processOutbox } from './jobs/order-create';
 import { processCapiOutbox } from './jobs/capi';
+import { withPool } from './pool';
 
 const log = pino({ level: process.env.LOG_LEVEL ?? 'info' });
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ datasources: { db: { url: withPool(process.env.DATABASE_URL, 10) } } });
 
 /**
- * Poller del Outbox.
- *
- * Cada 2 s coge los eventos vencidos y los procesa. Si Shopify está caído,
- * el evento vuelve a la cola con backoff exponencial. El pedido NO se pierde:
- * es exactamente el fallo que dejó a merchants de Releasit sin vender el 23 de
- * diciembre, y la razón por la que respondemos al cliente antes de llamar a Shopify.
+ * Poller del Outbox, con DOS carriles independientes:
+ *  - Pedidos: lo primero y lo más rápido. Un aviso por Redis lo despierta al
+ *    instante y crea varios pedidos en Shopify a la vez.
+ *  - Píxel de Meta (CAPI): aparte, para que una llamada lenta a Meta nunca
+ *    retrase un pedido.
+ * Si Shopify está caído, el evento vuelve a la cola con backoff exponencial. El
+ * pedido NO se pierde: respondemos al cliente antes de llamar a Shopify.
  */
-let running = false;
-let again = false;
-async function tick() {
-  // Un ciclo a la vez; si llega un aviso mientras tanto, se repite al terminar.
-  if (running) { again = true; return; }
-  running = true;
-  try {
-    await processOutbox(prisma, log);
-    await processCapiOutbox(prisma, log);
-  } catch (e) {
-    log.error({ err: e }, 'Error en el ciclo del outbox');
-  } finally {
-    running = false;
-    if (again) { again = false; void tick(); }
-  }
+function lane(name: string, work: () => Promise<number | void>) {
+  let running = false;
+  let again = false;
+  const tick = async (): Promise<void> => {
+    if (running) { again = true; return; }
+    running = true;
+    try {
+      // Si el lote vino lleno, hay más esperando: se sigue sin pausa.
+      for (let i = 0; i < 50; i++) {
+        const n = await work();
+        if (!n || n < 4) break;
+      }
+    } catch (e) {
+      log.error({ err: e }, `Error en el carril ${name}`);
+    } finally {
+      running = false;
+      if (again) { again = false; void tick(); }
+    }
+  };
+  return tick;
 }
+
+const orders = lane('pedidos', () => processOutbox(prisma, log));
+const capi = lane('capi', () => processCapiOutbox(prisma, log));
 
 async function main() {
   log.info('Worker COD arrancado');
   // Pedido nuevo → la API avisa por Redis y se crea en Shopify AL INSTANTE.
-  // Además se revisa la cola cada medio segundo (reintentos y por si el aviso no llega).
+  // Además se revisa la cola cada poco (reintentos y por si el aviso no llega).
   if (process.env.REDIS_URL) {
     const sub = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
     sub.on('error', (e) => log.warn({ err: e.message }, 'Redis (avisos) no disponible'));
     void sub.subscribe('cod:outbox').then(() => log.info('Escuchando avisos de pedidos nuevos')).catch(() => undefined);
-    sub.on('message', () => void tick());
+    sub.on('message', () => { void orders(); setTimeout(() => void capi(), 1500); });
   }
-  setInterval(() => void tick(), 500);
+  setInterval(() => void orders(), 400);
+  setInterval(() => void capi(), 2000);
 
   const shutdown = async () => {
     log.info('Cerrando worker…');
