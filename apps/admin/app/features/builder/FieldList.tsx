@@ -140,8 +140,8 @@ function Row({
         boxShadow: isDragging ? '0 6px 18px rgba(0,0,0,.15)' : undefined,
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '8px 8px 8px 4px',
-        background: '#fff',
-        border: '1px solid #e3e3e3',
+        background: 'var(--p-color-bg-surface)',
+        border: '1px solid var(--p-color-border-secondary)',
         borderRadius: 10,
         opacity: field.visible ? 1 : 0.55,
       }}
@@ -153,7 +153,7 @@ function Row({
       <button type="button" onClick={onOpen}
         style={{ all: 'unset', flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
         <span style={{
-          width: 30, height: 30, borderRadius: 8, background: '#f1f1f1',
+          width: 30, height: 30, borderRadius: 8, background: 'var(--p-color-bg-surface-secondary)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
           <Icon source={meta?.icon} tone="base" />

@@ -50,6 +50,7 @@ export function tokensToCss(t: ThemeTokens): string {
     --cod-btn-solid:${t.submit.bg};
     --cod-apply-bg:${t.applyBg};
     --cod-offer-accent:${t.offerCard.accent};
+    ${t.offerCard.glow === false ? '--cod-offer-glow:none;' : ''}
     --cod-badge-from:${t.offerCard.badgeFrom};
     --cod-badge-to:${t.offerCard.badgeTo};
     --cod-badge-color:${t.offerCard.badgeColor};

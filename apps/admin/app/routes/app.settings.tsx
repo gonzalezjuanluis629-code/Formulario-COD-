@@ -123,7 +123,7 @@ export default function Settings() {
                       autoComplete="off"
                       prefix="+"
                       placeholder="18095551234"
-                      helpText="Ej. para RD: 1 809 555 1234 → escribe 18095551234"
+                      helpText="Con el código del país, sin + ni espacios. Ej.: 18095551234"
                     />
                     <TextField
                       label="Mensaje que enviará el cliente"

@@ -39,6 +39,7 @@ const HTML = `<!DOCTYPE html>
     if (e.source !== parent || e.origin !== location.origin) return;
     if (e.data?.type !== 'cod:preview') return;
     try {
+      document.body.style.background = e.data.dark ? '#10141a' : '';
       renderPreview(document.getElementById('root'), e.data.fields, e.data.tokens, {
         selectedKey: e.data.selectedKey ?? null,
         showTrigger: !!e.data.showTrigger,

@@ -58,7 +58,7 @@ function priceTag(a: Addon, cls: string): string {
   return `<span class="${cls}">${a.compareAtCents ? `<s>${money(a.compareAtCents)}</s>` : ''}${money(a.priceCents)}</span>`;
 }
 
-/** Order bump: casilla de un clic («Agrega una ESTACIÓN DE CEBO por solo RD$999»). */
+/** Order bump: casilla de un clic («Agrega un segundo producto por solo RD$999»). */
 function renderBump(a: Addon, state: FormState, onChange: () => void): HTMLElement {
   const el = document.createElement('label');
   el.className = 'cod-bump';

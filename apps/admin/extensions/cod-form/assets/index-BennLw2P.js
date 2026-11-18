@@ -51,15 +51,18 @@ const shopRoot = () => {
   return ((_c = (_b = (_a2 = window.Shopify) == null ? void 0 : _a2.routes) == null ? void 0 : _b.root) != null ? _c : "/").replace(/\/?$/, "/");
 };
 async function readCart() {
-  var _a2;
-  const res = await fetch(`${shopRoot()}cart.js`, { credentials: "same-origin", headers: { Accept: "application/json" } });
+  return (await readCartFull()).lines;
+}
+async function readCartFull() {
+  var _a2, _b, _c;
+  const res = await fetch(`${shopRoot()}cart.js`, { credentials: "same-origin", cache: "no-store", headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error("cart");
   const cart = await res.json();
-  return ((_a2 = cart.items) != null ? _a2 : []).filter((i) => i.quantity > 0).slice(0, 50).map((i) => ({
+  return { token: (_a2 = cart.token) != null ? _a2 : "", totalCents: (_b = cart.total_price) != null ? _b : 0, lines: ((_c = cart.items) != null ? _c : []).filter((i) => i.quantity > 0).slice(0, 50).map((i) => ({
     variantId: `gid://shopify/ProductVariant/${i.variant_id}`,
     productId: `gid://shopify/Product/${i.product_id}`,
     qty: Math.min(i.quantity, 99)
-  }));
+  })) };
 }
 function clearCart() {
   void fetch(`${shopRoot()}cart/clear.js`, { method: "POST", credentials: "same-origin", headers: { Accept: "application/json" } }).then(() => document.dispatchEvent(new CustomEvent("cart:refresh", { bubbles: true }))).catch(() => void 0);
@@ -161,6 +164,7 @@ function tokensToCss(t) {
     --cod-btn-solid:${t.submit.bg};
     --cod-apply-bg:${t.applyBg};
     --cod-offer-accent:${t.offerCard.accent};
+    ${t.offerCard.glow === false ? "--cod-offer-glow:none;" : ""}
     --cod-badge-from:${t.offerCard.badgeFrom};
     --cod-badge-to:${t.offerCard.badgeTo};
     --cod-badge-color:${t.offerCard.badgeColor};
@@ -589,7 +593,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-CKP04oIb.js").then(({ renderAddons }) => {
+    void import("./addons-DQEX_ahi.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -894,6 +898,8 @@ const CSS = `
 .cod-field input:focus,.cod-field select:focus,.cod-field textarea:focus{
   border-color:var(--cod-brand);background:#fff;box-shadow:0 0 0 3.5px rgba(0,0,0,.06)}
 .cod-field textarea{resize:none;line-height:1.5}
+/* iPhone hace zoom (y no lo quita) en campos con letra < 16 px: nunca menos de 16 px. */
+input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,1em)!important}
 .cod-invalid input,.cod-invalid select,.cod-invalid textarea,.cod-invalid .cod-phone{
   border-color:var(--cod-danger);animation:cod-shake .34s var(--cod-ease)}
 @keyframes cod-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}
@@ -950,19 +956,30 @@ const CSS = `
 .cod-video iframe,.cod-video video{position:absolute;inset:0;width:100%;height:100%;border:0}
 
 /* ── Ubicación ── */
-.cod-seg{position:relative;display:grid;grid-template-columns:1fr 1fr;padding:4px;background:#f2f2f2;
-  border-radius:var(--cod-radius)}
-.cod-glider{position:absolute;top:4px;left:4px;width:calc(50% - 4px);height:calc(100% - 8px);background:#fff;
-  border-radius:calc(var(--cod-radius) - 3px);box-shadow:0 1px 4px rgba(0,0,0,.13);opacity:0;
-  transition:transform .34s cubic-bezier(.34,1.42,.64,1),opacity .2s}
-.cod-seg[data-active] .cod-glider{opacity:1}
-.cod-seg[data-active="manual"] .cod-glider{transform:translate3d(100%,0,0)}
-.cod-seg-btn{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:2px;
-  padding:9px 5px;border:0;background:transparent;cursor:pointer;color:var(--cod-muted);font:inherit;
-  transition:color .22s var(--cod-ease),transform .12s}
-.cod-seg-btn:active{transform:scale(.96)}
-.cod-seg-btn[aria-checked="true"]{color:var(--cod-text)}
-.cod-seg-btn b{font-size:12px}.cod-seg-btn small{font-size:10px}
+.cod-seg{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cod-glider{display:none}
+/* Cada opción es un botón de verdad: fondo, borde, sombra, icono y se hunde al tocarlo. */
+.cod-seg-btn{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:11px 6px 10px;border:1.5px solid var(--cod-border);border-radius:var(--cod-radius);
+  background:linear-gradient(180deg,var(--cod-surface),color-mix(in srgb,var(--cod-surface) 94%,#8a94a6));color:var(--cod-text);cursor:pointer;font:inherit;
+  box-shadow:0 1px 1px rgba(0,0,0,.04),0 3px 8px -3px rgba(0,0,0,.16),inset 0 1px 0 #fff;
+  transition:border-color .2s var(--cod-ease),box-shadow .2s var(--cod-ease),transform .12s}
+.cod-seg-btn:hover{box-shadow:0 1px 1px rgba(0,0,0,.05),0 6px 14px -5px rgba(0,0,0,.22),inset 0 1px 0 #fff}
+.cod-seg-btn:active{transform:translateY(1px) scale(.98);box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.cod-seg-btn[aria-checked="true"]{border-color:var(--cod-brand);border-width:2px;padding:10.5px 5.5px 9.5px;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--cod-brand) 14%,transparent),0 3px 8px -3px rgba(0,0,0,.16)}
+.cod-seg-ico{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;margin-bottom:2px;
+  background:color-mix(in srgb,var(--cod-brand) 10%,var(--cod-surface));color:var(--cod-brand)}
+.cod-seg-ico::before{content:'';width:19px;height:19px;background:currentColor;-webkit-mask:var(--ico) no-repeat center/contain;mask:var(--ico) no-repeat center/contain}
+.cod-seg-btn[data-mode="gps"] .cod-seg-ico{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s-7-6.2-7-11.5a7 7 0 1114 0C19 14.8 12 21 12 21z'/%3E%3Ccircle cx='12' cy='9.5' r='2.6'/%3E%3C/svg%3E")}
+.cod-seg-btn[data-mode="manual"] .cod-seg-ico{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4z'/%3E%3Cpath d='M13.5 6.5l4 4'/%3E%3C/svg%3E")}
+.cod-locating .cod-seg-ico::before{display:none}
+.cod-seg-btn b{font-size:12.5px;font-weight:700}.cod-seg-btn small{font-size:10.5px;color:var(--cod-muted)}
+/* Mientras no elige nada, la opción del mapa «llama» suavemente para que se note que se toca. */
+.cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]{animation:cod-tapme 2.4s ease-in-out infinite}
+@keyframes cod-tapme{0%,60%,100%{box-shadow:0 1px 1px rgba(0,0,0,.04),0 3px 8px -3px rgba(0,0,0,.16),0 0 0 0 color-mix(in srgb,var(--cod-brand) 35%,transparent)}
+  30%{box-shadow:0 1px 1px rgba(0,0,0,.04),0 3px 8px -3px rgba(0,0,0,.16),0 0 0 6px color-mix(in srgb,var(--cod-brand) 0%,transparent)}}
+@media (prefers-reduced-motion:reduce){.cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]{animation:none}}
 .cod-spinner-sm{display:none;width:15px;height:15px;border:2px solid rgba(0,0,0,.14);
   border-top-color:var(--cod-text);border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-locating .cod-spinner-sm{display:block}
@@ -1047,7 +1064,7 @@ ${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
 .cod-offer:active{transform:scale(.99)}
 .cod-offer-has-badge{margin-top:8px}
 .cod-offer[aria-checked="true"]{border:2px solid var(--cod-offer-accent);
-  box-shadow:0 0 0 7px color-mix(in srgb,var(--cod-offer-accent) 16%,transparent)}
+  box-shadow:var(--cod-offer-glow,0 0 0 7px color-mix(in srgb,var(--cod-offer-accent) 16%,transparent))}
 .cod-offer-ribbon{position:absolute;top:-12px;right:16px;padding:4px 12px;border-radius:99px;
   background:linear-gradient(90deg,var(--cod-badge-from),var(--cod-badge-to));color:var(--cod-badge-color);
   font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
@@ -1166,7 +1183,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-Dnv_oFYu.js");
+    const { renderTrigger } = await import("./trigger-CR37ymyp.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1177,8 +1194,15 @@ ${config.tokens.customCss}`;
     }
     renderTrigger(root, config.tokens.trigger, () => {
       const inlineForm = floating ? findInline("form") : null;
-      if (inlineForm) inlineForm.scrollIntoView({ behavior: "smooth", block: "start" });
-      else openModal(shadow, config, renderInto);
+      if (inlineForm) {
+        inlineForm.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      if (!isCart && (DIRECT == null ? void 0 : DIRECT.cartButton) && cartOpen()) {
+        void openCartForm();
+        return;
+      }
+      openModal(shadow, config, renderInto);
     });
     try {
       api.track(config.formId, "view", config.formVersionId);
@@ -1198,7 +1222,7 @@ ${config.tokens.customCss}`;
 }
 function renderCartInto(mountRoot, config) {
   mountRoot.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  readCart().then((lines) => {
+  readCartFull().then(({ lines, token, totalCents }) => {
     if (!mountRoot.isConnected) return;
     if (!lines.length) {
       mountRoot.innerHTML = '<div class="cod-form-error" role="alert">Tu carrito está vacío.</div>';
@@ -1206,6 +1230,8 @@ function renderCartInto(mountRoot, config) {
     }
     const state = new FormState(config);
     state.cart = lines.map((l) => ({ variantId: l.variantId, qty: l.qty }));
+    state.cartToken = token;
+    state.cartTotalCents = totalCents;
     state.pageManagesQty = true;
     renderForm(mountRoot, config, state, { onSubmit: () => submit(mountRoot, config, state) });
   }).catch(() => {
@@ -1240,7 +1266,7 @@ function hideWhileInlineVisible(floatingHost) {
   const visible = /* @__PURE__ */ new Set();
   const apply = () => {
     for (const el of visible) if (!el.isConnected) visible.delete(el);
-    const hide = visible.size > 0;
+    const hide = visible.size > 0 || overlayOpen() || cartOpen();
     floatingHost.style.opacity = hide ? "0" : "1";
     floatingHost.style.transform = hide ? "translateY(120%)" : "none";
     floatingHost.style.pointerEvents = hide ? "none" : "auto";
@@ -1273,6 +1299,91 @@ function hideWhileInlineVisible(floatingHost) {
   scan();
   mo = new MutationObserver(scan);
   mo.observe(document.body, { childList: true, subtree: true });
+  let queued = false;
+  new MutationObserver(() => {
+    if (queued || !floatingHost.isConnected) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      apply();
+    });
+  }).observe(document.body, { attributes: true, subtree: true, attributeFilter: ["class", "aria-hidden", "open", "aria-modal"] });
+}
+const OVERLAY = '[role="dialog"]:not([aria-hidden="true"]), [aria-modal="true"], dialog[open], cart-drawer[open], cart-drawer.active, .drawer.active, .is-open[role="dialog"]';
+function overlayOpen() {
+  return [...document.querySelectorAll(OVERLAY)].some((el) => {
+    if (el.closest("[data-cod-form], [data-cod-modal]")) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width < 40 || r.height < 40) return false;
+    if (r.right <= 0 || r.left >= window.innerWidth || r.bottom <= 0 || r.top >= window.innerHeight) return false;
+    const cs = getComputedStyle(el);
+    return cs.visibility !== "hidden" && cs.display !== "none" && Number(cs.opacity) > 0.05;
+  });
+}
+const CART_OPEN = '#pd-cart.is-open, .pd-panel.is-open, cart-drawer[open], cart-drawer.active, cart-drawer.is-open, .cart-drawer.active, .cart-drawer.is-open, .cart-drawer--active, [id*="CartDrawer"].active, [id*="CartDrawer"].is-open, [id*="cart-drawer"].active, [id*="cart-drawer"].is-open, .drawer--cart.is-open';
+let lastCartTap = 0;
+const markCartTap = (e) => {
+  var _a2;
+  const t = e.target;
+  if (!((_a2 = t == null ? void 0 : t.closest) == null ? void 0 : _a2.call(t, `${CART_OPEN}, #pd-cart, .pd-panel, cart-drawer, [id*="CartDrawer"], [class*="cart-drawer"]`))) return;
+  if (t.closest('[data-pd-close], [aria-label*="errar"], [aria-label*="lose"], .close, [class*="overlay"], [class*="close"]')) return;
+  lastCartTap = Date.now();
+};
+document.addEventListener("pointerdown", markCartTap, true);
+document.addEventListener("click", markCartTap, true);
+function cartOpen() {
+  if (Date.now() - lastCartTap < 1e3) return true;
+  const big = (e) => {
+    const r = e.getBoundingClientRect();
+    return r.width > 40 && r.height > 40 && r.right > 0 && r.left < window.innerWidth && r.bottom > 0 && r.top < window.innerHeight;
+  };
+  return [...document.querySelectorAll(CART_OPEN)].some((el) => {
+    if (el.closest("[data-cod-form], [data-cod-modal]")) return false;
+    return big(el) || [...el.children].some((c) => big(c) && getComputedStyle(c).visibility !== "hidden");
+  });
+}
+const CART_TRIGGERS = '[data-pd-rsi-cart], a[href*="pd_cod=1"], [data-cod-open-cart]';
+const RELEASIT = "#rsi_buy_now_button, .rsi_animation_shake, [data-rsi-cod-button], ._rsi-buy-now-button-app-block-hook button";
+const onCartPage = () => /\/cart\/?$/.test(location.pathname);
+function openProductForm() {
+  var _a2;
+  const host = [...document.querySelectorAll('[data-cod-form][data-cod-rendered="button"]')].find((el) => {
+    var _a3;
+    return el.dataset.cart !== "true" && ((_a3 = el.shadowRoot) == null ? void 0 : _a3.querySelector(".cod-trigger"));
+  });
+  const btn = (_a2 = host == null ? void 0 : host.shadowRoot) == null ? void 0 : _a2.querySelector(".cod-trigger");
+  if (!btn) return false;
+  btn.click();
+  return true;
+}
+let cartOpening = false;
+async function openCartForm() {
+  if (cartOpening) return;
+  cartOpening = true;
+  try {
+    const lines = await readCart();
+    if (!lines.length) return;
+    const seen = /* @__PURE__ */ new Set();
+    for (const l of lines) {
+      if (seen.has(l.productId)) continue;
+      seen.add(l.productId);
+      let config;
+      try {
+        config = await api.config(l.productId, l.variantId);
+      } catch {
+        continue;
+      }
+      openModal(null, config, (root) => renderCartInto(root, config));
+      try {
+        api.track(config.formId, "view", config.formVersionId);
+      } catch {
+      }
+      return;
+    }
+  } catch {
+  } finally {
+    cartOpening = false;
+  }
 }
 function openModal(shadow, config, renderInto) {
   document.querySelectorAll("[data-cod-modal]").forEach((el) => el.remove());
@@ -1280,7 +1391,14 @@ function openModal(shadow, config, renderInto) {
   portal.setAttribute("data-cod-modal", "");
   portal.style.cssText = "position:fixed;inset:0;z-index:2147483600;";
   const pshadow = portal.attachShadow({ mode: "open" });
-  shadow.querySelectorAll("style").forEach((st) => pshadow.appendChild(st.cloneNode(true)));
+  if (shadow) shadow.querySelectorAll("style").forEach((st) => pshadow.appendChild(st.cloneNode(true)));
+  else {
+    const st = document.createElement("style");
+    st.textContent = `:host{${tokensToCss(config.tokens)}}
+${CSS}
+${config.tokens.customCss}`;
+    pshadow.appendChild(st);
+  }
   document.body.appendChild(portal);
   const overlay = document.createElement("div");
   overlay.className = "cod-modal-overlay";
@@ -1326,6 +1444,8 @@ class FormState {
     __publicField(this, "pageManagesQty", false);
     /** Pedido desde el carrito: todas sus líneas (si no, el producto del formulario). */
     __publicField(this, "cart", null);
+    __publicField(this, "cartToken", "");
+    __publicField(this, "cartTotalCents", 0);
     __publicField(this, "qtyListeners", []);
     __publicField(this, "location", null);
     __publicField(this, "discountCode", null);
@@ -1366,7 +1486,7 @@ class FormState {
       province: this.values.province || this.values.provinceCode || null,
       discountCode,
       addonIds: this.acceptedAddons.map((a) => a.id),
-      ...this.cart ? { cart: this.cart } : {}
+      ...this.cart ? { cart: this.cart, cartToken: this.cartToken, cartTotalCents: this.cartTotalCents } : {}
     };
   }
   /** Recotiza (con pausa de 300 ms) solo si cambió algo que afecta al precio. */
@@ -1422,7 +1542,7 @@ async function submit(root, config, state) {
     discountCode: state.discountCode,
     acceptedAddons: state.acceptedAddons,
     fields: state.values,
-    ...state.cart ? { cart: state.cart } : {},
+    ...state.cart ? { cart: state.cart, cartToken: state.cartToken, cartTotalCents: state.cartTotalCents } : {},
     location: state.location,
     startedAt: state.startedAt,
     hp: ""
@@ -1532,6 +1652,7 @@ function autoPlace() {
 const CHECKOUT = 'button[name="checkout"], input[name="checkout"], button#checkout, a[href$="/checkout"]';
 function placeCartButtons() {
   if (!(DIRECT == null ? void 0 : DIRECT.cartButton)) return;
+  if (onCartPage()) placeOnCartPage();
   document.querySelectorAll(CHECKOUT).forEach((btn) => {
     var _a2;
     if (btn.closest("[data-cod-form], [data-cod-modal]")) return;
@@ -1549,12 +1670,36 @@ function placeCartButtons() {
     anchor.insertAdjacentElement("afterend", el);
   });
 }
+function placeOnCartPage() {
+  var _a2, _b, _c, _d, _e, _f, _g;
+  const shown = (e) => e.getClientRects().length > 0;
+  const ours = document.querySelector("[data-cod-cart-page]");
+  const theirs = [...document.querySelectorAll(RELEASIT)].some((b) => shown(b) && !b.closest("[data-cod-form]"));
+  const checkout = [...document.querySelectorAll(CHECKOUT)].some((b) => shown(b) && !b.closest("[data-cod-form], [data-cod-modal]"));
+  if (theirs || checkout) {
+    ours == null ? void 0 : ours.remove();
+    return;
+  }
+  if (ours == null ? void 0 : ours.isConnected) return;
+  const total = document.querySelector("[data-mc-total], .mc-total__val, .totals__total-value, [data-cart-total], .cart__total, .cart-subtotal__price");
+  const anchor = (_g = (_f = (_e = (_c = (_b = (_a2 = document.querySelector(".rsi-app-block-container")) == null ? void 0 : _a2.closest(".mc-appblock")) != null ? _b : document.querySelector(".rsi-app-block-container")) != null ? _c : document.querySelector(".mc-summary .mc-total")) != null ? _e : (_d = total == null ? void 0 : total.parentElement) == null ? void 0 : _d.closest(".mc-total, .totals, .cart__totals, .cart-subtotal, .totals__total")) != null ? _f : total == null ? void 0 : total.parentElement) != null ? _g : null;
+  if (!anchor) return;
+  const el = document.createElement("div");
+  el.setAttribute("data-cod-form", "");
+  el.dataset.mode = "popup";
+  el.dataset.cart = "true";
+  el.dataset.codCartPage = "1";
+  el.style.cssText = "display:block;width:100%;margin:14px 0 4px;";
+  anchor.insertAdjacentElement("afterend", el);
+}
 function pageQuantity(variantId) {
   var _a2, _b;
   return (_b = (_a2 = pageQuantityInfo(variantId)) == null ? void 0 : _a2.qty) != null ? _b : null;
 }
 function pageQuantityInfo(variantId) {
   var _a2, _b;
+  const fromBox = offerBoxQty();
+  if (fromBox) return { qty: fromBox, managed: true };
   const variant = variantId.replace(/\D/g, "");
   const forms = [...document.querySelectorAll('form[action*="/cart/add"]')].filter((f) => !f.closest("[data-cod-form]") && !f.closest(CARD) && f.querySelector('[name="quantity"]'));
   const idOf = (f) => {
@@ -1567,9 +1712,32 @@ function pageQuantityInfo(variantId) {
   if (!input || !Number.isFinite(q) || q < 1 || q > 99) return null;
   return { qty: q, managed: input instanceof HTMLInputElement && input.type === "hidden" };
 }
+function offerRadio(el) {
+  var _a2, _b, _c;
+  if (!(el instanceof HTMLInputElement) || el.type !== "radio" || !/^\d{1,2}$/.test(el.value)) return null;
+  if (el.closest("[data-cod-form], [data-cod-modal]")) return null;
+  const label = (_b = (_a2 = el.closest("label")) != null ? _a2 : el.id ? document.querySelector(`label[for="${window.CSS.escape(el.id)}"]`) : null) != null ? _b : el.parentElement;
+  return label && /(RD\s?\$|US\s?\$|\$|€|£)\s?\d/.test((_c = label.textContent) != null ? _c : "") ? el : null;
+}
+let lastOfferQty = null;
+document.addEventListener("change", (e) => {
+  const r = offerRadio(e.target);
+  if (r == null ? void 0 : r.checked) lastOfferQty = Number(r.value);
+}, true);
+function offerBoxQty() {
+  var _a2;
+  if (lastOfferQty && lastOfferQty >= 1 && lastOfferQty <= 50) return lastOfferQty;
+  const checked = [...document.querySelectorAll('input[type="radio"]:checked')].map(offerRadio).filter((r2) => !!r2 && !r2.closest(CARD));
+  const r = (_a2 = checked.find((x) => {
+    var _a3;
+    return ((_a3 = x.closest("label")) != null ? _a3 : x).getClientRects().length > 0;
+  })) != null ? _a2 : checked[0];
+  const q = r ? Number(r.value) : 0;
+  return q >= 1 && q <= 50 ? q : null;
+}
 const CARD = 'product-card, .card, .card-wrapper, [class*="product-card"], [class*="related"], [class*="recommend"], [id*="related"], [id*="recommend"]';
 function findBuyAnchor(variant) {
-  var _a2, _b, _c;
+  var _a2, _b, _c, _d;
   const shown = (e) => e.getClientRects().length > 0;
   const forms = [...document.querySelectorAll('form[action*="/cart/add"]')].filter((f) => !f.closest("[data-cod-form]") && shown(f) && f.querySelector('button[type="submit"], button[name="add"], input[type="submit"]'));
   const idOf = (f) => {
@@ -1578,6 +1746,12 @@ function findBuyAnchor(variant) {
   };
   const form = (_b = (_a2 = forms.find((f) => idOf(f) === variant)) != null ? _a2 : forms.find((f) => !f.closest(CARD) && f.closest('[id*="main"], [id*="product-information"], [id*="product-template"]'))) != null ? _b : null;
   if (form) return (_c = form.closest("product-form, product-form-component")) != null ? _c : form;
+  const radio = [...document.querySelectorAll('input[type="radio"]')].map(offerRadio).find((r) => {
+    var _a3;
+    return r && !r.closest(CARD) && shown((_a3 = r.closest("label")) != null ? _a3 : r);
+  });
+  const box = (_d = radio == null ? void 0 : radio.closest("[data-pd-offers]")) != null ? _d : radio == null ? void 0 : radio.closest('fieldset, [role="radiogroup"]');
+  if (box) return box;
   const price = [...document.querySelectorAll(
     'main product-price, main .product__price, main [id^="price-"], main .price, #MainContent .price'
   )].find((e) => shown(e) && !e.closest(`[data-cod-form], ${CARD}`));
@@ -1634,6 +1808,23 @@ async function mountCart(el) {
   }
   el.remove();
 }
+if (DIRECT == null ? void 0 : DIRECT.cartButton) {
+  document.addEventListener("click", (e) => {
+    var _a2, _b, _c, _d;
+    const el = e.target;
+    const cartBtn = (_a2 = el == null ? void 0 : el.closest) == null ? void 0 : _a2.call(el, CART_TRIGGERS);
+    const rsiBtn = cartBtn ? null : (_b = el == null ? void 0 : el.closest) == null ? void 0 : _b.call(el, RELEASIT);
+    if (!cartBtn && !rsiBtn || ((_c = el == null ? void 0 : el.closest) == null ? void 0 : _c.call(el, "[data-cod-modal]"))) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (document.querySelector("[data-cod-modal]")) return;
+    const fromCart = !!cartBtn || onCartPage() || overlayOpen() || cartOpen() || !!((_d = el == null ? void 0 : el.closest) == null ? void 0 : _d.call(el, '#pd-cart, .pd-panel, cart-drawer, cart-notification, [id*="CartDrawer"], [class*="cart-drawer"]'));
+    if (fromCart || !openProductForm()) void openCartForm();
+  }, true);
+  if (/\/cart\/?$/.test(location.pathname) && /[?&](pd_)?cod=1\b/.test(location.search)) {
+    window.setTimeout(() => void openCartForm(), 600);
+  }
+}
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", boot);
 } else {
@@ -1687,6 +1878,10 @@ new MutationObserver((muts) => {
         queueBoot();
         return;
       }
+      if ((DIRECT == null ? void 0 : DIRECT.cartButton) && n instanceof HTMLElement && onCartPage()) {
+        queueBoot();
+        return;
+      }
     }
   }
 }).observe(document.documentElement, { childList: true, subtree: true });
@@ -1699,8 +1894,9 @@ export {
   buttonShadow as a,
   buttonBackground as b,
   buttonAnimationCss as c,
-  mount as d,
-  pageQuantityInfo as e,
+  CART_TRIGGERS as d,
+  mount as e,
+  pageQuantityInfo as f,
   money as m,
   pageQuantity as p,
   quote as q,

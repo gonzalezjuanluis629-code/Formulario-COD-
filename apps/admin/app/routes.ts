@@ -13,6 +13,7 @@ export default [
   // El mismo editor, abierto desde Figui (sin Shopify App Bridge).
   route("figui", "routes/figui.tsx", [
     index("routes/app.forms._index.tsx", { id: "figui-forms-index" }),
+    route("facil", "routes/figui.facil.tsx", { id: "figui-facil" }),
     route("forms/:id", "routes/app.forms.$id.tsx", { id: "figui-form" }),
     route("design", "routes/app.design.tsx", { id: "figui-design" }),
     route("offers", "routes/app.offers.tsx", { id: "figui-offers" }),
