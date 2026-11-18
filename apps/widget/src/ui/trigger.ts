@@ -1,4 +1,5 @@
 import type { TriggerButton } from '@cod/contracts';
+import { buttonIconSvg } from '@cod/contracts/dist/icons';
 import { buttonBackground, buttonShadow } from '../core/theme';
 import { ANIMATION_SPEEDS, buttonAnimationCss } from './animations';
 
@@ -34,9 +35,11 @@ export function renderTrigger(host: HTMLElement, cfg: TriggerButton, onClick: ()
   const icon =
     cfg.iconType === 'image' && cfg.iconImageUrl
       ? `<img class="cod-trigger-img" src="${escapeAttr(cfg.iconImageUrl)}" alt="">`
-      : cfg.iconType === 'emoji'
-        ? `<span class="cod-trigger-emoji">${escapeHtml(cfg.icon)}</span>`
-        : '';
+      : cfg.iconType === 'svg' && cfg.iconName
+        ? `<span class="cod-trigger-emoji cod-ico">${buttonIconSvg(cfg.iconName, 'cod-ico-svg')}</span>`
+        : cfg.iconType === 'emoji'
+          ? `<span class="cod-trigger-emoji">${escapeHtml(cfg.icon)}</span>`
+          : '';
 
   const descs = cfg.descriptions.filter((d) => d.trim());
 
@@ -83,6 +86,7 @@ function injectStylesOnce(root: Document | ShadowRoot): void {
     .cod-trigger:hover{filter:var(--t-shadow,none) brightness(1.08)}
     .cod-trigger:active{transform:scale(.97)}
     .cod-trigger-emoji{font-size:1.15em;line-height:1}
+    .cod-ico{display:inline-flex}.cod-ico-svg{width:1.25em;height:1.25em;display:block}
     .cod-trigger-img{width:1.4em;height:1.4em;object-fit:contain;border-radius:4px}
     .cod-trigger-text{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0}
     .cod-trigger-title{font-weight:700}

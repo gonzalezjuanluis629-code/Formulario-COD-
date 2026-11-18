@@ -323,13 +323,25 @@ function openModal(shadow: ShadowRoot | null, config: WidgetConfig, renderInto: 
   document.body.appendChild(portal);
 
   const overlay = document.createElement('div');
-  overlay.className = 'cod-modal-overlay';
+  overlay.className = `cod-modal-overlay cod-mode-${config.tokens.display ?? 'sheet'}`;
+  // La capa sigue la parte visible de la pantalla (cambia al abrir el teclado).
+  const vv = window.visualViewport;
+  const fit = () => {
+    if (!vv) return;
+    overlay.style.setProperty('--cod-vv-top', `${vv.offsetTop}px`);
+    overlay.style.setProperty('--cod-vv-h', `${vv.height}px`);
+  };
+  fit();
+  vv?.addEventListener('resize', fit);
+  vv?.addEventListener('scroll', fit);
 
   const modal = document.createElement('div');
   modal.className = 'cod-modal';
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
-  modal.innerHTML = `<button class="cod-modal-close" aria-label="Cerrar">✕</button><div class="cod-modal-body"></div>`;
+  modal.innerHTML = `<div class="cod-modal-head"><span class="cod-modal-title">${(config.tokens.submit.text || '').replace(/[<>&"]/g, '')}</span>`
+    + `<button type="button" class="cod-modal-close" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`
+    + `<div class="cod-modal-body"></div>`;
   overlay.appendChild(modal);
   pshadow.appendChild(overlay);
   const prevOverflow = document.body.style.overflow;
@@ -344,6 +356,8 @@ function openModal(shadow: ShadowRoot | null, config: WidgetConfig, renderInto: 
     overlay.classList.remove('cod-open');
     document.body.style.overflow = prevOverflow;
     document.removeEventListener('keydown', esc);
+    vv?.removeEventListener('resize', fit);
+    vv?.removeEventListener('scroll', fit);
     setTimeout(() => portal.remove(), 250);
   };
   const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };

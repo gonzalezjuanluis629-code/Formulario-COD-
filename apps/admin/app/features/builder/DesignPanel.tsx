@@ -1,3 +1,5 @@
+import { IconPicker } from '../../components/IconPicker';
+import { DisplayPicker } from '../../components/DisplayPicker';
 import { useState, type ReactNode } from 'react';
 import {
   BlockStack, Button, ButtonGroup, Checkbox, Collapsible, Divider, Icon, InlineStack, RangeSlider, Select, Text, TextField,
@@ -102,6 +104,9 @@ export function DesignPanel({
             value={t.submit.fontSize} onChange={(v) => setSubmit({ fontSize: v as number })} />
           <RangeSlider label="Esquinas" output suffix={<Px v={t.submit.radius} />} min={0} max={40}
             value={t.submit.radius} onChange={(v) => setSubmit({ radius: v as number })} />
+          <Text as="span" variant="bodyMd">Icono</Text>
+          <IconPicker label="Icono del botón Finalizar pedido" value={t.submit.iconType === 'svg' ? t.submit.iconName : ''}
+            onChange={(n) => setSubmit(n ? { iconType: 'svg', iconName: n } : { iconType: 'none' })} />
           <AnimationPicker value={t.submit.animation} speed={t.submit.animationSpeed}
             onChange={(v) => setSubmit({ animation: v })} onSpeed={(v) => setSubmit({ animationSpeed: v })}
             background={fillCss(t.submit)} solid={t.submit.bg} />
@@ -127,7 +132,11 @@ export function DesignPanel({
             value={t.trigger.radius} onChange={(v) => setTrigger({ radius: v as number })} />
           <Choice label="Icono" value={t.trigger.iconType}
             onChange={(v) => setTrigger({ iconType: v as TriggerButton['iconType'] })}
-            options={[['none', 'Sin icono'], ['emoji', 'Símbolo'], ['image', 'Imagen']]} />
+            options={[['none', 'Sin icono'], ['svg', 'Icono'], ['emoji', 'Símbolo'], ['image', 'Imagen']]} />
+          {t.trigger.iconType === 'svg' && (
+            <IconPicker label="Icono del botón Comprar ahora" value={t.trigger.iconName}
+              onChange={(n) => setTrigger(n ? { iconType: 'svg', iconName: n } : { iconType: 'none' })} />
+          )}
           {t.trigger.iconType === 'emoji' && (
             <TextField label="Símbolo" value={t.trigger.icon} onChange={(v) => setTrigger({ icon: v })} autoComplete="off"
               helpText="Un carácter o emoji, por ejemplo 🛒" maxLength={4} />
@@ -160,6 +169,8 @@ export function DesignPanel({
 
       {section('extras', 'Más opciones', SettingsIcon, (
         <>
+          <Text as="span" variant="bodyMd">Cómo aparece el formulario</Text>
+          <DisplayPicker value={t.display} onChange={(v) => set('display', v)} />
           <Checkbox label="Barra de progreso arriba del formulario" checked={t.progressBar} onChange={(v) => set('progressBar', v)} />
           <Checkbox label="Animaciones" checked={t.animations} onChange={(v) => set('animations', v)}
             helpText="Desactívalas si el formulario va lento en móviles antiguos." />

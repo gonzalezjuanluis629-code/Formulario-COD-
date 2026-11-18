@@ -11,6 +11,8 @@ import { productInfo } from '../lib/products.server';
 import { newField } from '../lib/defaults';
 import { db } from '../db.server';
 import { Preview } from '../features/builder/Preview';
+import { IconPicker } from '../components/IconPicker';
+import { DisplayPicker, type DisplayMode } from '../components/DisplayPicker';
 import {
   PersonIcon, PhoneIcon, EmailIcon, HomeIcon, LocationIcon, NoteIcon, CheckboxIcon, ListBulletedIcon,
   ChevronUpIcon, ChevronDownIcon, DeleteIcon, XIcon, PlusIcon, CheckIcon, ViewIcon, HideIcon, ProductIcon,
@@ -103,7 +105,7 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result> {
   const fd = await request.formData();
   const body = JSON.parse(String(fd.get('data') || '{}')) as {
     fields: Field[];
-    buttons: { trigger: string; triggerSub: string; submit: string; color: string; showPrice: boolean; offerColor?: string; offerGlow?: boolean };
+    buttons: { trigger: string; triggerSub: string; submit: string; color: string; showPrice: boolean; offerColor?: string; offerGlow?: boolean; triggerIcon?: string; submitIcon?: string; display?: DisplayMode };
     products: ProductPrices[];
     ship?: ShipDraft;
     coupons?: Coupon[];
@@ -131,8 +133,11 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result> {
   const descriptions = [body.buttons.triggerSub.trim(), ...t.trigger.descriptions.slice(1)].filter(Boolean).slice(0, 5);
   const tokens = ThemeTokensSchema.parse({
     ...t,
-    trigger: { ...t.trigger, text: body.buttons.trigger.trim() || 'Comprar ahora', descriptions, bg: color, bgType: 'solid' },
-    submit: { ...t.submit, text: body.buttons.submit.trim() || 'Finalizar pedido', bg: color, bgType: 'solid', priceDisplay: body.buttons.showPrice ? 'total' : 'none' },
+    trigger: { ...t.trigger, text: body.buttons.trigger.trim() || 'Comprar ahora', descriptions, bg: color, bgType: 'solid',
+      ...(body.buttons.triggerIcon === undefined ? {} : body.buttons.triggerIcon ? { iconType: 'svg' as const, iconName: body.buttons.triggerIcon } : { iconType: 'none' as const }) },
+    submit: { ...t.submit, text: body.buttons.submit.trim() || 'Finalizar pedido', bg: color, bgType: 'solid', priceDisplay: body.buttons.showPrice ? 'total' : 'none',
+      ...(body.buttons.submitIcon === undefined ? {} : body.buttons.submitIcon ? { iconType: 'svg' as const, iconName: body.buttons.submitIcon } : { iconType: 'none' as const }) },
+    display: body.buttons.display ?? t.display,
     offerCard: {
       ...t.offerCard,
       accent: /^#[0-9a-f]{6}$/i.test(body.buttons.offerColor ?? '') ? body.buttons.offerColor! : t.offerCard.accent,
@@ -260,6 +265,10 @@ export default function EditorFacil() {
   const [color, setColor] = useState(data.tokens.submit.bg);
   const [showPrice, setShowPrice] = useState(data.tokens.submit.priceDisplay !== 'none');
   const [offerColor, setOfferColor] = useState(data.tokens.offerCard.accent);
+  // Los iconos con emoji o imagen de antes se respetan hasta que elijas uno nuevo.
+  const [triggerIcon, setTriggerIcon] = useState<string | undefined>(data.tokens.trigger.iconType === 'svg' ? data.tokens.trigger.iconName : data.tokens.trigger.iconType === 'none' ? '' : undefined);
+  const [submitIcon, setSubmitIcon] = useState<string | undefined>(data.tokens.submit.iconType === 'svg' ? data.tokens.submit.iconName : data.tokens.submit.iconType === 'none' ? '' : undefined);
+  const [display, setDisplay] = useState<DisplayMode>(data.tokens.display);
   const [offerGlow, setOfferGlow] = useState(data.tokens.offerCard.glow !== false);
   const [products, setProducts] = useState<ProductPrices[]>(data.products);
   const [ship, setShip] = useState<ShipDraft>(data.ship);
@@ -299,17 +308,20 @@ export default function EditorFacil() {
   };
 
   const save = () => fetcher.submit(
-    { data: JSON.stringify({ fields, buttons: { trigger, triggerSub, submit: submitText, color, showPrice, offerColor, offerGlow }, products, ship, coupons, after }) },
+    { data: JSON.stringify({ fields, buttons: { trigger, triggerSub, submit: submitText, color, showPrice, offerColor, offerGlow, triggerIcon, submitIcon, display }, products, ship, coupons, after }) },
     { method: 'post' },
   );
 
   // Vista previa con lo que se está editando ahora mismo.
   const pvTokens = useMemo<ThemeTokens>(() => ({
     ...data.tokens,
-    trigger: { ...data.tokens.trigger, text: trigger, descriptions: [triggerSub, ...data.tokens.trigger.descriptions.slice(1)].filter(Boolean), bg: color, bgType: 'solid' },
-    submit: { ...data.tokens.submit, text: submitText, bg: color, bgType: 'solid', priceDisplay: showPrice ? 'total' : 'none' },
+    trigger: { ...data.tokens.trigger, text: trigger, descriptions: [triggerSub, ...data.tokens.trigger.descriptions.slice(1)].filter(Boolean), bg: color, bgType: 'solid',
+      ...(triggerIcon === undefined ? {} : triggerIcon ? { iconType: 'svg' as const, iconName: triggerIcon } : { iconType: 'none' as const }) },
+    submit: { ...data.tokens.submit, text: submitText, bg: color, bgType: 'solid', priceDisplay: showPrice ? 'total' : 'none',
+      ...(submitIcon === undefined ? {} : submitIcon ? { iconType: 'svg' as const, iconName: submitIcon } : { iconType: 'none' as const }) },
     offerCard: { ...data.tokens.offerCard, accent: offerColor, glow: offerGlow },
-  }), [data.tokens, trigger, triggerSub, submitText, color, showPrice, offerColor, offerGlow]);
+    display,
+  }), [data.tokens, trigger, triggerSub, submitText, color, showPrice, offerColor, offerGlow, triggerIcon, submitIcon, display]);
   const pvProduct = products[0];
   const pvOffers = useMemo<Offer[]>(() => (pvProduct?.rows ?? []).filter((r) => parseInt(r.qty, 10) >= 2 && cents(r.price) > 0).map((r) => {
     const q = parseInt(r.qty, 10);
@@ -327,6 +339,9 @@ export default function EditorFacil() {
               <h1>Edita tu formulario</h1>
               <p>Cambia lo que quieras y pulsa <b>Guardar</b>. En la vista previa lo ves tal cual lo verá tu cliente.</p>
             </div>
+            <button type="button" className={`ef-save-btn${dirty ? ' dirty' : ''}`} disabled={busy || !dirty} onClick={save}>
+              {!busy && <Ic s={dirty ? SaveIcon : CheckIcon} size={18} />}{busy ? 'Guardando…' : dirty ? 'Guardar' : 'Guardado'}
+            </button>
           </header>
           {fetcher.data && !fetcher.data.ok && !busy && <Banner tone="critical">{fetcher.data.message}</Banner>}
 
@@ -381,16 +396,20 @@ export default function EditorFacil() {
 
           {/* 2 ─ Botones */}
           <section className="ef-card">
-            <h2><span className="ef-n">2</span> Los botones</h2>
+            <h2><span className="ef-n">2</span> Los botones y la ventana</h2>
             <label className="ef-label">Botón para abrir el formulario
               <input className="ef-input" value={trigger} onChange={(e) => { setTrigger(e.target.value); touch(); }} placeholder="Comprar ahora" />
             </label>
             <label className="ef-label">Frase pequeña debajo (opcional)
               <input className="ef-input" value={triggerSub} onChange={(e) => { setTriggerSub(e.target.value); touch(); }} placeholder="Pagas al recibir" />
             </label>
+            <span className="ef-label">Icono del botón para abrir el formulario</span>
+            <IconPicker label="Icono del botón para abrir el formulario" value={triggerIcon ?? ''} onChange={(n) => { setTriggerIcon(n); touch(); }} />
             <label className="ef-label">Botón para confirmar el pedido
               <input className="ef-input" value={submitText} onChange={(e) => { setSubmitText(e.target.value); touch(); }} placeholder="Finalizar pedido" />
             </label>
+            <span className="ef-label">Icono del botón para confirmar</span>
+            <IconPicker label="Icono del botón para confirmar" value={submitIcon ?? ''} onChange={(n) => { setSubmitIcon(n); touch(); }} />
             <span className="ef-label">Color de los botones</span>
             <div className="ef-colors" role="radiogroup" aria-label="Color de los botones">
               {COLORS.map((c) => (
@@ -405,6 +424,8 @@ export default function EditorFacil() {
               <input type="checkbox" checked={showPrice} onChange={(e) => { setShowPrice(e.target.checked); touch(); }} />
               {showPrice && <Ic s={CheckIcon} size={16} />}Mostrar el total en el botón de confirmar
             </label>
+            <span className="ef-label">¿Cómo aparece el formulario al tocar el botón?</span>
+            <DisplayPicker value={display} onChange={(v) => { setDisplay(v); touch(); }} />
           </section>
 
           {/* 3 ─ Precios */}
@@ -537,13 +558,13 @@ export default function EditorFacil() {
             )}
           </section>
 
-                    <div className="ef-save-bar">
-            <button type="button" className="ef-save-btn" disabled={busy} onClick={save}>
-              {!busy && <Ic s={dirty ? SaveIcon : CheckIcon} />}{busy ? 'Guardando…' : dirty ? 'Guardar cambios' : 'Todo guardado'}
-            </button>
-          </div>
-        </div>
+                  </div>
 
+        {dirty && (
+          <button type="button" className="ef-save-btn dirty ef-float-save" disabled={busy} onClick={save}>
+            {!busy && <Ic s={SaveIcon} size={18} />}{busy ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+        )}
         <div className="ef-preview">
           <Preview fields={fields} tokens={pvTokens} offers={pvOffers} unitPriceCents={pvProduct?.priceCents ?? 0}
             shipping={{ ...data.shipping, defaultShippingCents: ship.mode === 'paid' ? cents(ship.cost) : 0, freeShippingOverCents: ship.mode === 'paid' && cents(ship.freeOver) > 0 ? cents(ship.freeOver) : null }}
@@ -565,13 +586,16 @@ const CSS = `
   --soft-grad:linear-gradient(180deg,#FFFFFF 0%,#F6F8FB 100%);
   --soft-shadow:0 1px 2px rgba(16,24,40,.06),0 3px 8px -3px rgba(16,24,40,.10),inset 0 1px 0 #fff;
   --soft-shadow-hover:0 2px 4px rgba(16,24,40,.06),0 8px 16px -6px rgba(16,24,40,.14),inset 0 1px 0 #fff;
-  --line:#E3E7ED;--ink:#0A1120;--muted:#667085;
+  --line:#E3E7ED;--ink:#0A1120;--muted:#667085;--page:#F2F4F8;
   display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:18px;align-items:start;padding:16px;max-width:1240px;margin:0 auto;
   font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink)}
 .ef-ic{width:20px;height:20px;fill:currentColor;flex:none}
 .ef button{transition:transform .12s ease,box-shadow .15s ease,filter .15s ease}
 .ef button:active{transform:translateY(1px)}
-.ef-side{display:flex;flex-direction:column;gap:14px;min-width:0;padding-bottom:90px}
+.ef-side{display:flex;flex-direction:column;gap:14px;min-width:0;padding-bottom:24px}
+.ef-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.ef-float-save{position:fixed;right:20px;bottom:20px;z-index:30;animation:ef-pop .25s cubic-bezier(.34,1.4,.64,1)}
+@keyframes ef-pop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
 .ef-head h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
 .ef-head p{margin:6px 0 0;color:#475467;font-size:15px;line-height:1.45}
 .ef-card{background:#fff;border-radius:18px;padding:18px;border:1px solid var(--line);box-shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px -12px rgba(16,24,40,.12)}
@@ -637,8 +661,9 @@ const CSS = `
 .ef-link{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:#1A73E8;font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:8px 0}
 .ef-btn-ghost{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font:inherit;font-size:15px;font-weight:700;cursor:pointer;color:var(--ink)}
 .ef-btn-ghost:hover{box-shadow:var(--soft-shadow-hover);border-color:#BFD5F2}
-.ef-save-bar{position:sticky;bottom:0;padding:12px 0;background:linear-gradient(transparent,#f1f1f1 35%);z-index:5}
-.ef-save-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:17px;border:0;border-radius:15px;background:var(--green-grad);color:#fff;font:inherit;font-size:18px;font-weight:800;cursor:pointer;box-shadow:var(--green-glow)}
+.ef-save-btn{flex:none;display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 18px;border-radius:12px;font:inherit;font-size:15px;font-weight:750;cursor:pointer;border:1px solid var(--line);background:var(--soft-grad);color:var(--muted);box-shadow:var(--soft-shadow)}
+.ef-save-btn.dirty{border-color:transparent;background:var(--blue-grad);color:#fff;box-shadow:var(--blue-glow)}
+.ef-save-btn.dirty:hover{filter:brightness(1.05)}
 .ef-save-btn:hover{filter:brightness(1.04)}
 .ef-save-btn:disabled{opacity:.7}
 .ef-preview{position:sticky;top:76px;height:calc(100vh - 92px);min-height:560px;border-radius:18px;overflow:hidden;border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(16,24,40,.18);background:#f1f1f1}
@@ -646,7 +671,7 @@ const CSS = `
 html.cod-dark .ef{--soft-grad:linear-gradient(180deg,#262a32 0%,#20242b 100%);
   --soft-shadow:0 1px 2px rgba(0,0,0,.4),0 3px 8px -3px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);
   --soft-shadow-hover:0 2px 4px rgba(0,0,0,.45),0 8px 16px -6px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05);
-  --line:#2f333a;--ink:#e4e8ef;--muted:#9fa5ae}
+  --line:#2f333a;--ink:#e4e8ef;--muted:#9fa5ae;--page:#10141a}
 html.cod-dark .ef-head p,html.cod-dark .ef-pill,html.cod-dark .ef-seg button{color:#b4bac4}
 html.cod-dark .ef-label{color:#c9ced6}
 html.cod-dark .ef-card{background:#1a1e25;box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6)}
@@ -665,8 +690,7 @@ html.cod-dark .ef-x{color:#7f8692}
 html.cod-dark .ef-x:hover{background:#262a32;color:#c9ced6}
 html.cod-dark .ef-save{color:#4ade80}html.cod-dark .ef-warn{color:#fbbf24}
 html.cod-dark .ef-hint a,html.cod-dark .ef-link{color:#5AA0F2}
-html.cod-dark .ef-save-bar{background:linear-gradient(transparent,#10141a 35%)}
-html.cod-dark .ef-preview{background:#10141a;box-shadow:0 8px 24px -12px rgba(0,0,0,.6)}
+html.cod-dark html.cod-dark .ef-preview{background:#10141a;box-shadow:0 8px 24px -12px rgba(0,0,0,.6)}
 @media (max-width: 900px){
   .ef{grid-template-columns:1fr;padding:12px}
   .ef-preview{position:relative;top:0;height:640px}

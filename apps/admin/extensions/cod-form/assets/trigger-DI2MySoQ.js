@@ -1,4 +1,4 @@
-import { A as ANIMATION_SPEEDS, b as buttonBackground, a as buttonShadow, c as buttonAnimationCss } from "./index-BennLw2P.js";
+import { A as ANIMATION_SPEEDS, b as buttonBackground, a as buttonShadow, c as buttonIconSvg, d as buttonAnimationCss } from "./index-DozsZQUu.js";
 function renderTrigger(host, cfg, onClick) {
   var _a;
   injectStylesOnce(host.getRootNode());
@@ -15,7 +15,7 @@ function renderTrigger(host, cfg, onClick) {
     `height:${cfg.height}px`,
     cfg.width && cfg.width !== "auto" ? `width:${cfg.width}` : ""
   ].filter(Boolean).join(";");
-  const icon = cfg.iconType === "image" && cfg.iconImageUrl ? `<img class="cod-trigger-img" src="${escapeAttr(cfg.iconImageUrl)}" alt="">` : cfg.iconType === "emoji" ? `<span class="cod-trigger-emoji">${escapeHtml(cfg.icon)}</span>` : "";
+  const icon = cfg.iconType === "image" && cfg.iconImageUrl ? `<img class="cod-trigger-img" src="${escapeAttr(cfg.iconImageUrl)}" alt="">` : cfg.iconType === "svg" && cfg.iconName ? `<span class="cod-trigger-emoji cod-ico">${buttonIconSvg(cfg.iconName, "cod-ico-svg")}</span>` : cfg.iconType === "emoji" ? `<span class="cod-trigger-emoji">${escapeHtml(cfg.icon)}</span>` : "";
   const descs = cfg.descriptions.filter((d) => d.trim());
   btn.innerHTML = `
     ${icon}
@@ -57,6 +57,7 @@ function injectStylesOnce(root) {
     .cod-trigger:hover{filter:var(--t-shadow,none) brightness(1.08)}
     .cod-trigger:active{transform:scale(.97)}
     .cod-trigger-emoji{font-size:1.15em;line-height:1}
+    .cod-ico{display:inline-flex}.cod-ico-svg{width:1.25em;height:1.25em;display:block}
     .cod-trigger-img{width:1.4em;height:1.4em;object-fit:contain;border-radius:4px}
     .cod-trigger-text{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0}
     .cod-trigger-title{font-weight:700}

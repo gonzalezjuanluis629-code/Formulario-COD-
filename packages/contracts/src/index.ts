@@ -80,8 +80,10 @@ export const TriggerButtonSchema = z.object({
   shadowColor: z.string().default('#000000'),
   radius: z.number().int().min(0).max(60).default(60),
   /** Icono: un emoji/carácter, o una URL de imagen si iconType === 'image'. */
-  iconType: z.enum(['none', 'emoji', 'image']).default('emoji'),
+  iconType: z.enum(['none', 'emoji', 'image', 'svg']).default('svg'),
   icon: z.string().default('🛒'),
+  /** Icono del sistema (iconType === 'svg'): nombre de BUTTON_ICONS. */
+  iconName: z.string().default('cart'),
   iconImageUrl: z.string().nullable().default(null),
   /** Hasta 5 descripciones que rotan bajo el título (carrusel). */
   descriptions: z.array(z.string()).max(5).default([
@@ -111,8 +113,10 @@ export const SubmitButtonSchema = z.object({
   shadowColor: z.string().default('#000000'),
   /** Color al que cambia cuando el formulario está completo. */
   readyBg: z.string().default('#16a34a'),
-  iconType: z.enum(['none', 'emoji']).default('none'),
+  iconType: z.enum(['none', 'emoji', 'svg']).default('none'),
   icon: z.string().default('→'),
+  /** Icono del sistema (iconType === 'svg'): nombre de BUTTON_ICONS. */
+  iconName: z.string().default('check-circle'),
   animation: z.enum(['none', 'pulse', 'heartbeat', 'bounce', 'float', 'shake', 'wobble', 'jello', 'tada', 'shine', 'glow', 'ripple']).catch('none').default('none'),
   /** Precio dentro del botón: «Finalizar pedido · RD$ 2,140». Lo calcula el servidor. */
   priceDisplay: z.enum(['none', 'total', 'subtotal']).default('none'),
@@ -224,6 +228,8 @@ export const ThemeTokensSchema = z.object({
   readyColor: z.string().default('#16a34a'),
   logoUrl: z.string().nullable().default(null),
   darkMode: z.boolean().default(false),
+  /** Cómo aparece el formulario al tocar el botón: desde abajo, ventana flotante o página completa. */
+  display: z.enum(['sheet', 'popup', 'page']).default('sheet'),
   customCss: z.string().default(''),
   /** Botones (trigger y submit) totalmente configurables. */
   trigger: TriggerButtonSchema.default({}),
@@ -477,3 +483,5 @@ export const ReverseGeocodeResponseSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 export type ReverseGeocodeResponse = z.infer<typeof ReverseGeocodeResponseSchema>;
+
+export * from './icons';

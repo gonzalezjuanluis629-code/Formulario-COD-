@@ -231,6 +231,28 @@ function isVisible(f, values) {
     }
   });
 }
+const BUTTON_ICONS = {
+  cart: { label: "Carrito", svg: '<circle cx="9" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/><path d="M2.5 3h2.6l2.4 11.2a1.6 1.6 0 0 0 1.6 1.3h8.3a1.6 1.6 0 0 0 1.6-1.2L21 7H6"/>' },
+  bag: { label: "Bolsa", svg: '<path d="M5 8h14l-1 12.2a1.5 1.5 0 0 1-1.5 1.3h-9A1.5 1.5 0 0 1 6 20.2z"/><path d="M9 10V6.5a3 3 0 0 1 6 0V10"/>' },
+  truck: { label: "Envío", svg: '<path d="M2.5 6.5h11v9h-11z"/><path d="M13.5 9.5h4l3.5 3.5v2.5h-7.5"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17.5" cy="17.5" r="1.8"/>' },
+  cash: { label: "Efectivo", svg: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.8"/><path d="M6 9.5v5M18 9.5v5"/>' },
+  "check-circle": { label: "Listo", svg: '<circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.8 2.8L16.2 9.6"/>' },
+  check: { label: "Visto", svg: '<path d="M5 12.5l4.5 4.5L19 7.5"/>' },
+  lock: { label: "Seguro", svg: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>' },
+  shield: { label: "Garantía", svg: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M8.8 12l2.3 2.3 4.2-4.3"/>' },
+  package: { label: "Paquete", svg: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>' },
+  arrow: { label: "Flecha", svg: '<path d="M5 12h14M13 6l6 6-6 6"/>' },
+  bolt: { label: "Rápido", svg: '<path d="M13 2.5L4.5 13.5H12l-1 8 8.5-11H12z"/>' },
+  gift: { label: "Regalo", svg: '<rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8.5h14V12M12 8v12.5"/><path d="M12 8C9.5 8 7.5 7 7.5 5.3S9.6 3 12 8zM12 8c2.5 0 4.5-1 4.5-2.7S14.4 3 12 8z"/>' },
+  tag: { label: "Oferta", svg: '<path d="M3 12V4.5A1.5 1.5 0 0 1 4.5 3H12l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.4"/>' },
+  heart: { label: "Corazón", svg: '<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/>' },
+  star: { label: "Estrella", svg: '<path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6-5.4-2.9-5.4 2.9 1.1-6-4.5-4.2 6.1-.8z"/>' }
+};
+function buttonIconSvg(name, className = "") {
+  const icon = BUTTON_ICONS[name];
+  if (!icon) return "";
+  return `<svg class="${className}" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon.svg}</svg>`;
+}
 function mountLocation(wrap, config, state, onChange) {
   const c = config.location;
   wrap.innerHTML = `
@@ -583,7 +605,7 @@ function renderForm(root, config, state, handlers) {
       <button type="submit" class="cod-submit cod-submit-anim-${config.tokens.submit.animation}">
         <span class="cod-submit-label">${esc(config.tokens.submit.text)}</span>
         <span class="cod-submit-price" hidden></span>
-        ${config.tokens.submit.iconType === "emoji" ? `<span class="cod-submit-icon">${esc(config.tokens.submit.icon)}</span>` : ""}
+        ${config.tokens.submit.iconType === "svg" && config.tokens.submit.iconName ? `<span class="cod-submit-icon cod-ico">${buttonIconSvg(config.tokens.submit.iconName, "cod-ico-svg")}</span>` : config.tokens.submit.iconType === "emoji" ? `<span class="cod-submit-icon">${esc(config.tokens.submit.icon)}</span>` : ""}
         <span class="cod-spinner" aria-hidden="true"></span>
       </button>
     </form>`;
@@ -593,7 +615,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-DQEX_ahi.js").then(({ renderAddons }) => {
+    void import("./addons-Bp4DoJvs.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1114,19 +1136,47 @@ ${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
 .cod-upsell-on .cod-upsell-add{background:transparent;color:var(--cod-brand)}
 
 /* ── Modal (modo popup) ── */
-.cod-modal-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:flex-end;
-  justify-content:center;background:rgba(0,0,0,.5);opacity:0;transition:opacity .25s var(--cod-ease);
-  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.cod-ico{display:inline-flex;align-items:center}.cod-ico-svg{width:1.25em;height:1.25em;display:block}
+/* La capa ocupa SOLO la parte visible de la pantalla (--cod-vv-*): con el teclado
+   abierto la ventana se encoge en vez de taparlo todo, y la X siempre se ve. */
+.cod-modal-overlay{position:fixed;left:0;right:0;top:var(--cod-vv-top,0px);height:var(--cod-vv-h,100%);
+  z-index:2147483000;display:flex;align-items:flex-end;justify-content:center;
+  background:rgba(0,0,0,.5);opacity:0;transition:opacity .25s var(--cod-ease);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);overscroll-behavior:contain}
 .cod-modal-overlay.cod-open{opacity:1}
-@media(min-width:540px){.cod-modal-overlay{align-items:center}}
-.cod-modal{position:relative;width:100%;max-width:440px;max-height:92vh;overflow-y:auto;
-  background:var(--cod-surface);border-radius:20px 20px 0 0;padding:14px;
-  transform:translateY(40px);transition:transform .32s cubic-bezier(.34,1.42,.64,1)}
-@media(min-width:540px){.cod-modal{border-radius:18px}}
+.cod-modal{position:relative;display:flex;flex-direction:column;width:100%;max-width:440px;
+  max-height:calc(var(--cod-vv-h,100vh) - 28px);background:var(--cod-surface);border-radius:20px 20px 0 0;
+  transform:translateY(40px);transition:transform .32s cubic-bezier(.34,1.42,.64,1);overflow:hidden}
 .cod-modal-overlay.cod-open .cod-modal{transform:none}
-.cod-modal-close{position:absolute;top:12px;right:12px;z-index:2;width:32px;height:32px;border:0;
-  border-radius:50%;background:rgba(0,0,0,.06);color:var(--cod-text);font-size:14px;cursor:pointer}
-.cod-modal-body .cod-root{box-shadow:none;padding:8px}
+.cod-modal-head{position:relative;flex:none;height:44px}
+.cod-modal-head::before{content:'';position:absolute;left:50%;top:8px;width:38px;height:4px;margin-left:-19px;
+  border-radius:4px;background:rgba(0,0,0,.14)}
+.cod-modal-title{display:none}
+.cod-modal-close{position:absolute;top:8px;right:10px;z-index:2;display:grid;place-items:center;width:34px;height:34px;
+  border:0;border-radius:50%;background:rgba(0,0,0,.07);color:var(--cod-text);cursor:pointer;padding:0}
+.cod-modal-close svg{width:18px;height:18px}
+.cod-modal-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 14px 14px}
+.cod-modal-body .cod-root{box-shadow:none;padding:0 8px 8px}
+/* Desde abajo: en computadora se centra como ventana. */
+@media(min-width:540px){
+  .cod-mode-sheet{align-items:center}
+  .cod-mode-sheet .cod-modal{border-radius:18px}
+  .cod-mode-sheet .cod-modal-head::before{display:none}
+}
+/* Ventana flotante: centrada con margen, entra creciendo. */
+.cod-mode-popup{align-items:center;padding:14px}
+.cod-mode-popup .cod-modal{border-radius:18px;max-height:calc(var(--cod-vv-h,100vh) - 28px);transform:scale(.92);
+  box-shadow:0 24px 60px -12px rgba(0,0,0,.45)}
+.cod-mode-popup .cod-modal-head::before{display:none}
+/* Página completa: ocupa toda la pantalla con su barra arriba. */
+.cod-mode-page{align-items:stretch;background:var(--cod-surface);-webkit-backdrop-filter:none;backdrop-filter:none}
+.cod-mode-page .cod-modal{max-width:none;max-height:none;height:100%;border-radius:0;transform:translateY(16px)}
+.cod-mode-page .cod-modal-head{height:54px;border-bottom:1px solid var(--cod-border);display:flex;align-items:center;justify-content:center}
+.cod-mode-page .cod-modal-head::before{display:none}
+.cod-mode-page .cod-modal-title{display:block;font-weight:800;font-size:16px;color:var(--cod-text)}
+.cod-mode-page .cod-modal-close{top:10px}
+.cod-mode-page .cod-modal-body{padding-top:12px}
+.cod-mode-page .cod-modal-body>.cod-root{max-width:520px;margin:0 auto}
 
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 `;
@@ -1183,7 +1233,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-CR37ymyp.js");
+    const { renderTrigger } = await import("./trigger-DI2MySoQ.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1386,6 +1436,7 @@ async function openCartForm() {
   }
 }
 function openModal(shadow, config, renderInto) {
+  var _a2;
   document.querySelectorAll("[data-cod-modal]").forEach((el) => el.remove());
   const portal = document.createElement("div");
   portal.setAttribute("data-cod-modal", "");
@@ -1401,12 +1452,21 @@ ${config.tokens.customCss}`;
   }
   document.body.appendChild(portal);
   const overlay = document.createElement("div");
-  overlay.className = "cod-modal-overlay";
+  overlay.className = `cod-modal-overlay cod-mode-${(_a2 = config.tokens.display) != null ? _a2 : "sheet"}`;
+  const vv = window.visualViewport;
+  const fit = () => {
+    if (!vv) return;
+    overlay.style.setProperty("--cod-vv-top", `${vv.offsetTop}px`);
+    overlay.style.setProperty("--cod-vv-h", `${vv.height}px`);
+  };
+  fit();
+  vv == null ? void 0 : vv.addEventListener("resize", fit);
+  vv == null ? void 0 : vv.addEventListener("scroll", fit);
   const modal = document.createElement("div");
   modal.className = "cod-modal";
   modal.setAttribute("role", "dialog");
   modal.setAttribute("aria-modal", "true");
-  modal.innerHTML = `<button class="cod-modal-close" aria-label="Cerrar">✕</button><div class="cod-modal-body"></div>`;
+  modal.innerHTML = `<div class="cod-modal-head"><span class="cod-modal-title">${(config.tokens.submit.text || "").replace(/[<>&"]/g, "")}</span><button type="button" class="cod-modal-close" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="cod-modal-body"></div>`;
   overlay.appendChild(modal);
   pshadow.appendChild(overlay);
   const prevOverflow = document.body.style.overflow;
@@ -1419,6 +1479,8 @@ ${config.tokens.customCss}`;
     overlay.classList.remove("cod-open");
     document.body.style.overflow = prevOverflow;
     document.removeEventListener("keydown", esc2);
+    vv == null ? void 0 : vv.removeEventListener("resize", fit);
+    vv == null ? void 0 : vv.removeEventListener("scroll", fit);
     setTimeout(() => portal.remove(), 250);
   };
   const esc2 = (e) => {
@@ -1893,10 +1955,11 @@ export {
   FormState as F,
   buttonShadow as a,
   buttonBackground as b,
-  buttonAnimationCss as c,
-  CART_TRIGGERS as d,
-  mount as e,
-  pageQuantityInfo as f,
+  buttonIconSvg as c,
+  buttonAnimationCss as d,
+  CART_TRIGGERS as e,
+  mount as f,
+  pageQuantityInfo as g,
   money as m,
   pageQuantity as p,
   quote as q,
