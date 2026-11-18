@@ -7,6 +7,7 @@ import polarisStyles from '@shopify/polaris/build/esm/styles.css?url';
 import { requireShop } from '../lib/shop.server';
 import { figuiToken, saveFiguiToken } from '../lib/base';
 import { ResourcePickerHost } from '../components/ResourcePickerHost';
+import { COD_THEME_BOOT, setCodDark, useCodDark } from '../lib/codTheme';
 import {
   EditIcon, DiscountIcon, DeliveryIcon, PaintBrushFlatIcon, OrderIcon, ChartVerticalIcon, ShieldCheckMarkIcon, SettingsIcon, AdjustIcon,
 } from '@shopify/polaris-icons';
@@ -118,16 +119,29 @@ function TabBar() {
 
 export default function FiguiLayout() {
   useLoaderData<typeof loader>();
+  const dark = useCodDark();
+  // Figui avisa cuando cambias entre claro y oscuro.
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== window.parent || window.parent === window) return;
+      const d = e.data as { type?: string; dark?: unknown } | null;
+      if (d?.type === 'cod:theme') setCodDark(d.dark === true);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
   // Quita el token de la barra de direcciones (no queda en el historial).
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (url.searchParams.has('ft')) {
+    if (url.searchParams.has('ft') || url.searchParams.has('theme')) {
       url.searchParams.delete('ft');
+      url.searchParams.delete('theme');
       window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
     }
   }, []);
   return (
-    <PolarisAppProvider i18n={esTranslations} linkComponent={PolarisLink}>
+    <PolarisAppProvider i18n={esTranslations} linkComponent={PolarisLink} theme={dark ? 'dark-experimental' : 'light'}>
+      <script dangerouslySetInnerHTML={{ __html: COD_THEME_BOOT }} />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <TabBar />
       <Outlet />
@@ -153,6 +167,20 @@ const CSS = `
   .cod-tab-ink{position:absolute;left:0;bottom:0;height:3px;border-radius:3px 3px 0 0;background:#1A73E8;box-shadow:0 -2px 8px rgba(26,115,232,.35);
     transition:transform .3s cubic-bezier(.2,.8,.2,1),width .3s cubic-bezier(.2,.8,.2,1)}
   .cod-tabs{isolation:isolate}
+  html.cod-dark{color-scheme:dark;background:#10141a;
+    --p-color-bg:#10141a;--p-color-bg-surface:#1a1e25;--p-color-bg-surface-secondary:#20242b;--p-color-bg-surface-hover:#24282f;
+    --p-color-bg-fill:#24282f;--p-color-border:#2f333a;--p-color-border-secondary:#2f333a;--p-color-text:#e4e8ef;--p-color-text-secondary:#9fa5ae;
+    --p-color-input-bg-surface:#10141a;--p-color-input-bg-surface-hover:#151a21;--p-color-input-bg-surface-active:#151a21;
+    --p-color-input-border:#3a3f48;--p-color-input-border-hover:#4a505a;--p-color-bg-surface-disabled:#1a1e25;
+    --p-color-text-brand:#c9ced6;--p-color-text-disabled:#6f7682;--p-color-bg-surface-tertiary:#262a32;--p-color-bg-surface-secondary-hover:#262a32;
+    --p-color-bg-surface-info:#1c2b40;--p-color-text-info:#9cc5ff;--p-color-text-info-hover:#b5d4ff;--p-color-text-critical:#ff8a80;--p-color-border-critical-secondary:#ff8a80}
+  html.cod-dark body{background:#10141a;color:#e4e8ef}
+  html.cod-dark .cod-tabs-wrap{background:#1a1e25;border-color:#2f333a;box-shadow:0 1px 0 rgba(0,0,0,.4)}
+  html.cod-dark .cod-tab{color:#9fa5ae}
+  html.cod-dark .cod-tab::before{background:#262a32}
+  html.cod-dark .cod-tab:active::before{background:#2f333a}
+  html.cod-dark .cod-tab.on{color:#5AA0F2}
+  html.cod-dark .cod-tab-ink{background:#5AA0F2}
   @media (min-width:1300px){.cod-tabs{justify-content:center}}
   @media (max-width:700px){
     .cod-tab{flex-direction:column;justify-content:center;gap:4px;height:60px;padding:0 12px;font-size:12px}

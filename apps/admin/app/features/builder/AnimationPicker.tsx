@@ -35,8 +35,8 @@ export function AnimationPicker({
             <button key={a.id} type="button" onClick={() => onChange(a.id)} aria-pressed={on}
               style={{
                 all: 'unset', boxSizing: 'border-box', cursor: 'pointer', padding: '10px 8px 7px',
-                borderRadius: 10, background: on ? '#f1f6fe' : '#fafafa',
-                border: `1.5px solid ${on ? '#005bd3' : '#e3e3e3'}`,
+                borderRadius: 10, background: on ? 'var(--p-color-bg-surface-selected, #f1f6fe)' : 'var(--p-color-bg-surface-secondary)',
+                border: `1.5px solid ${on ? '#005bd3' : 'var(--p-color-border-secondary)'}`,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7,
               }}>
               <span className={`cod-demo cod-demo-anim-${a.id}`}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ButtonGroup, Button, InlineStack, Text } from '@shopify/polaris';
 import { DesktopIcon, MobileIcon } from '@shopify/polaris-icons';
+import { isCodDark, useCodDark } from '../../lib/codTheme';
 import type { Addon, Field, Offer, ThemeTokens } from '@cod/contracts';
 
 /**
@@ -29,6 +30,7 @@ export function Preview({
   shipping?: { defaultShippingCents: number; freeShippingOverCents: number | null; codFeeCents: number } | null;
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
+  const dark = useCodDark();
   const [device, setDevice] = useState<'mobile' | 'desktop'>('mobile');
   const latest = useRef({ fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus, shipping });
   latest.current = { fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus, shipping };
@@ -38,7 +40,7 @@ export function Preview({
   // El iframe puede cargar antes de que React hidrate: además de enviar en cada
   // cambio, el iframe avisa con 'cod:preview-ready' y se le reenvían los datos.
   const post = useCallback(() => {
-    ref.current?.contentWindow?.postMessage({ type: 'cod:preview', ...latest.current }, window.location.origin);
+    ref.current?.contentWindow?.postMessage({ type: 'cod:preview', ...latest.current, dark: isCodDark() }, window.location.origin);
   }, []);
 
   useEffect(() => {
@@ -51,11 +53,11 @@ export function Preview({
     return () => window.removeEventListener('message', onMessage);
   }, [post]);
 
-  useEffect(() => { post(); }, [fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus, shipping, post]);
+  useEffect(() => { post(); }, [dark, fields, tokens, selectedKey, showTrigger, offers, addons, unitPriceCents, focus, shipping, post]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: '10px 14px', borderBottom: '1px solid #e3e3e3', background: '#fff' }}>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--p-color-border-secondary)', background: 'var(--p-color-bg-surface)' }}>
         <InlineStack align="space-between" blockAlign="center">
           <Text as="h2" variant="headingSm">Vista previa</Text>
           <ButtonGroup variant="segmented">
@@ -66,7 +68,7 @@ export function Preview({
           </ButtonGroup>
         </InlineStack>
       </div>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', justifyContent: 'center', background: '#f1f1f1', padding: device === 'mobile' ? '16px 0' : 0 }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', justifyContent: 'center', background: 'var(--p-color-bg)', padding: device === 'mobile' ? '16px 0' : 0 }}>
         <iframe
           ref={ref}
           title="Vista previa del formulario"
@@ -75,14 +77,14 @@ export function Preview({
           style={{
             width: device === 'mobile' ? 390 : '100%',
             height: '100%',
-            border: device === 'mobile' ? '1px solid #d4d4d4' : 0,
+            border: device === 'mobile' ? '1px solid var(--p-color-border)' : 0,
             borderRadius: device === 'mobile' ? 16 : 0,
-            background: '#f1f1f1',
+            background: 'var(--p-color-bg)',
             transition: 'width .2s ease',
           }}
         />
       </div>
-      <div style={{ padding: '8px 14px', borderTop: '1px solid #e3e3e3', background: '#fff' }}>
+      <div style={{ padding: '8px 14px', borderTop: '1px solid var(--p-color-border-secondary)', background: 'var(--p-color-bg-surface)' }}>
         <Text as="p" variant="bodySm" tone="subdued">
           {hint}
         </Text>

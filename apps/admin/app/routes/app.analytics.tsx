@@ -71,7 +71,7 @@ export default function Analytics() {
                       </Badge>}
                     </InlineStack>
                   </InlineStack>
-                  <div style={{ height: 8, background: '#f0f0f0', borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{ height: 8, background: 'var(--p-color-bg-surface-secondary)', borderRadius: 99, overflow: 'hidden' }}>
                     <div style={{
                       height: '100%', borderRadius: 99, background: '#008060',
                       width: `${pct(step.value, funnel[0].value || 1)}%`,

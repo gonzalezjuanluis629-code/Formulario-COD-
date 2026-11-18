@@ -365,7 +365,7 @@ export default function Offers() {
                             onChange={(v) => updOffer(o.id, { title: v })} />
                         </div>
                       </InlineStack>
-                      <TextField label="Descripción" value={o.subtitle} autoComplete="off" placeholder="Ej. 20 cebos · casa completa"
+                      <TextField label="Descripción" value={o.subtitle} autoComplete="off" placeholder="Ej. Ideal para regalar"
                         onChange={(v) => updOffer(o.id, { subtitle: v })} />
                       <Choice label="Precio" value={o.priceMode} onChange={(v) => updOffer(o.id, { priceMode: v as OfferDraft['priceMode'] })}
                         options={[['bundle', 'Paquete'], ['percent', '% menos'], ['amount', 'Monto fijo'], ['none', 'Normal']]} />
@@ -501,7 +501,8 @@ export default function Offers() {
               {tab === 'style' && (
                 <BlockStack gap="300">
                   <Text as="h3" variant="headingSm">Tarjetas por cantidad</Text>
-                  <Color label="Color de la tarjeta elegida" value={card.accent} onChange={(v) => { setCard({ ...card, accent: v }); setDirty(true); }} />
+                  <Color label="Contorno de la oferta elegida" value={card.accent} onChange={(v) => { setCard({ ...card, accent: v }); setDirty(true); }} />
+                  <Checkbox label="Brillo suave alrededor de la oferta elegida" checked={card.glow !== false} onChange={(v) => { setCard({ ...card, glow: v }); setDirty(true); }} />
                   <Color label="Cinta: color inicial" value={card.badgeFrom} onChange={(v) => { setCard({ ...card, badgeFrom: v }); setDirty(true); }} />
                   <Color label="Cinta: color final" value={card.badgeTo} onChange={(v) => { setCard({ ...card, badgeTo: v }); setDirty(true); }} />
                   <Color label="Cinta: texto" value={card.badgeColor} onChange={(v) => { setCard({ ...card, badgeColor: v }); setDirty(true); }} />
@@ -537,7 +538,7 @@ function Item({ open, onToggle, title, subtitle, badges, children }: {
   open: boolean; onToggle: () => void; title: string; subtitle: string; badges: string[]; children: React.ReactNode;
 }) {
   return (
-    <div style={{ border: '1px solid #e3e3e3', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
+    <div style={{ border: '1px solid var(--p-color-border-secondary)', borderRadius: 10, background: 'var(--p-color-bg-surface)', overflow: 'hidden' }}>
       <button type="button" onClick={onToggle} aria-expanded={open}
         style={{ all: 'unset', boxSizing: 'border-box', width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', cursor: 'pointer' }}>
         <span style={{ flex: 1, minWidth: 0 }}>
@@ -708,12 +709,12 @@ function scopeLabel(d: ProductScopeDraft): string {
 
 const CSS = `
 .cod-editor{display:grid;grid-template-columns:minmax(330px,420px) 1fr;gap:16px;align-items:start}
-.cod-editor-side{background:#fff;border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.06);
+.cod-editor-side{background:var(--p-color-bg-surface);border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.06);
   display:flex;flex-direction:column;height:calc(100vh - 130px);min-height:520px;overflow:hidden}
-.cod-editor-tabs{border-bottom:1px solid #e3e3e3;flex-shrink:0}
+.cod-editor-tabs{border-bottom:1px solid var(--p-color-border-secondary);flex-shrink:0}
 .cod-editor-body{padding:14px;overflow:auto;flex:1}
 .cod-editor-preview{position:sticky;top:12px;height:calc(100vh - 130px);min-height:520px;border-radius:12px;overflow:hidden;
-  box-shadow:0 1px 0 rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.06);background:#f1f1f1}
+  box-shadow:0 1px 0 rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.06);background:var(--p-color-bg)}
 @media (max-width: 860px){
   .cod-editor{grid-template-columns:1fr}
   .cod-editor-side{height:auto;min-height:0}

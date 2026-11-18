@@ -103,7 +103,7 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result> {
   const fd = await request.formData();
   const body = JSON.parse(String(fd.get('data') || '{}')) as {
     fields: Field[];
-    buttons: { trigger: string; triggerSub: string; submit: string; color: string; showPrice: boolean };
+    buttons: { trigger: string; triggerSub: string; submit: string; color: string; showPrice: boolean; offerColor?: string; offerGlow?: boolean };
     products: ProductPrices[];
     ship?: ShipDraft;
     coupons?: Coupon[];
@@ -133,6 +133,11 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result> {
     ...t,
     trigger: { ...t.trigger, text: body.buttons.trigger.trim() || 'Comprar ahora', descriptions, bg: color, bgType: 'solid' },
     submit: { ...t.submit, text: body.buttons.submit.trim() || 'Finalizar pedido', bg: color, bgType: 'solid', priceDisplay: body.buttons.showPrice ? 'total' : 'none' },
+    offerCard: {
+      ...t.offerCard,
+      accent: /^#[0-9a-f]{6}$/i.test(body.buttons.offerColor ?? '') ? body.buttons.offerColor! : t.offerCard.accent,
+      glow: body.buttons.offerGlow ?? t.offerCard.glow,
+    },
   });
   await db.theme.update({ where: { id: theme.id }, data: { tokens: tokens as object } });
   if (form.themeId !== theme.id) await db.form.update({ where: { id: form.id }, data: { themeId: theme.id } });
@@ -242,6 +247,7 @@ const KIND: Partial<Record<Field['type'], string>> = {
   discount: 'Código de descuento', heading: 'Título', subheading: 'Subtítulo', richtext: 'Texto', divider: 'Separador',
 };
 
+const OFFER_COLORS = ['#4f6b94', '#111111', '#16a34a', '#2563eb', '#dc2626', '#ea580c', '#7c3aed', '#db2777'];
 const COLORS = ['#111111', '#16a34a', '#2563eb', '#dc2626', '#ea580c', '#7c3aed', '#db2777', '#0f766e'];
 
 export default function EditorFacil() {
@@ -253,6 +259,8 @@ export default function EditorFacil() {
   const [submitText, setSubmitText] = useState(data.tokens.submit.text);
   const [color, setColor] = useState(data.tokens.submit.bg);
   const [showPrice, setShowPrice] = useState(data.tokens.submit.priceDisplay !== 'none');
+  const [offerColor, setOfferColor] = useState(data.tokens.offerCard.accent);
+  const [offerGlow, setOfferGlow] = useState(data.tokens.offerCard.glow !== false);
   const [products, setProducts] = useState<ProductPrices[]>(data.products);
   const [ship, setShip] = useState<ShipDraft>(data.ship);
   const [coupons, setCoupons] = useState<Coupon[]>(data.coupons);
@@ -291,7 +299,7 @@ export default function EditorFacil() {
   };
 
   const save = () => fetcher.submit(
-    { data: JSON.stringify({ fields, buttons: { trigger, triggerSub, submit: submitText, color, showPrice }, products, ship, coupons, after }) },
+    { data: JSON.stringify({ fields, buttons: { trigger, triggerSub, submit: submitText, color, showPrice, offerColor, offerGlow }, products, ship, coupons, after }) },
     { method: 'post' },
   );
 
@@ -300,7 +308,8 @@ export default function EditorFacil() {
     ...data.tokens,
     trigger: { ...data.tokens.trigger, text: trigger, descriptions: [triggerSub, ...data.tokens.trigger.descriptions.slice(1)].filter(Boolean), bg: color, bgType: 'solid' },
     submit: { ...data.tokens.submit, text: submitText, bg: color, bgType: 'solid', priceDisplay: showPrice ? 'total' : 'none' },
-  }), [data.tokens, trigger, triggerSub, submitText, color, showPrice]);
+    offerCard: { ...data.tokens.offerCard, accent: offerColor, glow: offerGlow },
+  }), [data.tokens, trigger, triggerSub, submitText, color, showPrice, offerColor, offerGlow]);
   const pvProduct = products[0];
   const pvOffers = useMemo<Offer[]>(() => (pvProduct?.rows ?? []).filter((r) => parseInt(r.qty, 10) >= 2 && cents(r.price) > 0).map((r) => {
     const q = parseInt(r.qty, 10);
@@ -436,6 +445,20 @@ export default function EditorFacil() {
               </div>
             ))}
             <button type="button" className="ef-btn-ghost" onClick={() => void addProduct()}><Ic s={ProductIcon} />Poner precios a un producto</button>
+            <span className="ef-label">Color del contorno de la oferta elegida</span>
+            <div className="ef-colors" role="radiogroup" aria-label="Color del contorno de la oferta elegida">
+              {OFFER_COLORS.map((c) => (
+                <button type="button" key={c} role="radio" aria-checked={offerColor.toLowerCase() === c} aria-label={c}
+                  className={offerColor.toLowerCase() === c ? 'on' : ''} style={{ background: c }} onClick={() => { setOfferColor(c); touch(); }} />
+              ))}
+              <label className="ef-custom" title="Otro color">
+                <input type="color" aria-label="Otro color" value={/^#[0-9a-f]{6}$/i.test(offerColor) ? offerColor : '#4f6b94'} onChange={(e) => { setOfferColor(e.target.value); touch(); }} /><Ic s={ColorIcon} />
+              </label>
+            </div>
+            <label className={`ef-pill big${offerGlow ? ' on' : ''}`}>
+              <input type="checkbox" checked={offerGlow} onChange={(e) => { setOfferGlow(e.target.checked); touch(); }} />
+              {offerGlow && <Ic s={CheckIcon} size={16} />}Brillo suave alrededor de la oferta elegida
+            </label>
             {data.advancedOffers > 0 && (
               <p className="ef-hint">Tienes {data.advancedOffers} oferta(s) avanzada(s) (porcentaje, varios productos…). Siguen igual; se cambian en <Link to="/figui/offers">Ofertas y descuentos</Link>.</p>
             )}
@@ -619,6 +642,31 @@ const CSS = `
 .ef-save-btn:hover{filter:brightness(1.04)}
 .ef-save-btn:disabled{opacity:.7}
 .ef-preview{position:sticky;top:76px;height:calc(100vh - 92px);min-height:560px;border-radius:18px;overflow:hidden;border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(16,24,40,.18);background:#f1f1f1}
+/* ── Modo oscuro (mismos colores que Figui) ── */
+html.cod-dark .ef{--soft-grad:linear-gradient(180deg,#262a32 0%,#20242b 100%);
+  --soft-shadow:0 1px 2px rgba(0,0,0,.4),0 3px 8px -3px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);
+  --soft-shadow-hover:0 2px 4px rgba(0,0,0,.45),0 8px 16px -6px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05);
+  --line:#2f333a;--ink:#e4e8ef;--muted:#9fa5ae}
+html.cod-dark .ef-head p,html.cod-dark .ef-pill,html.cod-dark .ef-seg button{color:#b4bac4}
+html.cod-dark .ef-label{color:#c9ced6}
+html.cod-dark .ef-card{background:#1a1e25;box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6)}
+html.cod-dark .ef-input,html.cod-dark .ef-money{background:#10141a;border-color:#3a3f48;color:#e4e8ef;box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
+html.cod-dark .ef-money .ef-input{background:transparent}
+html.cod-dark .ef-input::placeholder{color:#6f7682}
+html.cod-dark .ef-move button,html.cod-dark .ef-custom{color:#c9ced6}
+html.cod-dark .ef-seg{background:#10141a;box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
+html.cod-dark .ef-seg button.on,html.cod-dark .ef-pill.on{color:#fff}
+html.cod-dark .ef-del{background:linear-gradient(180deg,#3d1c24,#33171d);border-color:#5c2630;color:#ff8a80;box-shadow:none}
+html.cod-dark .ef-add-ic{background:#1c2b40;color:#5AA0F2}
+html.cod-dark .ef-add button:hover,html.cod-dark .ef-btn-ghost:hover{border-color:#3d5a80}
+html.cod-dark .ef-colors button,html.cod-dark .ef-custom{border-color:#1a1e25;box-shadow:0 0 0 1px #3a3f48,0 4px 10px -4px rgba(0,0,0,.6)}
+html.cod-dark .ef-colors button.on{box-shadow:0 0 0 3px #5AA0F2,0 6px 14px -4px rgba(26,115,232,.45)}
+html.cod-dark .ef-x{color:#7f8692}
+html.cod-dark .ef-x:hover{background:#262a32;color:#c9ced6}
+html.cod-dark .ef-save{color:#4ade80}html.cod-dark .ef-warn{color:#fbbf24}
+html.cod-dark .ef-hint a,html.cod-dark .ef-link{color:#5AA0F2}
+html.cod-dark .ef-save-bar{background:linear-gradient(transparent,#10141a 35%)}
+html.cod-dark .ef-preview{background:#10141a;box-shadow:0 8px 24px -12px rgba(0,0,0,.6)}
 @media (max-width: 900px){
   .ef{grid-template-columns:1fr;padding:12px}
   .ef-preview{position:relative;top:0;height:640px}

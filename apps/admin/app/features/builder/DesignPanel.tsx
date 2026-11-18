@@ -27,7 +27,7 @@ export function DesignPanel({
   const setSubmit = (p: Partial<SubmitButton>) => onChange({ ...t, submit: { ...t.submit, ...p } });
 
   const section = (id: DesignSection, title: string, icon: typeof ColorIcon, body: ReactNode) => (
-    <div style={{ border: '1px solid #e3e3e3', borderRadius: 10, background: '#fff', overflow: 'hidden' }}>
+    <div style={{ border: '1px solid var(--p-color-border-secondary)', borderRadius: 10, background: 'var(--p-color-bg-surface)', overflow: 'hidden' }}>
       <button type="button" onClick={() => onOpen(open === id ? null : id)} aria-expanded={open === id}
         style={{ all: 'unset', boxSizing: 'border-box', width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 12px', cursor: 'pointer' }}>
         <Icon source={icon} tone="base" />

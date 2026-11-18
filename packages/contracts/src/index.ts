@@ -203,6 +203,8 @@ export const ThemeTokensSchema = z.object({
   /** Tarjetas de ofertas por cantidad. */
   offerCard: z.object({
     accent: z.string().default('#4f6b94'),
+    /** Brillo suave alrededor de la tarjeta elegida (false = solo el contorno). */
+    glow: z.boolean().default(true),
     badgeFrom: z.string().default('#4f6b94'),
     badgeTo: z.string().default('#8fb06e'),
     badgeColor: z.string().default('#ffffff'),
@@ -289,7 +291,7 @@ export const OfferSchema = z.object({
   discountBps: z.number().int().min(0).max(10000).default(0),
   freeShipping: z.boolean().default(false),
   label: z.string(),
-  /** Tarjeta: «2 unidades» / «20 cebos · casa completa». */
+  /** Tarjeta: «2 unidades» / «Ideal para regalar». */
   title: z.string().default(''),
   subtitle: z.string().default(''),
   /** Cinta destacada, p. ej. «MÁS VENDIDO». Vacío = sin cinta. */
