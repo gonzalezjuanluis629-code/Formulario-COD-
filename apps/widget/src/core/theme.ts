@@ -2,10 +2,14 @@ import type { ThemeTokens } from '@cod/contracts';
 import { ANIMATION_SPEEDS } from '../ui/animations';
 
 /** Fondo CSS de un botón: color sólido o degradado. */
-export function buttonBackground(b: { bg: string; bgType?: 'solid' | 'gradient'; bg2?: string; gradientAngle?: number }): string {
-  return b.bgType === 'gradient'
+export function buttonBackground(b: { bg: string; bgType?: 'solid' | 'gradient'; bg2?: string; gradientAngle?: number; depth?: boolean }): string {
+  const base = b.bgType === 'gradient'
     ? `linear-gradient(${b.gradientAngle ?? 135}deg, ${b.bg}, ${b.bg2 ?? b.bg})`
     : b.bg;
+  // Profundidad: brillo arriba y un poco más oscuro abajo, encima del color.
+  return b.depth
+    ? `linear-gradient(180deg, rgba(255,255,255,.26) 0%, rgba(255,255,255,.06) 48%, rgba(0,0,0,.12) 100%), ${base}`
+    : base;
 }
 
 /**
@@ -16,14 +20,18 @@ export function buttonBackground(b: { bg: string; bgType?: 'solid' | 'gradient';
  * Sombra del botón como filtro (drop-shadow): las animaciones usan box-shadow y
  * transform, así que sombra y animación se combinan sin pisarse.
  */
-export function buttonShadow(b: { shadow?: 'none' | 'sm' | 'md' | 'lg'; shadowColor?: string }): string {
+export function buttonShadow(b: { shadow?: 'none' | 'sm' | 'md' | 'lg'; shadowColor?: string; depth?: boolean; bg?: string }): string {
   const c = b.shadowColor || '#000000';
   const mix = (pct: number) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
+  // Profundidad: resplandor del MISMO color del botón debajo (como los de Figui).
+  const glow = b.depth && b.bg
+    ? ` drop-shadow(0 7px 9px color-mix(in srgb, ${b.bg} 45%, transparent)) drop-shadow(0 2px 2px color-mix(in srgb, ${b.bg} 22%, transparent))`
+    : '';
   switch (b.shadow) {
-    case 'sm': return `drop-shadow(0 2px 3px ${mix(30)})`;
-    case 'md': return `drop-shadow(0 6px 10px ${mix(32)})`;
-    case 'lg': return `drop-shadow(0 12px 20px ${mix(38)}) drop-shadow(0 3px 5px ${mix(20)})`;
-    default: return 'drop-shadow(0 0 0 transparent)';
+    case 'sm': return `drop-shadow(0 2px 3px ${mix(30)})${glow}`;
+    case 'md': return `drop-shadow(0 6px 10px ${mix(32)})${glow}`;
+    case 'lg': return `drop-shadow(0 12px 20px ${mix(38)}) drop-shadow(0 3px 5px ${mix(20)})${glow}`;
+    default: return glow ? glow.trim() : 'drop-shadow(0 0 0 transparent)';
   }
 }
 

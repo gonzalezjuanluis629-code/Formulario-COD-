@@ -111,6 +111,8 @@ export function DesignPanel({
             value={t.submit.fontSize} onChange={(v) => setSubmit({ fontSize: v as number })} />
           <RangeSlider label="Esquinas" output suffix={<Px v={t.submit.radius} />} min={0} max={40}
             value={t.submit.radius} onChange={(v) => setSubmit({ radius: v as number })} />
+          <Checkbox label="Efecto de profundidad (como botón real)" checked={!!t.submit.depth} onChange={(v) => setSubmit({ depth: v })}
+            helpText="Brillo arriba, sombra del color del botón y se hunde un poco al tocarlo." />
           <Text as="span" variant="bodyMd">Icono</Text>
           <IconPicker label="Icono del botón Finalizar pedido" value={t.submit.iconType === 'svg' ? t.submit.iconName : ''}
             onChange={(n) => setSubmit(n ? { iconType: 'svg', iconName: n } : { iconType: 'none' })} />
@@ -137,6 +139,8 @@ export function DesignPanel({
             value={t.trigger.fontSize} onChange={(v) => setTrigger({ fontSize: v as number })} />
           <RangeSlider label="Esquinas" output suffix={<Px v={t.trigger.radius} />} min={0} max={60}
             value={t.trigger.radius} onChange={(v) => setTrigger({ radius: v as number })} />
+          <Checkbox label="Efecto de profundidad (como botón real)" checked={!!t.trigger.depth} onChange={(v) => setTrigger({ depth: v })}
+            helpText="Brillo arriba, sombra del color del botón y se hunde un poco al tocarlo." />
           <Choice label="Icono" value={t.trigger.iconType}
             onChange={(v) => setTrigger({ iconType: v as TriggerButton['iconType'] })}
             options={[['none', 'Sin icono'], ['svg', 'Icono'], ['emoji', 'Símbolo'], ['image', 'Imagen']]} />

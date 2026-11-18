@@ -20,7 +20,7 @@ export function renderTrigger(host: HTMLElement, cfg: TriggerButton, onClick: ()
 
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = `cod-trigger cod-trigger-anim-${cfg.animation}`;
+  btn.className = `cod-trigger cod-trigger-anim-${cfg.animation}${cfg.depth ? ' cod-depth' : ''}`;
   btn.style.cssText = [
     `--t-bg:${buttonBackground(cfg)}`,
     `--t-solid:${cfg.bg}`,
@@ -78,6 +78,8 @@ function injectStylesOnce(root: Document | ShadowRoot): void {
 
   const style = document.createElement('style');
   style.textContent = `
+    .cod-trigger.cod-depth{box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -1px 0 rgba(0,0,0,.10)}
+    .cod-trigger.cod-depth:active{transform:translateY(1px) scale(.99)!important}
     .cod-trigger{display:inline-flex;align-items:center;justify-content:center;gap:10px;
       box-sizing:border-box;max-width:100%;padding:0 26px;background:var(--t-bg);color:var(--t-color);border:0;
       border-radius:var(--t-radius);font-family:inherit;font-weight:700;cursor:pointer;line-height:1.15;

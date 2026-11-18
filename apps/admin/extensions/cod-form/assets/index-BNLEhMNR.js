@@ -125,20 +125,22 @@ ${a("ripple")}::after{animation-delay:calc(1.2s * var(--anim-speed, 1))}
 }
 function buttonBackground(b) {
   var _a2, _b;
-  return b.bgType === "gradient" ? `linear-gradient(${(_a2 = b.gradientAngle) != null ? _a2 : 135}deg, ${b.bg}, ${(_b = b.bg2) != null ? _b : b.bg})` : b.bg;
+  const base = b.bgType === "gradient" ? `linear-gradient(${(_a2 = b.gradientAngle) != null ? _a2 : 135}deg, ${b.bg}, ${(_b = b.bg2) != null ? _b : b.bg})` : b.bg;
+  return b.depth ? `linear-gradient(180deg, rgba(255,255,255,.26) 0%, rgba(255,255,255,.06) 48%, rgba(0,0,0,.12) 100%), ${base}` : base;
 }
 function buttonShadow(b) {
   const c = b.shadowColor || "#000000";
   const mix = (pct) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
+  const glow = b.depth && b.bg ? ` drop-shadow(0 7px 9px color-mix(in srgb, ${b.bg} 45%, transparent)) drop-shadow(0 2px 2px color-mix(in srgb, ${b.bg} 22%, transparent))` : "";
   switch (b.shadow) {
     case "sm":
-      return `drop-shadow(0 2px 3px ${mix(30)})`;
+      return `drop-shadow(0 2px 3px ${mix(30)})${glow}`;
     case "md":
-      return `drop-shadow(0 6px 10px ${mix(32)})`;
+      return `drop-shadow(0 6px 10px ${mix(32)})${glow}`;
     case "lg":
-      return `drop-shadow(0 12px 20px ${mix(38)}) drop-shadow(0 3px 5px ${mix(20)})`;
+      return `drop-shadow(0 12px 20px ${mix(38)}) drop-shadow(0 3px 5px ${mix(20)})${glow}`;
     default:
-      return "drop-shadow(0 0 0 transparent)";
+      return glow ? glow.trim() : "drop-shadow(0 0 0 transparent)";
   }
 }
 function tokensToCss(t) {
@@ -612,7 +614,7 @@ function renderForm(root, config, state, handlers) {
       <div class="cod-fields"></div>
       <div class="cod-addons-slot"></div>
       <div class="cod-form-error" role="alert"></div>
-      <button type="submit" class="cod-submit cod-submit-anim-${config.tokens.submit.animation}">
+      <button type="submit" class="cod-submit cod-submit-anim-${config.tokens.submit.animation}${config.tokens.submit.depth ? " cod-depth" : ""}">
         <span class="cod-submit-label">${esc(config.tokens.submit.text)}</span>
         <span class="cod-submit-price" hidden></span>
         ${config.tokens.submit.iconType === "svg" && config.tokens.submit.iconName ? `<span class="cod-submit-icon cod-ico">${buttonIconSvg(config.tokens.submit.iconName, "cod-ico-svg")}</span>` : config.tokens.submit.iconType === "emoji" ? `<span class="cod-submit-icon">${esc(config.tokens.submit.icon)}</span>` : ""}
@@ -625,7 +627,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-Bjg9VRU5.js").then(({ renderAddons }) => {
+    void import("./addons-CTDhpmh0.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -660,7 +662,7 @@ function paintPrice(root, state) {
   el.textContent = `· ${money(cents, q.currency)}`;
   el.hidden = false;
 }
-function renderDiscount(f, state, onChange, wrap) {
+function renderDiscount(f, config, state, onChange, wrap) {
   const id = `cod-${f.key}`;
   const req = f.required ? '<span class="cod-req">*</span>' : '<span class="cod-opt">Opcional</span>';
   wrap.innerHTML = `
@@ -668,7 +670,7 @@ function renderDiscount(f, state, onChange, wrap) {
     <div class="cod-discount">
       <input type="text" id="${id}" autocomplete="off" autocapitalize="characters" spellcheck="false"
         placeholder="${esc(f.placeholder || "Escribe tu código")}">
-      <button type="button" class="cod-discount-btn">${esc(f.content || "Aplicar")}</button>
+      <button type="button" class="cod-discount-btn${config.tokens.applyDepth ? " cod-depth" : ""}">${esc(f.content || "Aplicar")}</button>
     </div>
     <span class="cod-discount-ok" hidden></span>
     ${f.help ? `<span class="cod-help">${esc(f.help)}</span>` : ""}
@@ -767,7 +769,7 @@ function renderField(f, config, state, onChange) {
     wrap.className += " cod-hidden";
     return wrap;
   }
-  if (f.type === "discount") return renderDiscount(f, state, onChange, wrap);
+  if (f.type === "discount") return renderDiscount(f, config, state, onChange, wrap);
   if (f.type === "location") {
     mountLocation(wrap, config, state, onChange);
     return wrap;
@@ -976,6 +978,10 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-discount{display:flex;gap:8px}
 .cod-discount input{flex:1;min-width:0;text-transform:uppercase}
 .cod-discount input:disabled{opacity:.7}
+.cod-depth{box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -1px 0 rgba(0,0,0,.10);transition:transform .12s ease,filter .15s ease}
+.cod-depth:active{transform:translateY(1px) scale(.99)!important}
+.cod-discount-btn.cod-depth{background-image:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,.06) 48%,rgba(0,0,0,.12));
+  box-shadow:0 6px 12px -5px color-mix(in srgb,var(--cod-apply-bg,#111) 60%,transparent),inset 0 1px 0 rgba(255,255,255,.28)}
 .cod-discount-btn{flex-shrink:0;padding:0 16px;border:0;border-radius:var(--cod-radius);background:var(--cod-apply-bg,var(--cod-text));
   color:var(--cod-apply-color,var(--cod-surface));font:inherit;font-weight:600;font-size:13px;cursor:pointer}
 .cod-discount-btn:disabled{opacity:.6;cursor:default}
@@ -1251,7 +1257,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-CorPpcL4.js");
+    const { renderTrigger } = await import("./trigger-B1zrD2lo.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";

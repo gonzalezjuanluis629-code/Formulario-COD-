@@ -35,7 +35,7 @@ export function renderForm(
       <div class="cod-fields"></div>
       <div class="cod-addons-slot"></div>
       <div class="cod-form-error" role="alert"></div>
-      <button type="submit" class="cod-submit cod-submit-anim-${config.tokens.submit.animation}">
+      <button type="submit" class="cod-submit cod-submit-anim-${config.tokens.submit.animation}${config.tokens.submit.depth ? ' cod-depth' : ''}">
         <span class="cod-submit-label">${esc(config.tokens.submit.text)}</span>
         <span class="cod-submit-price" hidden></span>
         ${config.tokens.submit.iconType === 'svg' && config.tokens.submit.iconName
@@ -96,7 +96,7 @@ function paintPrice(root: HTMLElement, state: FormState): void {
 }
 
 /** Bloque «Código de descuento»: campo + «Aplicar», validado por el servidor. */
-function renderDiscount(f: Field, state: FormState, onChange: () => void, wrap: HTMLElement): HTMLElement {
+function renderDiscount(f: Field, config: WidgetConfig, state: FormState, onChange: () => void, wrap: HTMLElement): HTMLElement {
   const id = `cod-${f.key}`;
   const req = f.required ? '<span class="cod-req">*</span>' : '<span class="cod-opt">Opcional</span>';
   wrap.innerHTML = `
@@ -104,7 +104,7 @@ function renderDiscount(f: Field, state: FormState, onChange: () => void, wrap: 
     <div class="cod-discount">
       <input type="text" id="${id}" autocomplete="off" autocapitalize="characters" spellcheck="false"
         placeholder="${esc(f.placeholder || 'Escribe tu código')}">
-      <button type="button" class="cod-discount-btn">${esc(f.content || 'Aplicar')}</button>
+      <button type="button" class="cod-discount-btn${config.tokens.applyDepth ? ' cod-depth' : ''}">${esc(f.content || 'Aplicar')}</button>
     </div>
     <span class="cod-discount-ok" hidden></span>
     ${f.help ? `<span class="cod-help">${esc(f.help)}</span>` : ''}
@@ -187,7 +187,7 @@ function renderField(
   // Tipos sin soporte en el envío (subir archivo, mapa antiguo): no se muestran.
   if (f.type === 'file' || f.type === 'map') { wrap.className += ' cod-hidden'; return wrap; }
 
-  if (f.type === 'discount') return renderDiscount(f, state, onChange, wrap);
+  if (f.type === 'discount') return renderDiscount(f, config, state, onChange, wrap);
 
   /* El bloque de ubicación es especial: trae su propio módulo (y su mapa lazy). */
   if (f.type === 'location') {

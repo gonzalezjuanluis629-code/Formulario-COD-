@@ -141,6 +141,7 @@ export function FieldSettings({
               <Text as="h3" variant="headingSm">Botón «Aplicar»</Text>
               <Color label="Color del botón" value={tokens.applyBg} onChange={(v) => onTokens({ ...tokens, applyBg: v })} />
               <Color label="Color de la letra" value={tokens.applyColor} onChange={(v) => onTokens({ ...tokens, applyColor: v })} />
+              <Checkbox label="Efecto de profundidad (como botón real)" checked={!!tokens.applyDepth} onChange={(v) => onTokens({ ...tokens, applyDepth: v })} />
             </BlockStack>
           ) : field.type === 'discount' && onGoDesign ? (
             <Button onClick={onGoDesign}>Cambiar color del botón</Button>
