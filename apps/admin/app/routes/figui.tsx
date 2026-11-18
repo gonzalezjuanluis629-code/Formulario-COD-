@@ -101,6 +101,7 @@ function TabBar() {
     return () => window.removeEventListener('resize', place);
   }, [active]);
   return (
+    <>
     <div className="cod-tabs-wrap">
       <nav ref={bar} className="cod-tabs" aria-label="Secciones del formulario">
         {NAV.map((n, i) => {
@@ -115,6 +116,8 @@ function TabBar() {
         {ink && <span className="cod-tab-ink" style={{ transform: `translateX(${ink.left}px)`, width: ink.width }} aria-hidden />}
       </nav>
     </div>
+    <div className="cod-tabs-space" aria-hidden />
+    </>
   );
 }
 
@@ -152,7 +155,7 @@ export default function FiguiLayout() {
 }
 
 const CSS = `
-  .cod-tabs-wrap{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #E4E6EB;box-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 12px -8px rgba(16,24,40,.12)}
+  .cod-tabs-wrap{position:fixed;top:0;left:0;right:0;z-index:300;background:#fff;border-bottom:1px solid #E4E6EB;box-shadow:0 1px 2px rgba(0,0,0,.06),0 4px 12px -8px rgba(16,24,40,.12)}
   .cod-tabs{position:relative;display:flex;gap:2px;overflow-x:auto;padding:0 12px;scrollbar-width:none;
     -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%);mask-image:linear-gradient(90deg,transparent 0,#000 12px,#000 calc(100% - 12px),transparent 100%)}
   .cod-tabs::-webkit-scrollbar{display:none}
@@ -183,7 +186,10 @@ const CSS = `
   html.cod-dark .cod-tab.on{color:#5AA0F2}
   html.cod-dark .cod-tab-ink{background:#5AA0F2}
   @media (min-width:1300px){.cod-tabs{justify-content:center}}
+  .cod-tabs-space{height:57px}
+  html.cod-figui{--cod-sticky-top:70px}
   @media (max-width:700px){
+    .cod-tabs-space{height:61px}
     .cod-tab{flex-direction:column;justify-content:center;gap:4px;height:60px;padding:0 12px;font-size:12px}
     .cod-tab-ic{width:22px;height:22px}
   }

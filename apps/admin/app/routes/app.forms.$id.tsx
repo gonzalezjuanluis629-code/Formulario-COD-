@@ -359,7 +359,7 @@ const EDITOR_CSS = `
   display:flex;flex-direction:column;height:calc(100vh - 130px);min-height:520px;overflow:hidden}
 .cod-editor-tabs{border-bottom:1px solid var(--p-color-border-secondary);flex-shrink:0}
 .cod-editor-body{padding:14px;overflow:auto;flex:1}
-.cod-editor-preview{position:sticky;top:12px;height:calc(100vh - 130px);min-height:520px;border-radius:12px;overflow:hidden;
+.cod-editor-preview{position:sticky;top:var(--cod-sticky-top,12px);height:calc(100vh - 130px);min-height:520px;border-radius:12px;overflow:hidden;
   box-shadow:0 1px 0 rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.06);background:var(--p-color-bg)}
 @media (max-width: 860px){
   .cod-editor{grid-template-columns:minmax(0,1fr)}

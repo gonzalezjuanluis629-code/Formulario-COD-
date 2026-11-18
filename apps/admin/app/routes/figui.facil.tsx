@@ -560,6 +560,11 @@ export default function EditorFacil() {
 
                   </div>
 
+        {dirty && (
+          <button type="button" className="ef-save-btn dirty ef-float-save" disabled={busy} onClick={save}>
+            {!busy && <Ic s={SaveIcon} size={18} />}{busy ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+        )}
         <div className="ef-preview">
           <Preview fields={fields} tokens={pvTokens} offers={pvOffers} unitPriceCents={pvProduct?.priceCents ?? 0}
             shipping={{ ...data.shipping, defaultShippingCents: ship.mode === 'paid' ? cents(ship.cost) : 0, freeShippingOverCents: ship.mode === 'paid' && cents(ship.freeOver) > 0 ? cents(ship.freeOver) : null }}
@@ -588,7 +593,9 @@ const CSS = `
 .ef button{transition:transform .12s ease,box-shadow .15s ease,filter .15s ease}
 .ef button:active{transform:translateY(1px)}
 .ef-side{display:flex;flex-direction:column;gap:14px;min-width:0;padding-bottom:24px}
-.ef-head{position:sticky;top:56px;z-index:6;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:10px 0;margin:-10px 0 0;background:var(--page)}
+.ef-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.ef-float-save{position:fixed;right:20px;bottom:20px;z-index:30;animation:ef-pop .25s cubic-bezier(.34,1.4,.64,1)}
+@keyframes ef-pop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
 .ef-head h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
 .ef-head p{margin:6px 0 0;color:#475467;font-size:15px;line-height:1.45}
 .ef-card{background:#fff;border-radius:18px;padding:18px;border:1px solid var(--line);box-shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px -12px rgba(16,24,40,.12)}
