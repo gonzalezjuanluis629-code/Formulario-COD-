@@ -88,6 +88,10 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-discount{display:flex;gap:8px}
 .cod-discount input{flex:1;min-width:0;text-transform:uppercase}
 .cod-discount input:disabled{opacity:.7}
+.cod-depth{box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -1px 0 rgba(0,0,0,.10);transition:transform .12s ease,filter .15s ease}
+.cod-depth:active{transform:translateY(1px) scale(.99)!important}
+.cod-discount-btn.cod-depth{background-image:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,.06) 48%,rgba(0,0,0,.12));
+  box-shadow:0 6px 12px -5px color-mix(in srgb,var(--cod-apply-bg,#111) 60%,transparent),inset 0 1px 0 rgba(255,255,255,.28)}
 .cod-discount-btn{flex-shrink:0;padding:0 16px;border:0;border-radius:var(--cod-radius);background:var(--cod-apply-bg,var(--cod-text));
   color:var(--cod-apply-color,var(--cod-surface));font:inherit;font-weight:600;font-size:13px;cursor:pointer}
 .cod-discount-btn:disabled{opacity:.6;cursor:default}

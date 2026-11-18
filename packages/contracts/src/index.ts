@@ -88,6 +88,8 @@ export const TriggerButtonSchema = z.object({
   /** Sombra del botón (se combina con cualquier animación). */
   shadow: z.enum(['none', 'sm', 'md', 'lg']).default('none'),
   shadowColor: z.string().default('#000000'),
+  /** Efecto de profundidad (botón «real»: brillo arriba, sombra del color del botón, se hunde al tocarlo). */
+  depth: z.boolean().default(false),
   radius: z.number().int().min(0).max(60).default(60),
   /** Icono: un emoji/carácter, o una URL de imagen si iconType === 'image'. */
   iconType: z.enum(['none', 'emoji', 'image', 'svg']).default('svg'),
@@ -121,6 +123,8 @@ export const SubmitButtonSchema = z.object({
   /** Sombra del botón (se combina con cualquier animación). */
   shadow: z.enum(['none', 'sm', 'md', 'lg']).default('none'),
   shadowColor: z.string().default('#000000'),
+  /** Efecto de profundidad (botón «real»: brillo arriba, sombra del color del botón, se hunde al tocarlo). */
+  depth: z.boolean().default(false),
   /** Color al que cambia cuando el formulario está completo. */
   readyBg: z.string().default('#16a34a'),
   iconType: z.enum(['none', 'emoji', 'svg']).default('none'),
@@ -234,6 +238,8 @@ export const ThemeTokensSchema = z.object({
   /** Botón «Aplicar» del código de descuento. */
   applyBg: z.string().default('#111111'),
   applyColor: z.string().default('#ffffff'),
+  /** Efecto de profundidad en el botón «Aplicar». */
+  applyDepth: z.boolean().default(false),
   /** Color del botón de envío cuando el formulario está completo. */
   readyColor: z.string().default('#16a34a'),
   logoUrl: z.string().nullable().default(null),

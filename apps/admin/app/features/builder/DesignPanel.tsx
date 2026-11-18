@@ -17,18 +17,25 @@ export type DesignSection = 'colors' | 'shape' | 'submit' | 'trigger' | 'extras'
  * lado. Al abrir «Botón Comprar ahora» la vista previa muestra también ese botón.
  */
 export function DesignPanel({
-  tokens: t, onChange, open, onOpen,
+  tokens: t, onChange, open, onOpen, only,
 }: {
   tokens: ThemeTokens;
   onChange: (t: ThemeTokens) => void;
   open: DesignSection | null;
   onOpen: (s: DesignSection | null) => void;
+  /** Solo estas partes, ya abiertas y sin acordeón (para los «Ajustes» de cada cosa). */
+  only?: DesignSection[];
 }) {
   const set = <K extends keyof ThemeTokens>(k: K, v: ThemeTokens[K]) => onChange({ ...t, [k]: v });
   const setTrigger = (p: Partial<TriggerButton>) => onChange({ ...t, trigger: { ...t.trigger, ...p } });
   const setSubmit = (p: Partial<SubmitButton>) => onChange({ ...t, submit: { ...t.submit, ...p } });
 
-  const section = (id: DesignSection, title: string, icon: typeof ColorIcon, body: ReactNode) => (
+  const section = (id: DesignSection, title: string, icon: typeof ColorIcon, body: ReactNode) => only ? (only.includes(id) ? (
+    <BlockStack gap="300">
+      {only.length > 1 && <Text as="h3" variant="headingSm">{title}</Text>}
+      {body}
+    </BlockStack>
+  ) : null) : (
     <div style={{ border: '1px solid var(--p-color-border-secondary)', borderRadius: 10, background: 'var(--p-color-bg-surface)', overflow: 'hidden' }}>
       <button type="button" onClick={() => onOpen(open === id ? null : id)} aria-expanded={open === id}
         style={{ all: 'unset', boxSizing: 'border-box', width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 12px', cursor: 'pointer' }}>
@@ -104,6 +111,8 @@ export function DesignPanel({
             value={t.submit.fontSize} onChange={(v) => setSubmit({ fontSize: v as number })} />
           <RangeSlider label="Esquinas" output suffix={<Px v={t.submit.radius} />} min={0} max={40}
             value={t.submit.radius} onChange={(v) => setSubmit({ radius: v as number })} />
+          <Checkbox label="Efecto de profundidad (como botón real)" checked={!!t.submit.depth} onChange={(v) => setSubmit({ depth: v })}
+            helpText="Brillo arriba, sombra del color del botón y se hunde un poco al tocarlo." />
           <Text as="span" variant="bodyMd">Icono</Text>
           <IconPicker label="Icono del botón Finalizar pedido" value={t.submit.iconType === 'svg' ? t.submit.iconName : ''}
             onChange={(n) => setSubmit(n ? { iconType: 'svg', iconName: n } : { iconType: 'none' })} />
@@ -130,6 +139,8 @@ export function DesignPanel({
             value={t.trigger.fontSize} onChange={(v) => setTrigger({ fontSize: v as number })} />
           <RangeSlider label="Esquinas" output suffix={<Px v={t.trigger.radius} />} min={0} max={60}
             value={t.trigger.radius} onChange={(v) => setTrigger({ radius: v as number })} />
+          <Checkbox label="Efecto de profundidad (como botón real)" checked={!!t.trigger.depth} onChange={(v) => setTrigger({ depth: v })}
+            helpText="Brillo arriba, sombra del color del botón y se hunde un poco al tocarlo." />
           <Choice label="Icono" value={t.trigger.iconType}
             onChange={(v) => setTrigger({ iconType: v as TriggerButton['iconType'] })}
             options={[['none', 'Sin icono'], ['svg', 'Icono'], ['emoji', 'Símbolo'], ['image', 'Imagen']]} />
@@ -242,7 +253,7 @@ function Choice({ label, value, options, onChange }: {
   );
 }
 
-function Color({ label, value, onChange, help }: { label: string; value: string; onChange: (v: string) => void; help?: string }) {
+export function Color({ label, value, onChange, help }: { label: string; value: string; onChange: (v: string) => void; help?: string }) {
   return (
     <InlineStack gap="300" blockAlign="center" wrap={false}>
       <label style={{ position: 'relative', width: 36, height: 36, flexShrink: 0, borderRadius: 8, border: '1px solid #d4d4d4', background: value, cursor: 'pointer', overflow: 'hidden' }}>
