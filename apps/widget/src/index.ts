@@ -168,7 +168,7 @@ function inlineHosts(): HTMLElement[] {
 
 /** Botones o formularios fijos de un producto (no los del carrito). */
 function fixedHosts(): HTMLElement[] {
-  return inlineHosts().filter((el) => el.dataset.cart !== 'true' && el.isConnected);
+  return inlineHosts().filter((el) => el.dataset.cart !== 'true' && el.isConnected && !el.closest(CART_AREA));
 }
 
 function findInline(kind: 'form' | 'button'): HTMLElement | null {
@@ -181,8 +181,15 @@ function findInline(kind: 'form' | 'button'): HTMLElement | null {
  * en páginas sin botón fijo, no. (Tiendas conectadas desde Figui; con la app
  * de Shopify lo pone la incrustación del tema.)
  */
+/** Carritos laterales y paneles: un botón dentro de ellos no es «un botón en la página». */
+const CART_AREA = '#pd-cart, .pd-panel, cart-drawer, cart-notification, [id*="CartDrawer"], [id*="cart-drawer"], [class*="cart-drawer"], [class*="CartDrawer"], [class*="mini-cart"], [class*="minicart"], [id*="mini-cart"], [role="dialog"]';
+
 function ensureFloating(from: HTMLElement): void {
   if (!DIRECT?.floating || from.dataset.floating === 'true' || from.dataset.cart === 'true') return;
+  // El flotante sale solo donde la tienda puso el botón (producto, o la portada
+  // si lo pegó ahí). Un botón dentro del carrito lateral no cuenta: ese carrito
+  // existe en todas las páginas y el flotante saldría en todas.
+  if (from.closest(CART_AREA)) return;
   if (document.querySelector('[data-cod-form][data-floating="true"]')) return;
   const el = document.createElement('div');
   el.setAttribute('data-cod-form', '');
