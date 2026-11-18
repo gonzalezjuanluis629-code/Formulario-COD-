@@ -3,7 +3,7 @@ import {
   Badge, Banner, BlockStack, Box, Button, ButtonGroup, Checkbox, Collapsible, Divider, Frame, Icon, IndexTable,
   InlineStack, Modal, Page, Select, Tabs, Text, TextField, Toast,
 } from '@shopify/polaris';
-import { ChevronDownIcon, ChevronRightIcon, DeleteIcon, PlusIcon } from '@shopify/polaris-icons';
+import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, DeleteIcon, PlusIcon } from '@shopify/polaris-icons';
 import { Form, useFetcher, useLoaderData, useSubmit } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { AddonSchema, OfferSchema, ShopSettingsSchema, ThemeTokensSchema, type Addon, type Field, type Offer, type ThemeTokens } from '@cod/contracts';
@@ -69,7 +69,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const { shop, admin } = await requireShop(request);
   const [offerRows, addonRows, discounts, form, theme] = await Promise.all([
     db.offer.findMany({ where: { shopId: shop.id, type: 'QUANTITY' }, orderBy: { priority: 'asc' } }),
-    db.offer.findMany({ where: { shopId: shop.id, type: { in: ['UPSELL', 'ORDER_BUMP', 'DOWNSELL'] } }, orderBy: { priority: 'desc' } }),
+    db.offer.findMany({ where: { shopId: shop.id, type: { in: ['UPSELL', 'ORDER_BUMP', 'DOWNSELL'] } }, orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }] }),
     db.discount.findMany({ where: { shopId: shop.id }, orderBy: { name: 'asc' } }),
     db.form.findFirst({ where: { shopId: shop.id, status: { not: 'ARCHIVED' } }, orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }] }),
     db.theme.findFirst({ where: { shopId: shop.id, isDefault: true } }),
@@ -160,6 +160,8 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result | 
     // Extras. Los downsell se guardan al final para poder apuntar al upsell recién creado.
     const keepAddons: string[] = [];
     const idMap = new Map<string, string>();
+    // El orden de la lista es el orden en la tienda: el primero lleva la prioridad más alta.
+    const rankOf = new Map(body.addons.map((d, i) => [d.id, body.addons.length - i]));
     const ordered = [...body.addons].sort((a, b) => (a.kind === 'DOWNSELL' ? 1 : 0) - (b.kind === 'DOWNSELL' ? 1 : 0));
     for (const d of ordered) {
       if (d.chargeType === 'product' && !d.variantId) return { ok: false, message: `Elige el producto del extra «${d.title || 'sin título'}».` };
@@ -167,7 +169,7 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result | 
       const a = toAddon({ ...d, replacesId: idMap.get(d.replacesId) ?? d.replacesId });
       const data = {
         name: a.title.replace(/\*\*/g, '').slice(0, 120), type: a.kind, active: d.active,
-        priority: a.kind === 'ORDER_BUMP' ? 10 : 5,
+        priority: rankOf.get(d.id) ?? 0,
         payload: { ...a, id: undefined, productTitle: d.productTitle } as object,
       };
       if (d.id.startsWith('new-')) {
@@ -252,6 +254,14 @@ export default function Offers() {
       // Solo una tarjeta puede venir marcada por defecto.
       return p.preselected ? { ...o, preselected: false } : o;
     }));
+    setDirty(true);
+  };
+  const moveAddon = (i: number, dir: -1 | 1) => {
+    setAddons((l) => {
+      const j = i + dir;
+      if (j < 0 || j >= l.length) return l;
+      const n = [...l]; [n[i], n[j]] = [n[j], n[i]]; return n;
+    });
     setDirty(true);
   };
   const updAddon = (id: string, p: Partial<AddonDraft>) => { setAddons((l) => l.map((a) => (a.id === id ? { ...a, ...p } : a))); setDirty(true); };
@@ -408,8 +418,14 @@ export default function Offers() {
                   <Text as="p" variant="bodySm" tone="subdued">
                     Casillas que suman algo al pedido: otro producto a precio especial o un cargo como el envío express.
                   </Text>
-                  {addons.map((a) => (
+                  {addons.length > 1 && (
+                    <Text as="p" variant="bodySm" tone="subdued">Usa las flechas para elegir cuál sale primero.</Text>
+                  )}
+                  {addons.map((a, i) => (
                     <Item key={a.id} open={open === a.id} onToggle={() => setOpen(open === a.id ? null : a.id)}
+                      onUp={i > 0 ? () => moveAddon(i, -1) : undefined}
+                      onDown={i < addons.length - 1 ? () => moveAddon(i, 1) : undefined}
+                      showMove={addons.length > 1}
                       title={a.title.replace(/\*\*/g, '').replace(/\{precio\}/gi, a.price ? `RD$ ${a.price}` : '') || 'Extra'}
                       subtitle={a.chargeType === 'charge' ? 'Cargo extra' : a.productTitle || 'Producto sin elegir'}
                       badges={[!a.active && 'Pausado', a.kind === 'UPSELL' ? 'Upsell' : a.kind === 'DOWNSELL' ? 'Downsell' : ''].filter(Boolean) as string[]}>
@@ -534,11 +550,19 @@ export default function Offers() {
 
 /* ─────────────── Piezas ─────────────── */
 
-function Item({ open, onToggle, title, subtitle, badges, children }: {
+function Item({ open, onToggle, title, subtitle, badges, children, onUp, onDown, showMove }: {
   open: boolean; onToggle: () => void; title: string; subtitle: string; badges: string[]; children: React.ReactNode;
+  onUp?: () => void; onDown?: () => void; showMove?: boolean;
 }) {
   return (
     <div style={{ border: '1px solid var(--p-color-border-secondary)', borderRadius: 10, background: 'var(--p-color-bg-surface)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+      {showMove && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 8 }}>
+          <Button size="micro" variant="tertiary" icon={ArrowUpIcon} disabled={!onUp} onClick={onUp} accessibilityLabel="Subir" />
+          <Button size="micro" variant="tertiary" icon={ArrowDownIcon} disabled={!onDown} onClick={onDown} accessibilityLabel="Bajar" />
+        </div>
+      )}
       <button type="button" onClick={onToggle} aria-expanded={open}
         style={{ all: 'unset', boxSizing: 'border-box', width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', cursor: 'pointer' }}>
         <span style={{ flex: 1, minWidth: 0 }}>
@@ -550,6 +574,7 @@ function Item({ open, onToggle, title, subtitle, badges, children }: {
         </span>
         <Icon source={open ? ChevronDownIcon : ChevronRightIcon} tone="subdued" />
       </button>
+      </div>
       <Collapsible open={open} id={`item-${title}`}>
         <div style={{ padding: '0 12px 14px' }}><BlockStack gap="300">{children}</BlockStack></div>
       </Collapsible>
