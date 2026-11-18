@@ -191,7 +191,7 @@ export class QuoteService {
   /** Cada línea del carrito con el precio real de su variante en Shopify (× cantidad). */
   private async cartPrices(ctx: ShopContext, lines: CartLine[]): Promise<{ productId: string; unitCents: number; qty: number }[]> {
     type Node = { id: string; price?: string; product?: { id: string } } | null;
-    const data = await this.admin.graphql<{ nodes: Node[] }>(
+    const data = await this.admin.cachedGraphql<{ nodes: Node[] }>(
       ctx, `query($ids: [ID!]!){ nodes(ids:$ids){ ... on ProductVariant { id price product { id } } } }`,
       { ids: lines.map((l) => l.variantId) },
     );
@@ -205,7 +205,7 @@ export class QuoteService {
 
   /** Precio real de la variante y su producto. */
   private async variant(ctx: ShopContext, variantId: string): Promise<{ priceCents: number; productId: string }> {
-    const data = await this.admin.graphql<{
+    const data = await this.admin.cachedGraphql<{
       productVariant: { price: string; availableForSale: boolean; product: { id: string } | null } | null;
     }>(ctx, `query($id: ID!){ productVariant(id:$id){ price availableForSale product { id } } }`, { id: variantId });
 

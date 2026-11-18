@@ -81,7 +81,7 @@ export class AddonsService {
 
   private async variantPrice(ctx: ShopContext, variantId: string): Promise<number | null> {
     try {
-      const data = await this.admin.graphql<{
+      const data = await this.admin.cachedGraphql<{
         productVariant: { price: string } | null;
       }>(ctx, `query($id:ID!){ productVariant(id:$id){ price } }`, { id: variantId });
       if (!data.productVariant) return null;

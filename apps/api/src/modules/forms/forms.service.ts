@@ -22,7 +22,7 @@ export class FormsService {
     }
     // Primero traemos el producto con sus colecciones y tags, para poder
     // resolver asignaciones por colección/etiqueta/proveedor, no solo por producto.
-    const variant = await this.admin.graphql<{
+    const variant = await this.admin.cachedGraphql<{
       productVariant: {
         price: string; title: string; image: { url: string } | null;
         product: {
@@ -31,7 +31,7 @@ export class FormsService {
           collections: { nodes: { id: string }[] };
         };
       } | null;
-    }>(ctx, VARIANT_QUERY, { id: variantGid });
+    }>(ctx, VARIANT_QUERY, { id: variantGid }); // (cacheado 30 s)
 
     if (!variant.productVariant) throw new NotFoundException('Variante no encontrada');
     const v = variant.productVariant;

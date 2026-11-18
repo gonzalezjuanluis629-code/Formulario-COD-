@@ -53,6 +53,7 @@ export async function mount(opts: MountOptions): Promise<void> {
   }
 
   style.textContent = `:host{${tokensToCss(config.tokens)}}\n${CSS}\n${config.tokens.customCss}`;
+  preloadParts(config);
 
   const isCart = host.dataset.cart === 'true';
 
@@ -116,6 +117,22 @@ export async function mount(opts: MountOptions): Promise<void> {
   try { api.track(config.formId, 'view', config.formVersionId); } catch { /* nunca bloquea */ }
   // Formulario en la página: «Inicio de pago» cuando el cliente empieza a llenarlo.
   root.addEventListener('focusin', () => fireCheckoutPixel(config), { once: true });
+}
+
+/**
+ * Descarga en segundo plano (cuando el navegador está libre) las partes que el
+ * formulario usará: así al abrirlo los extras y el mapa salen al instante.
+ */
+let preloaded = false;
+function preloadParts(config: WidgetConfig): void {
+  if (preloaded) return;
+  preloaded = true;
+  const go = () => {
+    if (config.addons.length) void import('./ui/addons').catch(() => undefined);
+    if (config.fields.some((f) => f.type === 'location')) void import('./ui/map').catch(() => undefined);
+  };
+  const ric = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+  if (ric) ric(go, { timeout: 2500 }); else window.setTimeout(go, 1200);
 }
 
 /**
@@ -330,14 +347,22 @@ function openModal(shadow: ShadowRoot | null, config: WidgetConfig, renderInto: 
   overlay.className = `cod-modal-overlay cod-mode-${config.tokens.display ?? 'sheet'}`;
   // La capa sigue la parte visible de la pantalla (cambia al abrir el teclado).
   const vv = window.visualViewport;
+  // Una sola escritura por cuadro y solo si cambió (el scroll dispara muchísimos eventos).
+  let fitTop = -1, fitH = -1, fitRaf = 0;
   const fit = () => {
-    if (!vv) return;
-    overlay.style.setProperty('--cod-vv-top', `${vv.offsetTop}px`);
-    overlay.style.setProperty('--cod-vv-h', `${vv.height}px`);
+    if (!vv || fitRaf) return;
+    fitRaf = requestAnimationFrame(() => {
+      fitRaf = 0;
+      const t = Math.round(vv.offsetTop), h = Math.round(vv.height);
+      if (t !== fitTop) { fitTop = t; overlay.style.setProperty('--cod-vv-top', `${t}px`); }
+      if (h !== fitH) { fitH = h; overlay.style.setProperty('--cod-vv-h', `${h}px`); }
+    });
   };
-  fit();
-  vv?.addEventListener('resize', fit);
-  vv?.addEventListener('scroll', fit);
+  if (vv) { fitTop = Math.round(vv.offsetTop); fitH = Math.round(vv.height); overlay.style.setProperty('--cod-vv-top', `${fitTop}px`); overlay.style.setProperty('--cod-vv-h', `${fitH}px`); }
+  vv?.addEventListener('resize', fit, { passive: true });
+  vv?.addEventListener('scroll', fit, { passive: true });
+  const pausedHosts = [...document.querySelectorAll<HTMLElement>('[data-cod-form]')];
+  pausedHosts.forEach((h) => h.setAttribute('data-cod-paused', ''));
 
   const modal = document.createElement('div');
   modal.className = 'cod-modal';
@@ -362,6 +387,8 @@ function openModal(shadow: ShadowRoot | null, config: WidgetConfig, renderInto: 
     document.removeEventListener('keydown', esc);
     vv?.removeEventListener('resize', fit);
     vv?.removeEventListener('scroll', fit);
+    if (fitRaf) cancelAnimationFrame(fitRaf);
+    pausedHosts.forEach((h) => h.removeAttribute('data-cod-paused'));
     setTimeout(() => portal.remove(), 250);
   };
   const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
@@ -445,21 +472,28 @@ export class FormState {
   }
 
   /** Recotiza (con pausa de 300 ms) solo si cambió algo que afecta al precio. */
+  private quoteSeq = 0;
   requestQuote(): void {
     const key = JSON.stringify(this.quoteInput());
     if (key === this.quoteKey) return;
     this.quoteKey = key;
     window.clearTimeout(this.quoteTimer);
     this.quoteTimer = window.setTimeout(() => {
+      // Solo vale la respuesta de la ÚLTIMA cotización: en el móvil pueden llegar
+      // desordenadas y el botón mostraría un total viejo (p. ej. con un extra ya quitado).
+      const seq = ++this.quoteSeq;
       this.quoter(this.quoteInput())
-        .then((q) => { this.quote = q; this.quoteListeners.forEach((fn) => fn(q)); })
-        .catch(() => { this.quoteKey = ''; /* el precio es informativo: nunca bloquea */ });
-    }, 300);
+        .then((q) => { if (seq !== this.quoteSeq) return; this.quote = q; this.quoteListeners.forEach((fn) => fn(q)); })
+        .catch(() => { if (seq === this.quoteSeq) this.quoteKey = ''; /* el precio es informativo: nunca bloquea */ });
+    }, 120);
   }
 
   /** Valida un código en el servidor. Devuelve la cotización con o sin el descuento aplicado. */
   async applyDiscount(code: string | null): Promise<QuoteResponse> {
+    const seq = ++this.quoteSeq;
+    window.clearTimeout(this.quoteTimer);
     const q = await this.quoter(this.quoteInput(code));
+    if (seq !== this.quoteSeq) return q;
     this.discountCode = q.appliedDiscount ? q.appliedDiscount.code : null;
     this.quote = q;
     this.quoteKey = JSON.stringify(this.quoteInput());
@@ -490,6 +524,15 @@ async function submit(root: HTMLElement, config: WidgetConfig, state: FormState)
   btn.classList.add('cod-loading');
   errBox.textContent = '';
 
+  // Los extras que se envían son EXACTAMENTE los que el cliente ve marcados.
+  const addonEls = root.querySelectorAll<HTMLElement>('[data-addon-id]');
+  if (addonEls.length) {
+    const on = new Set([...addonEls]
+      .filter((el) => el.classList.contains('cod-upsell-on') || !!el.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked)
+      .map((el) => el.dataset.addonId!));
+    state.acceptedAddons = config.addons.filter((a) => on.has(a.id)).map((a) => ({ id: a.id, variantId: a.variantId, qty: a.qty }));
+  }
+
   const payload: SubmitRequest = {
     formId: config.formId,
     formVersionId: config.formVersionId,
@@ -510,7 +553,7 @@ async function submit(root: HTMLElement, config: WidgetConfig, state: FormState)
     const res = await api.submit(payload);
     if (state.cart) clearCart();
     try { api.track(config.formId, 'submit_attempt', state.idempotencyKey); } catch { /* no bloquea */ }
-    showConfirmation(root, res);
+    showConfirmation(root, res, state.idempotencyKey);
   } catch (e) {
     btn.disabled = false;
     btn.classList.remove('cod-loading');
@@ -522,17 +565,19 @@ async function submit(root: HTMLElement, config: WidgetConfig, state: FormState)
 
 /**
  * Pantalla final. SIN resumen: ni producto, ni cantidad, ni total, ni descuentos.
- * El texto (título y mensaje) es editable desde el panel.
+ * El texto (título y mensaje) se edita desde Figui («Después del pedido»).
  *
- * Destino tras los N segundos, según config del merchant:
- *   - 'whatsapp' → abre chat de WhatsApp con el mensaje predeterminado ya escrito.
- *   - 'thankyou' → página de gracias del tema.
+ * Destino, según lo que eligió la tienda:
+ *   - 'whatsapp' → abre WhatsApp con el mensaje ya escrito y la página queda en
+ *                  «Estado del pedido»: si el cliente vuelve al navegador, está ahí.
+ *   - 'thankyou' → la página «Estado del pedido» de Shopify (o la de gracias si
+ *                  el pedido aún no está listo).
  *   - 'none'     → se queda en la confirmación.
+ * Sin botones: todo pasa solo.
  */
-function showConfirmation(root: HTMLElement, res: import('@cod/contracts').SubmitResponse): void {
+function showConfirmation(root: HTMLElement, res: import('@cod/contracts').SubmitResponse, key: string): void {
   const goWhatsapp = res.redirectTarget === 'whatsapp' && !!res.whatsappUrl;
   const willRedirect = goWhatsapp || res.redirectTarget === 'thankyou';
-  const dest = goWhatsapp ? res.whatsappUrl! : res.redirectUrl;
 
   // Píxel de compra (client-side). Mismo eventId que el CAPI → Meta deduplica.
   // El server-side es el que cuenta; este cubre a quien no tenga ad-blocker.
@@ -545,26 +590,67 @@ function showConfirmation(root: HTMLElement, res: import('@cod/contracts').Submi
              stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <h3>${escapeHtml(res.title)}</h3>
-      <p>${escapeHtml(res.message)}</p>
+      ${res.message ? `<p>${escapeHtml(res.message)}</p>` : ''}
       ${willRedirect
-        ? `<div class="cod-done-bar"><span style="animation-duration:${res.redirectDelayMs}ms"></span></div>
-           <small>${goWhatsapp ? 'Abriendo WhatsApp…' : 'Redirigiendo…'}</small>`
-        : ''}
-      ${goWhatsapp
-        // Fallback: si el navegador bloquea la redirección automática, hay un botón.
-        ? `<a class="cod-wa-btn" href="${res.whatsappUrl}" target="_blank" rel="noopener">
-             Continuar por WhatsApp</a>`
+        ? `<div class="cod-done-bar"><span style="animation-duration:${res.redirectDelayMs}ms"></span></div>`
         : ''}
     </div>`;
 
   root.querySelector('.cod-done')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (!willRedirect) return;
 
-  if (willRedirect) {
-    window.setTimeout(() => {
-      // WhatsApp en móvil abre la app nativa; assign() lo maneja igual que una URL normal.
-      window.location.assign(dest);
-    }, res.redirectDelayMs);
-  }
+  // El pedido se crea en Shopify en 1-2 segundos: mientras corre la barra se
+  // pide el enlace de «Estado del pedido».
+  const statusUrl = waitForStatusUrl(res.submissionId, key, Math.max(res.redirectDelayMs, 2500) + 6000);
+  const delay = new Promise((r) => window.setTimeout(r, res.redirectDelayMs));
+
+  void Promise.all([statusUrl.peek(Math.max(res.redirectDelayMs, 2500)), delay]).then(([url]) => {
+    if (!goWhatsapp) {
+      window.location.assign(url || res.redirectUrl);
+      return;
+    }
+    // WhatsApp + «Estado del pedido»: al volver al navegador, el cliente queda ahí.
+    const toStatus = (u: string | null) => {
+      if (!u) return;
+      try {
+        const t = new URL(u, location.href);
+        // Mismo dominio: la entrada actual del historial pasa a ser «Estado del pedido».
+        if (t.origin === location.origin) history.replaceState(history.state, '', t.pathname + t.search + t.hash);
+      } catch { /* sin cambios */ }
+      // Volvió de WhatsApp a esta pestaña (o con «atrás»): se muestra el estado del pedido.
+      let wasHidden = document.visibilityState === 'hidden';
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') wasHidden = true;
+        else if (wasHidden) window.location.replace(u);
+      });
+      window.addEventListener('pageshow', (e) => { if (e.persisted) window.location.replace(u); });
+    };
+    if (url) toStatus(url);
+    else void statusUrl.done.then(toStatus);
+    window.location.assign(res.whatsappUrl!);
+  });
+}
+
+/** Pregunta por el enlace de «Estado del pedido» hasta que exista (o se acabe el tiempo). */
+function waitForStatusUrl(submissionId: string, key: string, maxMs: number): {
+  done: Promise<string | null>;
+  peek: (ms: number) => Promise<string | null>;
+} {
+  const until = Date.now() + maxMs;
+  const done = (async () => {
+    while (Date.now() < until) {
+      try {
+        const r = await api.orderStatus(submissionId, key);
+        if (r.ready && r.url) return r.url;
+      } catch { /* se reintenta */ }
+      await new Promise((r) => window.setTimeout(r, 700));
+    }
+    return null;
+  })();
+  return {
+    done,
+    peek: (ms) => Promise.race([done, new Promise<null>((r) => window.setTimeout(() => r(null), ms))]),
+  };
 }
 
 /** Cookies de Meta (_fbp/_fbc) y la página: así Meta une la compra con el anuncio. */

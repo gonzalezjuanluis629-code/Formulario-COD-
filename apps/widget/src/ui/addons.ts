@@ -65,6 +65,7 @@ function priceTag(a: Addon, cls: string): string {
 function renderBump(a: Addon, state: FormState, onChange: () => void): HTMLElement {
   const el = document.createElement('label');
   el.className = 'cod-bump';
+  el.dataset.addonId = a.id;
   el.setAttribute('style', cardStyle(a));
   el.innerHTML = `
     <input type="checkbox">
@@ -88,6 +89,7 @@ function renderBump(a: Addon, state: FormState, onChange: () => void): HTMLEleme
 function renderUpsell(a: Addon, downsell: Addon | null, state: FormState, onChange: () => void): HTMLElement {
   const el = document.createElement('div');
   el.className = 'cod-upsell';
+  el.dataset.addonId = a.id;
   el.setAttribute('style', cardStyle(a));
   el.innerHTML = `
     ${a.image ? `<img class="cod-upsell-img" src="${esc(a.image)}" alt="" loading="lazy">` : ''}
