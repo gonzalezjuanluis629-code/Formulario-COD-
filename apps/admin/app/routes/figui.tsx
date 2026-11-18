@@ -163,9 +163,9 @@ const CSS = `
   .cod-tab:active::before{background:#E4E6EB}
   .cod-tab-ic{width:20px;height:20px;fill:currentColor;flex:none;transition:transform .2s ease}
   .cod-tab:hover .cod-tab-ic{transform:translateY(-1px)}
-  .cod-tab.on{color:#111827}
+  .cod-tab.on{color:#1A73E8}
   .cod-tab.on::before{opacity:0}
-  .cod-tab-ink{position:absolute;left:0;bottom:0;height:3px;border-radius:3px 3px 0 0;background:linear-gradient(90deg,#7C3AED,#0D9488);box-shadow:none;
+  .cod-tab-ink{position:absolute;left:0;bottom:0;height:3px;border-radius:3px 3px 0 0;background:#1A73E8;box-shadow:0 -2px 8px rgba(26,115,232,.35);
     transition:transform .3s cubic-bezier(.2,.8,.2,1),width .3s cubic-bezier(.2,.8,.2,1)}
   .cod-tabs{isolation:isolate}
   html.cod-dark{color-scheme:dark;background:#10141a;
@@ -174,14 +174,14 @@ const CSS = `
     --p-color-input-bg-surface:#10141a;--p-color-input-bg-surface-hover:#151a21;--p-color-input-bg-surface-active:#151a21;
     --p-color-input-border:#3a3f48;--p-color-input-border-hover:#4a505a;--p-color-bg-surface-disabled:#1a1e25;
     --p-color-text-brand:#c9ced6;--p-color-text-disabled:#6f7682;--p-color-bg-surface-tertiary:#262a32;--p-color-bg-surface-secondary-hover:#262a32;
-    --p-color-bg-surface-info:#13292a;--p-color-bg-fill-info:#1d3d3b;--p-color-icon-info:#5EEAD4;--p-color-text-info:#99E6DA;--p-color-text-info-hover:#B5EFE6;--p-color-text-critical:#ff8a80;--p-color-border-critical-secondary:#ff8a80}
+    --p-color-bg-surface-info:#1c2b40;--p-color-text-info:#9cc5ff;--p-color-text-info-hover:#b5d4ff;--p-color-text-critical:#ff8a80;--p-color-border-critical-secondary:#ff8a80}
   html.cod-dark body{background:#10141a;color:#e4e8ef}
   html.cod-dark .cod-tabs-wrap{background:#1a1e25;border-color:#2f333a;box-shadow:0 1px 0 rgba(0,0,0,.4)}
   html.cod-dark .cod-tab{color:#9fa5ae}
   html.cod-dark .cod-tab::before{background:#262a32}
   html.cod-dark .cod-tab:active::before{background:#2f333a}
-  html.cod-dark .cod-tab.on{color:#F3F4F6}
-  html.cod-dark .cod-tab-ink{background:linear-gradient(90deg,#A78BFA,#2DD4BF)}
+  html.cod-dark .cod-tab.on{color:#5AA0F2}
+  html.cod-dark .cod-tab-ink{background:#5AA0F2}
   @media (min-width:1300px){.cod-tabs{justify-content:center}}
   .cod-tabs-space{height:57px}
   html.cod-figui{--cod-sticky-top:70px}

@@ -29,15 +29,15 @@ const CSS = `
   box-shadow:0 1px 2px rgba(16,24,40,.06),0 3px 8px -3px rgba(16,24,40,.10);transition:box-shadow .15s ease,transform .12s ease}
 .cod-dpick button:hover{box-shadow:0 2px 4px rgba(16,24,40,.06),0 8px 16px -6px rgba(16,24,40,.18)}
 .cod-dpick button:active{transform:translateY(1px)}
-.cod-dpick button.on{border-color:var(--cod-sel,#1F242E);box-shadow:0 0 0 3px var(--cod-sel-ring,rgba(17,24,39,.14)),0 8px 18px -8px rgba(17,24,39,.4)}
-html.cod-dark .cod-dpick{--cod-sel:#E4E8EF;--cod-sel-ring:rgba(228,232,239,.18);--cod-mini:#E4E8EF}
+.cod-dpick button.on{border-color:#0B0D10;box-shadow:0 0 0 3px rgba(0,0,0,.1),0 8px 18px -8px rgba(0,0,0,.35)}
+html.cod-dark .cod-dpick button.on{border-color:#FFFFFF;box-shadow:0 0 0 3px rgba(255,255,255,.14),0 8px 18px -8px rgba(0,0,0,.6)}
 .cod-dpick b{font-size:14px;font-weight:800}
 .cod-dpick small{font-size:12px;line-height:1.3;color:var(--p-color-text-secondary,#667085)}
 .cod-dpick-phone{position:relative;width:46px;height:78px;border-radius:9px;border:2px solid currentColor;opacity:.85;margin-bottom:4px;overflow:hidden;
   background:repeating-linear-gradient(180deg,transparent 0 8px,rgba(127,127,127,.18) 8px 10px)}
-.cod-dpick-phone i{position:absolute;background:var(--cod-mini,#0D9488);opacity:.9}
+.cod-dpick-phone i{position:absolute;background:#1A73E8;opacity:.9}
 .m-sheet i{left:0;right:0;bottom:0;height:58%;border-radius:7px 7px 0 0}
 .m-popup i{left:6px;right:6px;top:22%;height:56%;border-radius:6px;box-shadow:0 0 0 30px rgba(0,0,0,.25)}
 .m-page i{inset:0}
-.cod-dpick button.on .cod-dpick-phone{color:var(--cod-sel,#1F242E);opacity:1}
+.cod-dpick button.on .cod-dpick-phone{color:#1A73E8;opacity:1}
 `;
