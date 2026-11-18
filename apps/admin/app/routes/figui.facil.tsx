@@ -12,7 +12,7 @@ import { newField } from '../lib/defaults';
 import { db } from '../db.server';
 import { Preview } from '../features/builder/Preview';
 import { FieldSettings } from '../features/builder/FieldSettings';
-import { DesignPanel, type DesignSection } from '../features/builder/DesignPanel';
+import { DesignPanel } from '../features/builder/DesignPanel';
 import { ADDABLE_TYPES, CONTENT_TYPES, FIELD_META, GROUPS } from '../features/builder/fieldMeta';
 import { IconPicker } from '../components/IconPicker';
 import { DisplayPicker, type DisplayMode } from '../components/DisplayPicker';
@@ -301,11 +301,10 @@ export default function EditorFacil() {
   const setSubmitIcon = (n: string) => upTok((t) => ({ ...t, submit: { ...t.submit, ...(n ? { iconType: 'svg' as const, iconName: n } : { iconType: 'none' as const }) } }));
   const display = tok.display;
   const setDisplay = (v: DisplayMode) => upTok((t) => ({ ...t, display: v }));
-  const [designOpen, setDesignOpen] = useState<DesignSection | null>(null);
-  const openDesign = (sec: DesignSection) => {
-    setDesignOpen(sec);
-    window.setTimeout(() => document.getElementById('ef-design')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
-  };
+  // «Ajustes» de diseño abiertos: el del formulario y el de cada botón.
+  const [lookOpen, setLookOpen] = useState<'form' | 'trigger' | 'submit' | null>(null);
+  const toggleLook = (k: 'form' | 'trigger' | 'submit') => setLookOpen((v) => (v === k ? null : k));
+  const noop = () => undefined;
   const [where, setWhere] = useState<Where>(data.where);
   const upWhere = (p: Partial<Where>) => { setWhere((w) => ({ ...w, ...p })); setDirty(true); };
   const [openKey, setOpenKey] = useState<string | null>(null);
@@ -380,7 +379,15 @@ export default function EditorFacil() {
           {/* 1 ─ El formulario: datos, títulos y textos */}
           <section className="ef-card">
             <h2><span className="ef-n">1</span> Lo que ve y llena el cliente</h2>
-            <p className="ef-hint">Datos, títulos, textos e imágenes del formulario. Usa las flechas para cambiar el orden y <b>Ajustes</b> para todo lo demás (tamaño, ancho, icono, color, reglas…).</p>
+            <p className="ef-hint">Datos, títulos, textos e imágenes del formulario. Usa las flechas para cambiar el orden y <b>Ajustes</b> en cada uno para todo lo demás (ancho, icono, color, reglas…).</p>
+            <button type="button" className={`ef-pill ef-more ef-lookbtn${lookOpen === 'form' ? ' on' : ''}`} aria-expanded={lookOpen === 'form'} onClick={() => toggleLook('form')}>
+              <Ic s={ColorIcon} size={16} />{lookOpen === 'form' ? 'Cerrar ajustes del formulario' : 'Ajustes del formulario: colores, letra, esquinas, espacios'}
+            </button>
+            {lookOpen === 'form' && (
+              <div className="ef-detail ef-lookpanel">
+                <DesignPanel tokens={tok} onChange={(t) => upTok(() => t)} open={null} onOpen={noop} only={['colors', 'shape', 'extras']} />
+              </div>
+            )}
             <ul className="ef-fields">
               {fields.map((f, i) => {
                 const isContent = CONTENT_TYPES.includes(f.type);
@@ -434,7 +441,7 @@ export default function EditorFacil() {
                             onBack={() => setOpenKey(null)}
                             onRemove={() => { setOpenKey(null); remove(i); }}
                             onMove={(d) => move(i, d)}
-                            onGoDesign={() => openDesign('colors')} />
+                            tokens={tok} onTokens={(t) => upTok(() => t)} />
                         </div>
                       )}
                     </div>
@@ -503,21 +510,28 @@ export default function EditorFacil() {
             <span className="ef-label">¿Cómo aparece el formulario al tocar el botón?</span>
             <DisplayPicker value={display} onChange={(v) => { setDisplay(v); touch(); }} />
             <div className="ef-morebtns">
-              <button type="button" className="ef-btn-ghost" onClick={() => openDesign('trigger')}><Ic s={AdjustIcon} />Más del botón para abrir: tamaño, letra, esquinas, animación…</button>
-              <button type="button" className="ef-btn-ghost" onClick={() => openDesign('submit')}><Ic s={AdjustIcon} />Más del botón para confirmar: tamaño, letra, animación…</button>
+              <button type="button" className={`ef-pill ef-more${lookOpen === 'trigger' ? ' on' : ''}`} aria-expanded={lookOpen === 'trigger'} onClick={() => toggleLook('trigger')}>
+                <Ic s={AdjustIcon} size={16} />Ajustes del botón para abrir: colores, tamaño, letra, esquinas, sombra, animación
+              </button>
+              {lookOpen === 'trigger' && (
+                <div className="ef-detail ef-lookpanel">
+                  <DesignPanel tokens={tok} onChange={(t) => upTok(() => t)} open={null} onOpen={noop} only={['trigger']} />
+                </div>
+              )}
+              <button type="button" className={`ef-pill ef-more${lookOpen === 'submit' ? ' on' : ''}`} aria-expanded={lookOpen === 'submit'} onClick={() => toggleLook('submit')}>
+                <Ic s={AdjustIcon} size={16} />Ajustes del botón para confirmar: colores, tamaño, letra, esquinas, sombra, animación
+              </button>
+              {lookOpen === 'submit' && (
+                <div className="ef-detail ef-lookpanel">
+                  <DesignPanel tokens={tok} onChange={(t) => upTok(() => t)} open={null} onOpen={noop} only={['submit']} />
+                </div>
+              )}
             </div>
           </section>
 
-          {/* 3 ─ Diseño completo */}
-          <section className="ef-card" id="ef-design">
-            <h2><span className="ef-n">3</span> Diseño del formulario</h2>
-            <p className="ef-hint">Colores, tipo de letra, tamaños, esquinas, sombras y todo el detalle de los dos botones. Toca una parte para abrirla.</p>
-            <DesignPanel tokens={tok} onChange={(t) => upTok(() => t)} open={designOpen} onOpen={setDesignOpen} />
-          </section>
-
-          {/* 4 ─ Dónde se muestra */}
+          {/* 3 ─ Dónde se muestra */}
           <section className="ef-card">
-            <h2><span className="ef-n">4</span> Dónde y cómo se muestra</h2>
+            <h2><span className="ef-n">3</span> Dónde y cómo se muestra</h2>
             <label className={`ef-pill big${where.active ? ' on' : ''}`}>
               <input type="checkbox" checked={where.active} onChange={(e) => upWhere({ active: e.target.checked })} />
               <Ic s={where.active ? CheckIcon : HideIcon} size={16} />{where.active ? 'El formulario está activo en tu tienda' : 'El formulario está pausado (no se ve en la tienda)'}
@@ -548,7 +562,7 @@ export default function EditorFacil() {
 
           {/* 3 ─ Precios */}
           <section className="ef-card">
-            <h2><span className="ef-n">5</span> Precios por cantidad</h2>
+            <h2><span className="ef-n">4</span> Precios por cantidad</h2>
             <p className="ef-hint">Pon cuánto cobras en total si el cliente lleva 2, 3… unidades. Si tu página de producto ya tiene su caja de ofertas, se usan esos precios y aquí no tienes que poner nada.</p>
             {products.map((p, pi) => (
               <div key={p.id} className="ef-prod">
@@ -605,7 +619,7 @@ export default function EditorFacil() {
 
           {/* 4 ─ Envío */}
           <section className="ef-card">
-            <h2><span className="ef-n">6</span> Envío</h2>
+            <h2><span className="ef-n">5</span> Envío</h2>
             <div className="ef-seg" role="radiogroup" aria-label="Envío">
               <button type="button" role="radio" aria-checked={ship.mode === 'free'} className={ship.mode === 'free' ? 'on' : ''} onClick={() => upShip({ mode: 'free' })}><Ic s={DeliveryIcon} />Envío gratis siempre</button>
               <button type="button" role="radio" aria-checked={ship.mode === 'paid'} className={ship.mode === 'paid' ? 'on' : ''} onClick={() => upShip({ mode: 'paid' })}><Ic s={CashDollarIcon} />Cobrar envío</button>
@@ -625,7 +639,7 @@ export default function EditorFacil() {
 
           {/* 5 ─ Cupones */}
           <section className="ef-card">
-            <h2><span className="ef-n">7</span> Cupones de descuento</h2>
+            <h2><span className="ef-n">6</span> Cupones de descuento</h2>
             <p className="ef-hint">Códigos que el cliente escribe en el formulario. Los cupones que ya tienes en Shopify también funcionan.</p>
             {coupons.map((cp, i) => (
               <div key={cp.id ?? `n${i}`} className="ef-coupon">
@@ -651,7 +665,7 @@ export default function EditorFacil() {
 
           {/* 6 ─ Después del pedido */}
           <section className="ef-card">
-            <h2><span className="ef-n">8</span> Después del pedido</h2>
+            <h2><span className="ef-n">7</span> Después del pedido</h2>
             <label className="ef-label">Título del mensaje de gracias
               <input className="ef-input" value={after.title} onChange={(e) => upAfter({ title: e.target.value })} placeholder="¡Pedido confirmado!" />
             </label>
@@ -750,6 +764,9 @@ const CSS = `
 html.cod-dark .ef-detail{--detail:#10141a}
 .ef-morebtns{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 .ef-morebtns .ef-btn-ghost{justify-content:flex-start;font-size:14px}
+.ef-morebtns .ef-more,.ef-lookbtn{justify-content:flex-start;text-align:left;width:100%;padding:11px 14px;border-radius:12px}
+.ef-lookbtn{margin:0 0 12px}
+.ef-lookpanel{margin:0 0 10px}
 .ef-add{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .ef-add button{display:flex;align-items:center;gap:8px;padding:13px 12px;border:1px solid var(--line);border-radius:13px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font:inherit;font-size:15px;font-weight:600;cursor:pointer;text-align:left;color:var(--ink)}
 .ef-add button:hover{box-shadow:var(--soft-shadow-hover);border-color:#BFD5F2}

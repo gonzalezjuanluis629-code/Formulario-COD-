@@ -3,7 +3,8 @@ import {
   BlockStack, Box, Button, ButtonGroup, Checkbox, Collapsible, Divider, Icon, InlineStack, Select, Text, TextField,
 } from '@shopify/polaris';
 import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, DeleteIcon, PlusIcon } from '@shopify/polaris-icons';
-import type { Field } from '@cod/contracts';
+import type { Field, ThemeTokens } from '@cod/contracts';
+import { Color } from './DesignPanel';
 import { CONTENT_TYPES, FIELD_META, OPTION_TYPES } from './fieldMeta';
 import { IconPicker } from '../../components/IconPicker';
 
@@ -69,8 +70,11 @@ const VIRTUAL_FIELDS = [{ label: 'Modo de dirección (gps / manual)', value: 'lo
 
 /** Editor de UN campo. Lo esencial arriba; lo técnico en «Más opciones». */
 export function FieldSettings({
-  field, allFields, onChange, onBack, onRemove, onMove, onGoDesign,
+  field, allFields, onChange, onBack, onRemove, onMove, onGoDesign, tokens, onTokens,
 }: {
+  /** Diseño del formulario: para cambiar aquí mismo el color del botón «Aplicar». */
+  tokens?: ThemeTokens;
+  onTokens?: (t: ThemeTokens) => void;
   field: Field;
   allFields: Field[];
   onChange: (f: Field) => void;
@@ -132,9 +136,15 @@ export function FieldSettings({
               onChange={(v) => set('content', v)} autoComplete="off" placeholder="Aplicar"
               helpText="Valida el código en tus descuentos de Shopify y en los creados en «Ofertas y descuentos»." />
           )}
-          {field.type === 'discount' && onGoDesign && (
+          {field.type === 'discount' && tokens && onTokens ? (
+            <BlockStack gap="200">
+              <Text as="h3" variant="headingSm">Botón «Aplicar»</Text>
+              <Color label="Color del botón" value={tokens.applyBg} onChange={(v) => onTokens({ ...tokens, applyBg: v })} />
+              <Color label="Color de la letra" value={tokens.applyColor} onChange={(v) => onTokens({ ...tokens, applyColor: v })} />
+            </BlockStack>
+          ) : field.type === 'discount' && onGoDesign ? (
             <Button onClick={onGoDesign}>Cambiar color del botón</Button>
-          )}
+          ) : null}
 
           {field.type === 'checkbox' && (
             <TextField label="Texto junto a la casilla" value={field.content}
