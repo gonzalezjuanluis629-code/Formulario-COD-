@@ -11,6 +11,8 @@ import { money } from '@cod/pricing';
  * - DOWNSELL: oculto de inicio. Solo aparece si el cliente RECHAZA su upsell
  *   asociado (replacesId), ofreciéndole una alternativa más barata.
  *
+ * Se muestran en el orden que el comerciante eligió en el panel (prioridad).
+ *
  * Al aceptar/rechazar, se re-cotiza (el servidor pone el precio real) para que
  * el total y el botón reflejen el cambio en vivo.
  */
@@ -23,16 +25,17 @@ export function renderAddons(
   const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty);
   if (!addons.length) return;
 
-  const bumps = addons.filter((a) => a.kind === 'ORDER_BUMP');
-  const upsells = addons.filter((a) => a.kind === 'UPSELL');
   const downsells = addons.filter((a) => a.kind === 'DOWNSELL');
 
   const wrap = document.createElement('div');
   wrap.className = 'cod-addons';
 
-  for (const b of bumps) wrap.appendChild(renderBump(b, state, onChange));
-  for (const u of upsells) {
-    wrap.appendChild(renderUpsell(u, downsells.find((d) => d.replacesId === u.id) ?? null, state, onChange));
+  // Mismo orden que eligió el comerciante en la lista de extras.
+  for (const a of addons) {
+    if (a.kind === 'ORDER_BUMP') wrap.appendChild(renderBump(a, state, onChange));
+    else if (a.kind === 'UPSELL') {
+      wrap.appendChild(renderUpsell(a, downsells.find((d) => d.replacesId === a.id) ?? null, state, onChange));
+    }
   }
 
   host.appendChild(wrap);

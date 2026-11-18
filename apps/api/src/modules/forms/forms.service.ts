@@ -75,7 +75,7 @@ export class FormsService {
 
     const addonRows = await this.prisma.offer.findMany({
       where: { shopId: ctx.shopId, active: true, type: { in: ['UPSELL', 'ORDER_BUMP', 'DOWNSELL'] } },
-      orderBy: { priority: 'desc' },
+      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
     });
 
     if (!variant.productVariant) throw new NotFoundException('Variante no encontrada');
