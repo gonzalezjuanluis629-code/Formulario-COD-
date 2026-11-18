@@ -594,6 +594,16 @@ function renderOffers(host, config, state, onChange) {
   host.appendChild(wrap);
 }
 const esc$1 = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+function lookOf(f) {
+  var _a2;
+  const l = (_a2 = f.look) != null ? _a2 : { icon: "", color: "", align: "left", size: "md" };
+  const color = /^#[0-9a-f]{3,8}$/i.test(l.color) ? l.color : "";
+  return {
+    icon: l.icon ? `<span class="cod-tico">${buttonIconSvg(l.icon, "cod-tico-svg")}</span>` : "",
+    style: [color ? `color:${color}` : "", l.align && l.align !== "left" ? `text-align:${l.align};justify-content:${l.align === "center" ? "center" : "flex-end"}` : ""].filter(Boolean).join(";"),
+    cls: l.size && l.size !== "md" ? ` cod-t-${l.size}` : ""
+  };
+}
 function renderForm(root, config, state, handlers) {
   root.innerHTML = `
     <form class="cod-form" novalidate>
@@ -615,7 +625,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-Bp4DoJvs.js").then(({ renderAddons }) => {
+    void import("./addons-Bjg9VRU5.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -724,12 +734,13 @@ function renderField(f, config, state, onChange) {
   const wrap = document.createElement("div");
   wrap.className = `cod-field cod-w${f.width}`;
   wrap.dataset.key = f.key;
+  const lk = lookOf(f);
   if (f.type === "heading") {
-    wrap.innerHTML = `<h3 class="cod-heading">${esc(f.content)}</h3>`;
+    wrap.innerHTML = `<h3 class="cod-heading${lk.cls}" style="${lk.style}">${lk.icon}<span>${esc(f.content)}</span></h3>`;
     return wrap;
   }
   if (f.type === "subheading") {
-    wrap.innerHTML = `<p class="cod-subheading">${esc(f.content)}</p>`;
+    wrap.innerHTML = `<p class="cod-subheading${lk.cls}" style="${lk.style}">${lk.icon}<span>${esc(f.content)}</span></p>`;
     return wrap;
   }
   if (f.type === "divider") {
@@ -745,7 +756,7 @@ function renderField(f, config, state, onChange) {
     return wrap;
   }
   if (f.type === "richtext") {
-    wrap.innerHTML = `<p class="cod-richtext">${esc(f.content).replace(/\n/g, "<br>")}</p>`;
+    wrap.innerHTML = `<p class="cod-richtext${lk.cls}" style="${lk.style}">${lk.icon}<span>${esc(f.content).replace(/\n/g, "<br>")}</span></p>`;
     return wrap;
   }
   if (f.type === "video") {
@@ -763,7 +774,7 @@ function renderField(f, config, state, onChange) {
   }
   const id = `cod-${f.key}`;
   const req = f.required ? '<span class="cod-req">*</span>' : '<span class="cod-opt">Opcional</span>';
-  const label = f.label ? `<label for="${id}">${esc(f.label)} ${req}</label>` : "";
+  const label = f.label ? `<label for="${id}" class="cod-flabel" style="${lk.style}">${lk.icon}<span>${esc(f.label)}</span> ${req}</label>` : "";
   const help = f.help ? `<span class="cod-help">${esc(f.help)}</span>` : "";
   let control;
   switch (f.type) {
@@ -951,6 +962,13 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
   border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}
 
 .cod-heading{margin:2px 0 0;font-size:1.25em;font-weight:700;line-height:1.25;color:var(--cod-text)}
+.cod-heading,.cod-subheading,.cod-richtext{display:flex;align-items:center;gap:.45em}
+.cod-flabel{display:flex;align-items:center;gap:.35em}
+.cod-flabel .cod-opt{margin-left:auto;float:none}
+.cod-tico{display:inline-flex;flex:none}.cod-tico-svg{width:1.15em;height:1.15em;display:block}
+.cod-heading.cod-t-sm{font-size:1.05em}.cod-heading.cod-t-lg{font-size:1.6em}
+.cod-subheading.cod-t-sm{font-size:.88em}.cod-subheading.cod-t-lg{font-size:1.18em}
+.cod-richtext.cod-t-sm{font-size:12px}.cod-richtext.cod-t-lg{font-size:15px}
 .cod-subheading{margin:0;font-size:1em;font-weight:600;color:var(--cod-muted)}
 .cod-divider{border:0;border-top:1px solid var(--cod-border);margin:4px 0}
 .cod-img{display:block;max-width:100%;height:auto;border-radius:var(--cod-radius)}
@@ -1233,7 +1251,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-DI2MySoQ.js");
+    const { renderTrigger } = await import("./trigger-CorPpcL4.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1252,6 +1270,7 @@ ${config.tokens.customCss}`;
         void openCartForm();
         return;
       }
+      fireCheckoutPixel(config);
       openModal(shadow, config, renderInto);
     });
     try {
@@ -1269,6 +1288,7 @@ ${config.tokens.customCss}`;
     api.track(config.formId, "view", config.formVersionId);
   } catch {
   }
+  root.addEventListener("focusin", () => fireCheckoutPixel(config), { once: true });
 }
 function renderCartInto(mountRoot, config) {
   mountRoot.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
@@ -1428,6 +1448,7 @@ async function openCartForm() {
         api.track(config.formId, "view", config.formVersionId);
       } catch {
       }
+      fireCheckoutPixel(config);
       return;
     }
   } catch {
@@ -1607,8 +1628,9 @@ async function submit(root, config, state) {
     ...state.cart ? { cart: state.cart, cartToken: state.cartToken, cartTotalCents: state.cartTotalCents } : {},
     location: state.location,
     startedAt: state.startedAt,
-    hp: ""
+    hp: "",
     // honeypot: si un bot lo rellena, el backend rechaza
+    attribution: metaAttribution()
   };
   try {
     const res = await api.submit(payload);
@@ -1651,36 +1673,69 @@ function showConfirmation(root, res) {
     }, res.redirectDelayMs);
   }
 }
+function metaAttribution() {
+  try {
+    const ck = (n) => {
+      var _a2;
+      return (_a2 = document.cookie.split("; ").find((c) => c.startsWith(n + "="))) == null ? void 0 : _a2.slice(n.length + 1);
+    };
+    let fbc = ck("_fbc");
+    const fbclid = new URLSearchParams(location.search).get("fbclid");
+    if (!fbc && fbclid) fbc = `fb.1.${Date.now()}.${fbclid}`;
+    return { fbp: ck("_fbp") || void 0, fbc: fbc || void 0, url: location.href.slice(0, 1e3) };
+  } catch {
+    return {};
+  }
+}
+function ensureFbq(pixelId) {
+  var _a2, _b;
+  const w = window;
+  if (!w.fbq) {
+    (function(f, b, e, v) {
+      if (f.fbq) return;
+      const n = f.fbq = function() {
+        n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+      };
+      if (!f._fbq) f._fbq = n;
+      n.push = n;
+      n.loaded = true;
+      n.version = "2.0";
+      n.queue = [];
+      const t = b.createElement(e);
+      t.async = true;
+      t.src = v;
+      const s = b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t, s);
+    })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+  }
+  (_a2 = w.__codFbqInit) != null ? _a2 : w.__codFbqInit = {};
+  if (!w.__codFbqInit[pixelId]) {
+    w.__codFbqInit[pixelId] = true;
+    w.fbq("init", pixelId);
+  }
+  return (_b = w.fbq) != null ? _b : null;
+}
+let checkoutFired = false;
+function fireCheckoutPixel(config) {
+  var _a2, _b, _c;
+  try {
+    const id = config.settings.tracking.metaPixelId;
+    if (!id || checkoutFired) return;
+    checkoutFired = true;
+    (_c = ensureFbq(id)) == null ? void 0 : _c("track", "InitiateCheckout", { currency: config.settings.currency, value: ((_b = (_a2 = config.product) == null ? void 0 : _a2.unitPriceCents) != null ? _b : 0) / 100 });
+  } catch {
+  }
+}
 function firePurchasePixel(p) {
-  var _a2;
+  var _a2, _b;
   const value = p.valueCents / 100;
   try {
     if (p.metaPixelId) {
-      const w = window;
-      if (!w.fbq) {
-        (function(f, b, e, v) {
-          if (f.fbq) return;
-          const n = f.fbq = function() {
-            n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
-          };
-          if (!f._fbq) f._fbq = n;
-          n.push = n;
-          n.loaded = true;
-          n.version = "2.0";
-          n.queue = [];
-          const t = b.createElement(e);
-          t.async = true;
-          t.src = v;
-          const s = b.getElementsByTagName(e)[0];
-          s.parentNode.insertBefore(t, s);
-        })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
-        w.fbq("init", p.metaPixelId);
-      }
-      w.fbq("track", p.eventName, { currency: p.currency, value }, { eventID: p.eventId });
+      (_a2 = ensureFbq(p.metaPixelId)) == null ? void 0 : _a2("track", p.eventName, { currency: p.currency, value }, { eventID: p.eventId });
     }
     if (p.tiktokPixelId) {
       const w = window;
-      (_a2 = w.ttq) == null ? void 0 : _a2.track("CompletePayment", { currency: p.currency, value, event_id: p.eventId });
+      (_b = w.ttq) == null ? void 0 : _b.track("CompletePayment", { currency: p.currency, value, event_id: p.eventId });
     }
   } catch {
   }

@@ -56,6 +56,16 @@ export const FieldSchema = z.object({
   conditions: z.array(ConditionSchema).default([]),
   /** Contenido para bloques no-input (heading, html, image…). */
   content: z.string().default(''),
+  /**
+   * Aspecto del texto: títulos, subtítulos y párrafos (icono, color, alineación,
+   * tamaño) y, en los campos, el icono y el color de su título.
+   */
+  look: z.object({
+    icon: z.string().default(''),
+    color: z.string().default(''),
+    align: z.enum(['left', 'center', 'right']).default('left'),
+    size: z.enum(['sm', 'md', 'lg']).default('md'),
+  }).optional(),
 });
 export type Field = z.infer<typeof FieldSchema>;
 
@@ -437,6 +447,12 @@ export const SubmitRequestSchema = z.object({
   /** Anti-bot: debe venir vacío. */
   hp: z.string().max(0).optional(),
   startedAt: z.number().int().optional(),
+  /** Datos del navegador para que Meta reconozca la compra (cookies _fbp/_fbc y la página). */
+  attribution: z.object({
+    fbp: z.string().max(200).optional(),
+    fbc: z.string().max(400).optional(),
+    url: z.string().max(1000).optional(),
+  }).optional(),
 });
 export type SubmitRequest = z.infer<typeof SubmitRequestSchema>;
 

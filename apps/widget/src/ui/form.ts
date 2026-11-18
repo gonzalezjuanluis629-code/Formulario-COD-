@@ -1,5 +1,16 @@
 import type { WidgetConfig, Field } from '@cod/contracts';
 import { buttonIconSvg } from '@cod/contracts/dist/icons';
+
+/** Icono y color/alineación/tamaño del texto (títulos, párrafos y títulos de campos). */
+function lookOf(f: Field): { icon: string; style: string; cls: string } {
+  const l = f.look ?? { icon: '', color: '', align: 'left', size: 'md' };
+  const color = /^#[0-9a-f]{3,8}$/i.test(l.color) ? l.color : '';
+  return {
+    icon: l.icon ? `<span class="cod-tico">${buttonIconSvg(l.icon, 'cod-tico-svg')}</span>` : '',
+    style: [color ? `color:${color}` : '', l.align && l.align !== 'left' ? `text-align:${l.align};justify-content:${l.align === 'center' ? 'center' : 'flex-end'}` : ''].filter(Boolean).join(';'),
+    cls: l.size && l.size !== 'md' ? ` cod-t-${l.size}` : '',
+  };
+}
 import type { FormState } from '../index';
 import { validateField } from '../core/validate';
 import { mountLocation } from './location';
@@ -165,12 +176,13 @@ function renderField(
   wrap.dataset.key = f.key;
 
   /* Bloques de contenido: no son inputs. */
-  if (f.type === 'heading') { wrap.innerHTML = `<h3 class="cod-heading">${esc(f.content)}</h3>`; return wrap; }
-  if (f.type === 'subheading') { wrap.innerHTML = `<p class="cod-subheading">${esc(f.content)}</p>`; return wrap; }
+  const lk = lookOf(f);
+  if (f.type === 'heading') { wrap.innerHTML = `<h3 class="cod-heading${lk.cls}" style="${lk.style}">${lk.icon}<span>${esc(f.content)}</span></h3>`; return wrap; }
+  if (f.type === 'subheading') { wrap.innerHTML = `<p class="cod-subheading${lk.cls}" style="${lk.style}">${lk.icon}<span>${esc(f.content)}</span></p>`; return wrap; }
   if (f.type === 'divider') { wrap.innerHTML = '<hr class="cod-divider">'; return wrap; }
   if (f.type === 'html') { wrap.innerHTML = `<div class="cod-html">${f.content}</div>`; return wrap; }
   if (f.type === 'image') { wrap.innerHTML = f.content ? `<img class="cod-img" src="${esc(f.content)}" alt="" loading="lazy">` : ''; return wrap; }
-  if (f.type === 'richtext') { wrap.innerHTML = `<p class="cod-richtext">${esc(f.content).replace(/\n/g, '<br>')}</p>`; return wrap; }
+  if (f.type === 'richtext') { wrap.innerHTML = `<p class="cod-richtext${lk.cls}" style="${lk.style}">${lk.icon}<span>${esc(f.content).replace(/\n/g, '<br>')}</span></p>`; return wrap; }
   if (f.type === 'video') { wrap.innerHTML = videoEmbed(f.content); return wrap; }
   // Tipos sin soporte en el envío (subir archivo, mapa antiguo): no se muestran.
   if (f.type === 'file' || f.type === 'map') { wrap.className += ' cod-hidden'; return wrap; }
@@ -185,7 +197,7 @@ function renderField(
 
   const id = `cod-${f.key}`;
   const req = f.required ? '<span class="cod-req">*</span>' : '<span class="cod-opt">Opcional</span>';
-  const label = f.label ? `<label for="${id}">${esc(f.label)} ${req}</label>` : '';
+  const label = f.label ? `<label for="${id}" class="cod-flabel" style="${lk.style}">${lk.icon}<span>${esc(f.label)}</span> ${req}</label>` : '';
   const help = f.help ? `<span class="cod-help">${esc(f.help)}</span>` : '';
 
   let control: string;

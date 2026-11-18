@@ -82,5 +82,6 @@ export function newField(type: Field['type'], order: number): Field {
       richtext: 'Escribe aquí tu texto.', discount: 'Aplicar',
     } as Partial<Record<Field['type'], string>>)[type] ?? '',
     validation: { minLength: null, maxLength: null, regex: null, message: null },
+    look: { icon: '', color: '', align: 'left', size: 'md' },
   };
 }

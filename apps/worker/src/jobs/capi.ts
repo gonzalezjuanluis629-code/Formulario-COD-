@@ -75,6 +75,15 @@ async function dispatch(prisma: PrismaClient, log: Logger, submissionId: string)
     if (pii.phoneE164) userData.ph = [sha256(pii.phoneE164.replace(/\D/g, ''))];
     if (pii.firstName) userData.fn = [sha256(pii.firstName)];
     if (pii.lastName) userData.ln = [sha256(pii.lastName)];
+    if (pii.phoneE164) userData.external_id = [sha256(pii.phoneE164.replace(/\D/g, ''))];
+    const city = pii.address?.city?.toLowerCase().replace(/[^a-z]/g, '');
+    if (city && city !== 'sinespecificar') userData.ct = [sha256(city)];
+    if (pii.address?.country) userData.country = [sha256(pii.address.country.toLowerCase())];
+    // Datos del navegador: Meta los pide para eventos de una web y suben mucho la coincidencia.
+    if (pii.meta?.ip) userData.client_ip_address = pii.meta.ip;
+    if (pii.meta?.ua) userData.client_user_agent = pii.meta.ua;
+    if (pii.meta?.fbp) userData.fbp = pii.meta.fbp;
+    if (pii.meta?.fbc) userData.fbc = pii.meta.fbc;
 
     const body: Record<string, unknown> = {
       data: [{
@@ -82,6 +91,7 @@ async function dispatch(prisma: PrismaClient, log: Logger, submissionId: string)
         event_time: Math.floor(Date.now() / 1000),
         event_id: sub.id, // dedup con el píxel del navegador
         action_source: 'website',
+        ...(pii.meta?.url ? { event_source_url: pii.meta.url } : {}),
         user_data: userData,
         custom_data: { currency: sub.shop.currency, value },
       }],
@@ -160,6 +170,8 @@ interface Pii {
   lastName: string;
   phoneE164: string;
   email: string | null;
+  address?: { city?: string | null; provinceCode?: string | null; country?: string | null };
+  meta?: { ip: string | null; ua: string | null; url: string | null; fbp: string | null; fbc: string | null };
 }
 interface TrackingConfig {
   metaPixelId?: string;
