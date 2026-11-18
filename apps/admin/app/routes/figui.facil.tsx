@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Banner, Frame, Toast } from '@shopify/polaris';
+import { Banner, Frame } from '@shopify/polaris';
+import { SavedToast } from '../components/SavedToast';
 import { Link, redirect, useFetcher, useLoaderData } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import {
@@ -704,7 +705,7 @@ export default function EditorFacil() {
             hint={pvProduct ? `Precios de «${pvProduct.title}».` : 'Así lo ve tu cliente.'} />
         </div>
       </div>
-      {toast && <Toast content={toast} onDismiss={() => setToast(null)} />}
+      {toast && <SavedToast content={toast} onDismiss={() => setToast(null)} />}
     </Frame>
   );
 }

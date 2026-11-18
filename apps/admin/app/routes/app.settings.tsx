@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import {
-  BlockStack, Card, Checkbox, Frame, Layout, Page, Select, Text, TextField, Toast, Banner,
+  BlockStack, Card, Checkbox, Frame, Layout, Page, Select, Text, TextField, Banner,
 } from '@shopify/polaris';
+import { SavedToast } from '../components/SavedToast';
 import { useFetcher, useLoaderData } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { ShopSettingsSchema, LocationConfigSchema, type ShopSettings, type LocationConfig } from '@cod/contracts';
@@ -281,7 +282,7 @@ export default function Settings() {
           </Layout.Section>
         </Layout>
 
-        {fetcher.data?.message && <Toast content={fetcher.data.message} onDismiss={() => {}} />}
+        {fetcher.data?.message && <SavedToast content={fetcher.data.message} onDismiss={() => {}} />}
       </Page>
     </Frame>
   );
