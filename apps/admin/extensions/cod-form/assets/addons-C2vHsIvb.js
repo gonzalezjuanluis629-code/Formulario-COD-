@@ -1,16 +1,16 @@
-import { m as money } from "./index-BNLEhMNR.js";
+import { m as money } from "./index-BnxJWyT2.js";
 function renderAddons(host, config, state, onChange) {
   var _a;
   const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty);
   if (!addons.length) return;
-  const bumps = addons.filter((a) => a.kind === "ORDER_BUMP");
-  const upsells = addons.filter((a) => a.kind === "UPSELL");
   const downsells = addons.filter((a) => a.kind === "DOWNSELL");
   const wrap = document.createElement("div");
   wrap.className = "cod-addons";
-  for (const b of bumps) wrap.appendChild(renderBump(b, state, onChange));
-  for (const u of upsells) {
-    wrap.appendChild(renderUpsell(u, (_a = downsells.find((d) => d.replacesId === u.id)) != null ? _a : null, state, onChange));
+  for (const a of addons) {
+    if (a.kind === "ORDER_BUMP") wrap.appendChild(renderBump(a, state, onChange));
+    else if (a.kind === "UPSELL") {
+      wrap.appendChild(renderUpsell(a, (_a = downsells.find((d) => d.replacesId === a.id)) != null ? _a : null, state, onChange));
+    }
   }
   host.appendChild(wrap);
 }
