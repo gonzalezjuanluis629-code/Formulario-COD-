@@ -10,7 +10,7 @@ import { ResourcePickerHost } from '../components/ResourcePickerHost';
 import { COD_THEME_BOOT, setCodDark, useCodDark } from '../lib/codTheme';
 import { FIGUI_SKIN } from '../lib/figuiSkin';
 import {
-  EditIcon, DiscountIcon, DeliveryIcon, PaintBrushFlatIcon, OrderIcon, ChartVerticalIcon, ShieldCheckMarkIcon, SettingsIcon, AdjustIcon,
+  EditIcon, DiscountIcon, DeliveryIcon, OrderIcon, ChartVerticalIcon, ShieldCheckMarkIcon, SettingsIcon,
 } from '@shopify/polaris-icons';
 
 /**
@@ -72,16 +72,13 @@ type Ico = typeof EditIcon;
 
 /** Todas las secciones a la vista, como las pestañas de una página de Facebook. */
 const NAV: { to: string; label: string; icon: Ico; match: (p: string, q: string) => boolean }[] = [
-  { to: '/figui/facil', label: 'Editar fácil', icon: EditIcon, match: (p) => p.startsWith('/figui/facil') },
+  { to: '/figui/facil', label: 'Editar fácil', icon: EditIcon, match: (p) => p.startsWith('/figui/facil') || p.startsWith('/figui/design') || p.startsWith('/figui/forms') || p === '/figui' || p === '/figui/' },
   { to: '/figui/offers', label: 'Ofertas y descuentos', icon: DiscountIcon, match: (p) => p.startsWith('/figui/offers') },
   { to: '/figui/shipping', label: 'Envíos', icon: DeliveryIcon, match: (p) => p.startsWith('/figui/shipping') },
-  { to: '/figui/design', label: 'Diseño', icon: PaintBrushFlatIcon, match: (p, q) => p.startsWith('/figui/design') || (p.startsWith('/figui/forms') && q.includes('tab=design')) },
   { to: '/figui/orders', label: 'Pedidos', icon: OrderIcon, match: (p) => p.startsWith('/figui/orders') },
   { to: '/figui/analytics', label: 'Analítica', icon: ChartVerticalIcon, match: (p) => p.startsWith('/figui/analytics') },
   { to: '/figui/antifraud', label: 'Bloqueos', icon: ShieldCheckMarkIcon, match: (p) => p.startsWith('/figui/antifraud') },
   { to: '/figui/settings', label: 'Ajustes', icon: SettingsIcon, match: (p) => p.startsWith('/figui/settings') },
-  { to: '/figui?lista=1', label: 'Opciones avanzadas', icon: AdjustIcon,
-    match: (p, q) => (p.startsWith('/figui/forms') && !q.includes('tab=design')) || (/^\/figui\/?$/.test(p) && q.includes('lista=1')) },
 ];
 
 /** Barra de pestañas: icono + nombre, raya azul que se desliza a la pestaña elegida. */

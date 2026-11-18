@@ -56,6 +56,16 @@ export const FieldSchema = z.object({
   conditions: z.array(ConditionSchema).default([]),
   /** Contenido para bloques no-input (heading, html, image…). */
   content: z.string().default(''),
+  /**
+   * Aspecto del texto: títulos, subtítulos y párrafos (icono, color, alineación,
+   * tamaño) y, en los campos, el icono y el color de su título.
+   */
+  look: z.object({
+    icon: z.string().default(''),
+    color: z.string().default(''),
+    align: z.enum(['left', 'center', 'right']).default('left'),
+    size: z.enum(['sm', 'md', 'lg']).default('md'),
+  }).optional(),
 });
 export type Field = z.infer<typeof FieldSchema>;
 

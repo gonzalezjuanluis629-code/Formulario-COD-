@@ -74,6 +74,13 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
   border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}
 
 .cod-heading{margin:2px 0 0;font-size:1.25em;font-weight:700;line-height:1.25;color:var(--cod-text)}
+.cod-heading,.cod-subheading,.cod-richtext{display:flex;align-items:center;gap:.45em}
+.cod-flabel{display:flex;align-items:center;gap:.35em}
+.cod-flabel .cod-opt{margin-left:auto;float:none}
+.cod-tico{display:inline-flex;flex:none}.cod-tico-svg{width:1.15em;height:1.15em;display:block}
+.cod-heading.cod-t-sm{font-size:1.05em}.cod-heading.cod-t-lg{font-size:1.6em}
+.cod-subheading.cod-t-sm{font-size:.88em}.cod-subheading.cod-t-lg{font-size:1.18em}
+.cod-richtext.cod-t-sm{font-size:12px}.cod-richtext.cod-t-lg{font-size:15px}
 .cod-subheading{margin:0;font-size:1em;font-weight:600;color:var(--cod-muted)}
 .cod-divider{border:0;border-top:1px solid var(--cod-border);margin:4px 0}
 .cod-img{display:block;max-width:100%;height:auto;border-radius:var(--cod-radius)}

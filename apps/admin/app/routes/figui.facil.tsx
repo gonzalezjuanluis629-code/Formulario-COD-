@@ -11,12 +11,15 @@ import { productInfo } from '../lib/products.server';
 import { newField } from '../lib/defaults';
 import { db } from '../db.server';
 import { Preview } from '../features/builder/Preview';
+import { FieldSettings } from '../features/builder/FieldSettings';
+import { DesignPanel, type DesignSection } from '../features/builder/DesignPanel';
+import { ADDABLE_TYPES, CONTENT_TYPES, FIELD_META, GROUPS } from '../features/builder/fieldMeta';
 import { IconPicker } from '../components/IconPicker';
 import { DisplayPicker, type DisplayMode } from '../components/DisplayPicker';
 import {
   PersonIcon, PhoneIcon, EmailIcon, HomeIcon, LocationIcon, NoteIcon, CheckboxIcon, ListBulletedIcon,
   ChevronUpIcon, ChevronDownIcon, DeleteIcon, XIcon, PlusIcon, CheckIcon, ViewIcon, HideIcon, ProductIcon,
-  DeliveryIcon, CashDollarIcon, DiscountCodeIcon, CheckCircleIcon, PageIcon, ChatIcon, SaveIcon, ColorIcon,
+  DeliveryIcon, CashDollarIcon, DiscountCodeIcon, CheckCircleIcon, PageIcon, ChatIcon, SaveIcon, ColorIcon, AdjustIcon, ButtonIcon,
 } from '@shopify/polaris-icons';
 
 type Ico = typeof PersonIcon;
@@ -28,13 +31,14 @@ const Ic = ({ s: S, size = 20 }: { s: Ico; size?: number }) => <S className="ef-
  *   1. Los datos que se piden al cliente (nombre, obligatorio, mostrar, orden).
  *   2. Los botones (textos y color).
  *   3. Precios por cantidad de cada producto («si lleva 2 → RD$ 2,950»).
- * Lo demás sigue en «Opciones avanzadas».
+ * Aquí está TODO: datos, títulos, diseño completo, dónde se muestra, precios…
  */
 
 type PriceRow = { qty: string; price: string };
 type Coupon = { id: string | null; code: string; kind: 'PERCENTAGE' | 'FIXED'; value: string };
 type AfterOrder = { title: string; message: string; target: 'none' | 'thankyou' | 'whatsapp'; phone: string; waText: string };
 type ShipDraft = { mode: 'free' | 'paid'; cost: string; freeOver: string };
+type Where = { displayMode: 'EMBEDDED' | 'POPUP'; active: boolean; type: 'ALL' | 'PRODUCT' | 'COLLECTION' | 'TAG' | 'VENDOR'; value: string; label: string };
 type ProductPrices = { id: string; title: string; priceCents: number | null; rows: PriceRow[] };
 
 const cents = (v: string) => Math.round((Number(String(v).replace(/[^0-9.]/g, '')) || 0) * 100);
@@ -57,8 +61,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const form = await db.form.findFirst({
     where: { shopId: shop.id, status: { not: 'ARCHIVED' } },
     orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
+    include: { assignments: true },
   });
   if (!form) throw redirect('/figui?lista=1');
+  const as = form.assignments[0];
   const version = form.currentVersionId ? await db.formVersion.findUnique({ where: { id: form.currentVersionId } }) : null;
   const theme = await themeFor(shop.id, form.themeId);
 
@@ -90,6 +96,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
     ship: { mode: st.defaultShippingCents > 0 ? 'paid' : 'free', cost: st.defaultShippingCents ? String(st.defaultShippingCents / 100) : '', freeOver: st.freeShippingOverCents ? String(st.freeShippingOverCents / 100) : '' } as ShipDraft,
     after: { title: c.title, message: c.message, target: c.redirectTarget, phone: c.whatsapp.phone, waText: c.whatsapp.messageTemplate } as AfterOrder,
     formId: form.id,
+    where: {
+      displayMode: form.displayMode as 'EMBEDDED' | 'POPUP',
+      active: form.status !== 'PAUSED',
+      type: (as?.type ?? 'ALL') as Where['type'], value: as?.value ?? '', label: as?.label ?? '',
+    } as Where,
     fields: ((version?.schema as Field[] | undefined) ?? []).slice().sort((a, b) => a.order - b.order),
     tokens: ThemeTokensSchema.parse(theme.tokens ?? {}),
     products,
@@ -105,7 +116,8 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result> {
   const fd = await request.formData();
   const body = JSON.parse(String(fd.get('data') || '{}')) as {
     fields: Field[];
-    buttons: { trigger: string; triggerSub: string; submit: string; color: string; showPrice: boolean; offerColor?: string; offerGlow?: boolean; triggerIcon?: string; submitIcon?: string; display?: DisplayMode };
+    tokens: unknown;
+    where?: Where;
     products: ProductPrices[];
     ship?: ShipDraft;
     coupons?: Coupon[];
@@ -120,32 +132,35 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result> {
   if (parsed.data.some((f) => !['heading', 'subheading', 'divider', 'richtext', 'html', 'image', 'video'].includes(f.type) && !(f.label || f.content).trim())) {
     return { ok: false, message: 'Hay un dato sin nombre. Escríbele un nombre (por ejemplo «Teléfono»).' };
   }
+  const keys = new Set<string>();
+  for (const f of parsed.data) {
+    if (keys.has(f.key)) return { ok: false, message: `Hay dos datos con el mismo nombre interno «${f.key}». Cámbialo en «Ajustes» de uno de ellos.` };
+    keys.add(f.key);
+  }
+  const tokens = ThemeTokensSchema.safeParse(body.tokens);
+  if (!tokens.success) return { ok: false, message: 'Algún valor del diseño no es válido. Revísalo.' };
+  const where = body.where;
+  if (where && where.type !== 'ALL' && !where.value.trim()) {
+    return { ok: false, message: 'Elige el producto, la colección, la etiqueta o el proveedor donde se muestra el formulario.' };
+  }
   const last = await db.formVersion.findFirst({ where: { formId: form.id }, orderBy: { version: 'desc' } });
   const version = await db.formVersion.create({
     data: { formId: form.id, version: (last?.version ?? 0) + 1, schema: parsed.data as object, publishedAt: new Date() },
   });
-  await db.form.update({ where: { id: form.id }, data: { currentVersionId: version.id, status: 'ACTIVE' } });
+  await db.form.update({ where: { id: form.id }, data: { currentVersionId: version.id, ...(body.where ? {} : { status: 'ACTIVE' as const }) } });
 
-  // 2) Botones.
+  // 2) Diseño (botones, colores, letras…).
   const theme = await themeFor(shop.id, form.themeId);
-  const t = ThemeTokensSchema.parse(theme.tokens ?? {});
-  const color = /^#[0-9a-f]{6}$/i.test(body.buttons.color) ? body.buttons.color : t.submit.bg;
-  const descriptions = [body.buttons.triggerSub.trim(), ...t.trigger.descriptions.slice(1)].filter(Boolean).slice(0, 5);
-  const tokens = ThemeTokensSchema.parse({
-    ...t,
-    trigger: { ...t.trigger, text: body.buttons.trigger.trim() || 'Comprar ahora', descriptions, bg: color, bgType: 'solid',
-      ...(body.buttons.triggerIcon === undefined ? {} : body.buttons.triggerIcon ? { iconType: 'svg' as const, iconName: body.buttons.triggerIcon } : { iconType: 'none' as const }) },
-    submit: { ...t.submit, text: body.buttons.submit.trim() || 'Finalizar pedido', bg: color, bgType: 'solid', priceDisplay: body.buttons.showPrice ? 'total' : 'none',
-      ...(body.buttons.submitIcon === undefined ? {} : body.buttons.submitIcon ? { iconType: 'svg' as const, iconName: body.buttons.submitIcon } : { iconType: 'none' as const }) },
-    display: body.buttons.display ?? t.display,
-    offerCard: {
-      ...t.offerCard,
-      accent: /^#[0-9a-f]{6}$/i.test(body.buttons.offerColor ?? '') ? body.buttons.offerColor! : t.offerCard.accent,
-      glow: body.buttons.offerGlow ?? t.offerCard.glow,
-    },
-  });
-  await db.theme.update({ where: { id: theme.id }, data: { tokens: tokens as object } });
+  await db.theme.update({ where: { id: theme.id }, data: { tokens: tokens.data as object } });
   if (form.themeId !== theme.id) await db.form.update({ where: { id: form.id }, data: { themeId: theme.id } });
+
+  // Dónde y cómo se muestra (y si está activo).
+  if (where) {
+    const priority = { PRODUCT: 5, COLLECTION: 4, TAG: 3, VENDOR: 2, ALL: 1 }[where.type];
+    await db.formAssignment.deleteMany({ where: { formId: form.id } });
+    await db.formAssignment.create({ data: { formId: form.id, type: where.type, value: where.type === 'ALL' ? null : where.value.trim(), label: where.label || null, priority } });
+    await db.form.update({ where: { id: form.id }, data: { displayMode: where.displayMode === 'EMBEDDED' ? 'EMBEDDED' : 'POPUP', status: where.active ? 'ACTIVE' : 'PAUSED' } });
+  }
 
   // 3) Precios por cantidad: se rehacen las ofertas «fácil» (un producto + precio total).
   for (const p of body.products) {
@@ -246,11 +261,6 @@ const ADD: { label: string; icon: Ico; make: (order: number) => Field }[] = [
   { label: 'Pregunta con opciones', icon: ListBulletedIcon, make: (o) => ({ ...newField('radio', o), label: '¿Qué prefieres?', options: [{ label: 'Opción 1', value: 'opcion-1' }, { label: 'Opción 2', value: 'opcion-2' }] }) },
 ];
 
-const KIND: Partial<Record<Field['type'], string>> = {
-  text: 'Texto', textarea: 'Texto largo', email: 'Correo', phone: 'Teléfono', number: 'Número', date: 'Fecha',
-  select: 'Lista', radio: 'Opciones', multiselect: 'Varias opciones', checkbox: 'Casilla', location: 'Ubicación (GPS o escrita)',
-  discount: 'Código de descuento', heading: 'Título', subheading: 'Subtítulo', richtext: 'Texto', divider: 'Separador',
-};
 
 const OFFER_COLORS = ['#4f6b94', '#111111', '#16a34a', '#2563eb', '#dc2626', '#ea580c', '#7c3aed', '#db2777'];
 const COLORS = ['#111111', '#16a34a', '#2563eb', '#dc2626', '#ea580c', '#7c3aed', '#db2777', '#0f766e'];
@@ -259,17 +269,38 @@ export default function EditorFacil() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<Result>();
   const [fields, setFields] = useState<Field[]>(data.fields);
-  const [trigger, setTrigger] = useState(data.tokens.trigger.text);
-  const [triggerSub, setTriggerSub] = useState(data.tokens.trigger.descriptions[0] ?? '');
-  const [submitText, setSubmitText] = useState(data.tokens.submit.text);
-  const [color, setColor] = useState(data.tokens.submit.bg);
-  const [showPrice, setShowPrice] = useState(data.tokens.submit.priceDisplay !== 'none');
-  const [offerColor, setOfferColor] = useState(data.tokens.offerCard.accent);
-  // Los iconos con emoji o imagen de antes se respetan hasta que elijas uno nuevo.
-  const [triggerIcon, setTriggerIcon] = useState<string | undefined>(data.tokens.trigger.iconType === 'svg' ? data.tokens.trigger.iconName : data.tokens.trigger.iconType === 'none' ? '' : undefined);
-  const [submitIcon, setSubmitIcon] = useState<string | undefined>(data.tokens.submit.iconType === 'svg' ? data.tokens.submit.iconName : data.tokens.submit.iconType === 'none' ? '' : undefined);
-  const [display, setDisplay] = useState<DisplayMode>(data.tokens.display);
-  const [offerGlow, setOfferGlow] = useState(data.tokens.offerCard.glow !== false);
+  // Todo el diseño en un solo objeto: lo usan los controles fáciles y el panel de diseño completo.
+  const [tok, setTokRaw] = useState<ThemeTokens>(data.tokens);
+  const upTok = (fn: (t: ThemeTokens) => ThemeTokens) => { setTokRaw(fn); setDirty(true); };
+  const trigger = tok.trigger.text;
+  const setTrigger = (v: string) => upTok((t) => ({ ...t, trigger: { ...t.trigger, text: v } }));
+  const triggerSub = tok.trigger.descriptions[0] ?? '';
+  const setTriggerSub = (v: string) => upTok((t) => ({ ...t, trigger: { ...t.trigger, descriptions: [v, ...t.trigger.descriptions.slice(1)].filter((d, i) => i > 0 || d.trim()) } }));
+  const submitText = tok.submit.text;
+  const setSubmitText = (v: string) => upTok((t) => ({ ...t, submit: { ...t.submit, text: v } }));
+  const color = tok.submit.bg;
+  const setColor = (c: string) => upTok((t) => ({ ...t, trigger: { ...t.trigger, bg: c, bgType: 'solid' }, submit: { ...t.submit, bg: c, bgType: 'solid' } }));
+  const showPrice = tok.submit.priceDisplay !== 'none';
+  const setShowPrice = (v: boolean) => upTok((t) => ({ ...t, submit: { ...t.submit, priceDisplay: v ? 'total' : 'none' } }));
+  const offerColor = tok.offerCard.accent;
+  const setOfferColor = (c: string) => upTok((t) => ({ ...t, offerCard: { ...t.offerCard, accent: c } }));
+  const offerGlow = tok.offerCard.glow !== false;
+  const setOfferGlow = (v: boolean) => upTok((t) => ({ ...t, offerCard: { ...t.offerCard, glow: v } }));
+  const triggerIcon = tok.trigger.iconType === 'svg' ? tok.trigger.iconName : tok.trigger.iconType === 'none' ? '' : undefined;
+  const setTriggerIcon = (n: string) => upTok((t) => ({ ...t, trigger: { ...t.trigger, ...(n ? { iconType: 'svg' as const, iconName: n } : { iconType: 'none' as const }) } }));
+  const submitIcon = tok.submit.iconType === 'svg' ? tok.submit.iconName : tok.submit.iconType === 'none' ? '' : undefined;
+  const setSubmitIcon = (n: string) => upTok((t) => ({ ...t, submit: { ...t.submit, ...(n ? { iconType: 'svg' as const, iconName: n } : { iconType: 'none' as const }) } }));
+  const display = tok.display;
+  const setDisplay = (v: DisplayMode) => upTok((t) => ({ ...t, display: v }));
+  const [designOpen, setDesignOpen] = useState<DesignSection | null>(null);
+  const openDesign = (sec: DesignSection) => {
+    setDesignOpen(sec);
+    window.setTimeout(() => document.getElementById('ef-design')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  };
+  const [where, setWhere] = useState<Where>(data.where);
+  const upWhere = (p: Partial<Where>) => { setWhere((w) => ({ ...w, ...p })); setDirty(true); };
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
   const [products, setProducts] = useState<ProductPrices[]>(data.products);
   const [ship, setShip] = useState<ShipDraft>(data.ship);
   const [coupons, setCoupons] = useState<Coupon[]>(data.coupons);
@@ -292,7 +323,7 @@ export default function EditorFacil() {
     touch();
   };
   const remove = (i: number) => { setFields((l) => l.filter((_, j) => j !== i)); touch(); };
-  const add = (make: (o: number) => Field) => { setFields((l) => [...l, make(l.length + 1)]); touch(); };
+  const add = (make: (o: number) => Field) => { const f = make(fields.length + 1); setFields((l) => [...l, f]); setAddOpen(false); touch(); window.setTimeout(() => document.querySelector(`[data-fkey="${f.key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60); };
 
   const addProduct = async () => {
     const picked = await pickResources({ type: 'product' });
@@ -308,20 +339,12 @@ export default function EditorFacil() {
   };
 
   const save = () => fetcher.submit(
-    { data: JSON.stringify({ fields, buttons: { trigger, triggerSub, submit: submitText, color, showPrice, offerColor, offerGlow, triggerIcon, submitIcon, display }, products, ship, coupons, after }) },
+    { data: JSON.stringify({ fields, tokens: tok, where, products, ship, coupons, after }) },
     { method: 'post' },
   );
 
   // Vista previa con lo que se está editando ahora mismo.
-  const pvTokens = useMemo<ThemeTokens>(() => ({
-    ...data.tokens,
-    trigger: { ...data.tokens.trigger, text: trigger, descriptions: [triggerSub, ...data.tokens.trigger.descriptions.slice(1)].filter(Boolean), bg: color, bgType: 'solid',
-      ...(triggerIcon === undefined ? {} : triggerIcon ? { iconType: 'svg' as const, iconName: triggerIcon } : { iconType: 'none' as const }) },
-    submit: { ...data.tokens.submit, text: submitText, bg: color, bgType: 'solid', priceDisplay: showPrice ? 'total' : 'none',
-      ...(submitIcon === undefined ? {} : submitIcon ? { iconType: 'svg' as const, iconName: submitIcon } : { iconType: 'none' as const }) },
-    offerCard: { ...data.tokens.offerCard, accent: offerColor, glow: offerGlow },
-    display,
-  }), [data.tokens, trigger, triggerSub, submitText, color, showPrice, offerColor, offerGlow, triggerIcon, submitIcon, display]);
+  const pvTokens = tok;
   const pvProduct = products[0];
   const pvOffers = useMemo<Offer[]>(() => (pvProduct?.rows ?? []).filter((r) => parseInt(r.qty, 10) >= 2 && cents(r.price) > 0).map((r) => {
     const q = parseInt(r.qty, 10);
@@ -345,53 +368,97 @@ export default function EditorFacil() {
           </header>
           {fetcher.data && !fetcher.data.ok && !busy && <Banner tone="critical">{fetcher.data.message}</Banner>}
 
-          {/* 1 ─ Datos */}
+          {/* 1 ─ El formulario: datos, títulos y textos */}
           <section className="ef-card">
-            <h2><span className="ef-n">1</span> ¿Qué datos le pides al cliente?</h2>
-            <p className="ef-hint">Escribe cómo se llama cada dato. Usa las flechas para cambiar el orden.</p>
+            <h2><span className="ef-n">1</span> Lo que ve y llena el cliente</h2>
+            <p className="ef-hint">Datos, títulos, textos e imágenes del formulario. Usa las flechas para cambiar el orden y <b>Ajustes</b> para todo lo demás (tamaño, ancho, icono, color, reglas…).</p>
             <ul className="ef-fields">
               {fields.map((f, i) => {
+                const isContent = CONTENT_TYPES.includes(f.type);
                 const isCheck = f.type === 'checkbox';
-                const name = isCheck ? f.content : f.label;
-                const auto = f.type === 'location' || (f.type === 'select' && f.options.length > 12) || f.conditions.length > 0;
+                const usesContent = isContent || isCheck;
+                const name = usesContent ? f.content : f.label;
+                const meta = FIELD_META[f.type];
+                const open = openKey === f.key;
                 return (
-                  <li key={f.key} className={`ef-field${f.visible ? '' : ' off'}`}>
+                  <li key={f.key} data-fkey={f.key} className={`ef-field${f.visible ? '' : ' off'}${open ? ' open' : ''}`}>
                     <div className="ef-move">
                       <button type="button" aria-label="Subir" disabled={i === 0} onClick={() => move(i, -1)}><Ic s={ChevronUpIcon} /></button>
                       <button type="button" aria-label="Bajar" disabled={i === fields.length - 1} onClick={() => move(i, 1)}><Ic s={ChevronDownIcon} /></button>
                     </div>
                     <div className="ef-main">
-                      <span className="ef-kind">{KIND[f.type] ?? f.type}{auto && f.conditions.length ? ' · sale si escribe la dirección' : ''}</span>
-                      <input className="ef-input" value={name} aria-label="Nombre del dato"
-                        placeholder={isCheck ? 'Texto de la casilla' : 'Nombre del dato'}
-                        onChange={(e) => setField(i, isCheck ? { content: e.target.value } : { label: e.target.value })} />
+                      <span className="ef-kind">{meta?.icon && <Ic s={meta.icon} size={14} />}{meta?.label ?? f.type}{f.conditions.length ? ' · con reglas' : ''}</span>
+                      {f.type === 'divider' ? (
+                        <span className="ef-divider-line" aria-label="Línea separadora" />
+                      ) : f.type === 'richtext' || f.type === 'html' ? (
+                        <textarea className="ef-input ef-opts" rows={3} value={f.content} aria-label={meta?.label}
+                          placeholder={f.type === 'html' ? 'Código HTML' : 'Escribe el texto'} onChange={(e) => setField(i, { content: e.target.value })} />
+                      ) : (
+                        <input className="ef-input" value={name} aria-label="Nombre del dato"
+                          placeholder={f.type === 'image' ? 'Enlace (URL) de la imagen' : f.type === 'video' ? 'Enlace del video' : isCheck ? 'Texto de la casilla' : isContent ? 'Escribe el texto' : 'Nombre del dato'}
+                          onChange={(e) => setField(i, usesContent ? { content: e.target.value } : { label: e.target.value })} />
+                      )}
                       {(f.type === 'radio' || f.type === 'multiselect' || (f.type === 'select' && f.options.length <= 12)) && (
                         <textarea className="ef-input ef-opts" rows={Math.max(2, f.options.length)} aria-label="Opciones"
                           value={f.options.map((o) => o.label).join('\n')}
                           onChange={(e) => setField(i, { options: e.target.value.split('\n').map((l, k) => ({ label: l, value: l.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || `opcion-${k + 1}` })) })} />
                       )}
                       <div className="ef-toggles">
-                        <label className={`ef-pill${f.required ? ' on' : ''}`}>
-                          <input type="checkbox" checked={f.required} onChange={(e) => setField(i, { required: e.target.checked })} />
-                          {f.required && <Ic s={CheckIcon} size={16} />}{f.required ? 'Obligatorio' : 'Opcional'}
-                        </label>
+                        {!isContent && (
+                          <label className={`ef-pill${f.required ? ' on' : ''}`}>
+                            <input type="checkbox" checked={f.required} onChange={(e) => setField(i, { required: e.target.checked })} />
+                            {f.required && <Ic s={CheckIcon} size={16} />}{f.required ? 'Obligatorio' : 'Opcional'}
+                          </label>
+                        )}
                         <label className={`ef-pill${f.visible ? ' on' : ''}`}>
                           <input type="checkbox" checked={f.visible} onChange={(e) => setField(i, { visible: e.target.checked })} />
                           <Ic s={f.visible ? ViewIcon : HideIcon} size={16} />{f.visible ? 'Se ve' : 'Oculto'}
                         </label>
+                        <button type="button" className={`ef-pill ef-more${open ? ' on' : ''}`} aria-expanded={open} onClick={() => setOpenKey(open ? null : f.key)}>
+                          <Ic s={AdjustIcon} size={16} />{open ? 'Cerrar ajustes' : 'Ajustes'}
+                        </button>
                       </div>
+                      {open && (
+                        <div className="ef-detail">
+                          <FieldSettings field={f} allFields={fields}
+                            onChange={(nf) => { setFields((l) => l.map((x) => (x.key === f.key ? nf : x))); if (nf.key !== f.key) setOpenKey(nf.key); touch(); }}
+                            onBack={() => setOpenKey(null)}
+                            onRemove={() => { setOpenKey(null); remove(i); }}
+                            onMove={(d) => move(i, d)}
+                            onGoDesign={() => openDesign('colors')} />
+                        </div>
+                      )}
                     </div>
-                    <button type="button" className="ef-del" aria-label={`Quitar ${name}`} onClick={() => remove(i)}><Ic s={DeleteIcon} /></button>
+                    <button type="button" className="ef-del" aria-label={`Quitar ${name || meta?.label}`} onClick={() => remove(i)}><Ic s={DeleteIcon} /></button>
                   </li>
                 );
               })}
             </ul>
-            <p className="ef-sub">Añadir un dato</p>
+            <p className="ef-sub">Añadir rápido</p>
             <div className="ef-add">
               {ADD.map((a) => (
                 <button type="button" key={a.label} onClick={() => add(a.make)}><span className="ef-add-ic"><Ic s={a.icon} /></span>{a.label}</button>
               ))}
             </div>
+            <button type="button" className="ef-link" aria-expanded={addOpen} onClick={() => setAddOpen((v) => !v)}>
+              <Ic s={addOpen ? ChevronUpIcon : PlusIcon} size={18} />{addOpen ? 'Ocultar' : 'Más cosas para añadir: títulos, textos, imágenes, fechas…'}
+            </button>
+            {addOpen && GROUPS.map((g) => {
+              const types = ADDABLE_TYPES.filter((t) => FIELD_META[t].group === g.id);
+              if (!types.length) return null;
+              return (
+                <div key={g.id}>
+                  <p className="ef-sub sm">{g.title}</p>
+                  <div className="ef-add">
+                    {types.map((t) => (
+                      <button type="button" key={t} title={FIELD_META[t].hint} onClick={() => add((o) => newField(t, o))}>
+                        <span className="ef-add-ic"><Ic s={FIELD_META[t].icon} /></span>{FIELD_META[t].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </section>
 
           {/* 2 ─ Botones */}
@@ -426,11 +493,53 @@ export default function EditorFacil() {
             </label>
             <span className="ef-label">¿Cómo aparece el formulario al tocar el botón?</span>
             <DisplayPicker value={display} onChange={(v) => { setDisplay(v); touch(); }} />
+            <div className="ef-morebtns">
+              <button type="button" className="ef-btn-ghost" onClick={() => openDesign('trigger')}><Ic s={AdjustIcon} />Más del botón para abrir: tamaño, letra, esquinas, animación…</button>
+              <button type="button" className="ef-btn-ghost" onClick={() => openDesign('submit')}><Ic s={AdjustIcon} />Más del botón para confirmar: tamaño, letra, animación…</button>
+            </div>
+          </section>
+
+          {/* 3 ─ Diseño completo */}
+          <section className="ef-card" id="ef-design">
+            <h2><span className="ef-n">3</span> Diseño del formulario</h2>
+            <p className="ef-hint">Colores, tipo de letra, tamaños, esquinas, sombras y todo el detalle de los dos botones. Toca una parte para abrirla.</p>
+            <DesignPanel tokens={tok} onChange={(t) => upTok(() => t)} open={designOpen} onOpen={setDesignOpen} />
+          </section>
+
+          {/* 4 ─ Dónde se muestra */}
+          <section className="ef-card">
+            <h2><span className="ef-n">4</span> Dónde y cómo se muestra</h2>
+            <label className={`ef-pill big${where.active ? ' on' : ''}`}>
+              <input type="checkbox" checked={where.active} onChange={(e) => upWhere({ active: e.target.checked })} />
+              <Ic s={where.active ? CheckIcon : HideIcon} size={16} />{where.active ? 'El formulario está activo en tu tienda' : 'El formulario está pausado (no se ve en la tienda)'}
+            </label>
+            <span className="ef-label">¿Cómo lo ve el cliente en la página del producto?</span>
+            <div className="ef-seg col" role="radiogroup" aria-label="Cómo se muestra">
+              <button type="button" role="radio" aria-checked={where.displayMode === 'POPUP'} className={where.displayMode === 'POPUP' ? 'on' : ''} onClick={() => upWhere({ displayMode: 'POPUP' })}><Ic s={ButtonIcon} />Un botón que abre el formulario</button>
+              <button type="button" role="radio" aria-checked={where.displayMode === 'EMBEDDED'} className={where.displayMode === 'EMBEDDED' ? 'on' : ''} onClick={() => upWhere({ displayMode: 'EMBEDDED' })}><Ic s={PageIcon} />El formulario completo en la página</button>
+            </div>
+            <span className="ef-label">¿En qué productos?</span>
+            <div className="ef-seg col" role="radiogroup" aria-label="En qué productos">
+              {([['ALL', 'En todos los productos'], ['PRODUCT', 'Solo en un producto'], ['COLLECTION', 'En una colección'], ['TAG', 'En productos con una etiqueta'], ['VENDOR', 'En productos de un proveedor']] as const).map(([v, l]) => (
+                <button key={v} type="button" role="radio" aria-checked={where.type === v} className={where.type === v ? 'on' : ''} onClick={() => upWhere({ type: v, value: v === where.type ? where.value : '', label: v === where.type ? where.label : '' })}>{l}</button>
+              ))}
+            </div>
+            {(where.type === 'PRODUCT' || where.type === 'COLLECTION') && (
+              <button type="button" className="ef-btn-ghost" onClick={async () => {
+                const picked = await pickResources({ type: where.type === 'PRODUCT' ? 'product' : 'collection' });
+                const x = picked?.[0]; if (x) upWhere({ value: x.id, label: x.title });
+              }}><Ic s={ProductIcon} />{where.label || `Elegir ${where.type === 'PRODUCT' ? 'el producto' : 'la colección'}`}</button>
+            )}
+            {(where.type === 'TAG' || where.type === 'VENDOR') && (
+              <label className="ef-label">{where.type === 'TAG' ? 'Etiqueta' : 'Proveedor'}
+                <input className="ef-input" value={where.value} onChange={(e) => upWhere({ value: e.target.value, label: e.target.value })} placeholder={where.type === 'TAG' ? 'Ej. contraentrega' : 'Ej. Mi marca'} />
+              </label>
+            )}
           </section>
 
           {/* 3 ─ Precios */}
           <section className="ef-card">
-            <h2><span className="ef-n">3</span> Precios por cantidad</h2>
+            <h2><span className="ef-n">5</span> Precios por cantidad</h2>
             <p className="ef-hint">Pon cuánto cobras en total si el cliente lleva 2, 3… unidades. Si tu página de producto ya tiene su caja de ofertas, se usan esos precios y aquí no tienes que poner nada.</p>
             {products.map((p, pi) => (
               <div key={p.id} className="ef-prod">
@@ -487,7 +596,7 @@ export default function EditorFacil() {
 
           {/* 4 ─ Envío */}
           <section className="ef-card">
-            <h2><span className="ef-n">4</span> Envío</h2>
+            <h2><span className="ef-n">6</span> Envío</h2>
             <div className="ef-seg" role="radiogroup" aria-label="Envío">
               <button type="button" role="radio" aria-checked={ship.mode === 'free'} className={ship.mode === 'free' ? 'on' : ''} onClick={() => upShip({ mode: 'free' })}><Ic s={DeliveryIcon} />Envío gratis siempre</button>
               <button type="button" role="radio" aria-checked={ship.mode === 'paid'} className={ship.mode === 'paid' ? 'on' : ''} onClick={() => upShip({ mode: 'paid' })}><Ic s={CashDollarIcon} />Cobrar envío</button>
@@ -507,7 +616,7 @@ export default function EditorFacil() {
 
           {/* 5 ─ Cupones */}
           <section className="ef-card">
-            <h2><span className="ef-n">5</span> Cupones de descuento</h2>
+            <h2><span className="ef-n">7</span> Cupones de descuento</h2>
             <p className="ef-hint">Códigos que el cliente escribe en el formulario. Los cupones que ya tienes en Shopify también funcionan.</p>
             {coupons.map((cp, i) => (
               <div key={cp.id ?? `n${i}`} className="ef-coupon">
@@ -533,7 +642,7 @@ export default function EditorFacil() {
 
           {/* 6 ─ Después del pedido */}
           <section className="ef-card">
-            <h2><span className="ef-n">6</span> Después del pedido</h2>
+            <h2><span className="ef-n">8</span> Después del pedido</h2>
             <label className="ef-label">Título del mensaje de gracias
               <input className="ef-input" value={after.title} onChange={(e) => upAfter({ title: e.target.value })} placeholder="¡Pedido confirmado!" />
             </label>
@@ -623,6 +732,15 @@ const CSS = `
 .ef-pill.big{margin-top:12px;padding:12px 16px;font-size:15px}
 .ef-del{display:grid;place-items:center;color:#D92D20;border:1px solid #FECDCA;background:linear-gradient(180deg,#FFF6F5,#FEE4E2);box-shadow:0 1px 2px rgba(180,35,24,.08),inset 0 1px 0 #fff;width:40px;height:40px;border-radius:11px;font-size:17px;cursor:pointer;flex:none}
 .ef-sub{margin:16px 0 8px;font-weight:800;font-size:15px}
+.ef-sub.sm{margin:12px 0 6px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.ef-kind{display:inline-flex;align-items:center;gap:5px}
+.ef-divider-line{display:block;height:2px;margin:10px 0;border-radius:2px;background:var(--line)}
+.ef-more{font:inherit;font-size:14px;font-weight:600}
+.ef-field.open{border-color:#BFD5F2}
+.ef-detail{margin-top:8px;padding:14px;border-radius:14px;background:var(--detail,#fff);border:1px solid var(--line)}
+html.cod-dark .ef-detail{--detail:#10141a}
+.ef-morebtns{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.ef-morebtns .ef-btn-ghost{justify-content:flex-start;font-size:14px}
 .ef-add{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .ef-add button{display:flex;align-items:center;gap:8px;padding:13px 12px;border:1px solid var(--line);border-radius:13px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font:inherit;font-size:15px;font-weight:600;cursor:pointer;text-align:left;color:var(--ink)}
 .ef-add button:hover{box-shadow:var(--soft-shadow-hover);border-color:#BFD5F2}

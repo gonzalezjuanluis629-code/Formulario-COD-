@@ -5,6 +5,57 @@ import {
 import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, DeleteIcon, PlusIcon } from '@shopify/polaris-icons';
 import type { Field } from '@cod/contracts';
 import { CONTENT_TYPES, FIELD_META, OPTION_TYPES } from './fieldMeta';
+import { IconPicker } from '../../components/IconPicker';
+
+const TEXT_TYPES: Field['type'][] = ['heading', 'subheading', 'richtext'];
+const LOOK_COLORS = ['', '#111111', '#475467', '#16a34a', '#2563eb', '#dc2626', '#ea580c', '#7c3aed', '#db2777'];
+
+/** Icono, color, alineación y tamaño del texto (títulos, párrafos y título de los campos). */
+function LookEditor({ field, onChange }: { field: Field; onChange: (f: Field) => void }) {
+  const look = field.look ?? { icon: '', color: '', align: 'left' as const, size: 'md' as const };
+  const set = (p: Partial<typeof look>) => onChange({ ...field, look: { ...look, ...p } });
+  const isText = TEXT_TYPES.includes(field.type);
+  return (
+    <BlockStack gap="300">
+      <Text as="h3" variant="headingSm">{isText ? 'Aspecto del texto' : 'Aspecto del título del campo'}</Text>
+      <BlockStack gap="150">
+        <Text as="span" variant="bodyMd">Icono</Text>
+        <IconPicker label="Icono del texto" value={look.icon} onChange={(n) => set({ icon: n })} />
+      </BlockStack>
+      <BlockStack gap="150">
+        <Text as="span" variant="bodyMd">Color</Text>
+        <div className="cod-lookcolors" role="radiogroup" aria-label="Color del texto">
+          <style dangerouslySetInnerHTML={{ __html: '.cod-lookcolors{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.cod-lookcolors button,.cod-lookcolors label{width:34px;height:34px;border-radius:50%;border:3px solid var(--p-color-bg-surface,#fff);box-shadow:0 0 0 1px var(--p-color-border,#D0D5DD);cursor:pointer;position:relative;display:grid;place-items:center;font:600 10px/1 Inter,sans-serif;color:var(--p-color-text-secondary,#667085);background:var(--p-color-bg-surface,#fff)}.cod-lookcolors button.on{box-shadow:0 0 0 3px #1A73E8}.cod-lookcolors label input{position:absolute;inset:0;opacity:0;cursor:pointer}' }} />
+          {LOOK_COLORS.map((c) => (
+            <button key={c || 'auto'} type="button" role="radio" aria-checked={look.color === c} aria-label={c || 'Automático'}
+              className={look.color === c ? 'on' : ''} style={c ? { background: c } : undefined} onClick={() => set({ color: c })}>{c ? '' : 'Auto'}</button>
+          ))}
+          <label title="Otro color" style={look.color && !LOOK_COLORS.includes(look.color) ? { background: look.color } : undefined}>
+            <input type="color" aria-label="Otro color" value={/^#[0-9a-f]{6}$/i.test(look.color) ? look.color : '#111111'} onChange={(e) => set({ color: e.target.value })} />+
+          </label>
+        </div>
+      </BlockStack>
+      <BlockStack gap="150">
+        <Text as="span" variant="bodyMd">Alineación</Text>
+        <ButtonGroup variant="segmented" fullWidth>
+          {([['left', 'Izquierda'], ['center', 'Centro'], ['right', 'Derecha']] as const).map(([v, l]) => (
+            <Button key={v} pressed={look.align === v} onClick={() => set({ align: v })}>{l}</Button>
+          ))}
+        </ButtonGroup>
+      </BlockStack>
+      {isText && (
+        <BlockStack gap="150">
+          <Text as="span" variant="bodyMd">Tamaño</Text>
+          <ButtonGroup variant="segmented" fullWidth>
+            {([['sm', 'Pequeño'], ['md', 'Normal'], ['lg', 'Grande']] as const).map(([v, l]) => (
+              <Button key={v} pressed={look.size === v} onClick={() => set({ size: v })}>{l}</Button>
+            ))}
+          </ButtonGroup>
+        </BlockStack>
+      )}
+    </BlockStack>
+  );
+}
 
 const OPS = [
   { label: 'es igual a', value: 'eq' }, { label: 'no es igual a', value: 'neq' },
@@ -67,6 +118,7 @@ export function FieldSettings({
       {field.type === 'divider' && (
         <Text as="p" tone="subdued">Una línea para separar secciones del formulario. No tiene opciones.</Text>
       )}
+      {TEXT_TYPES.includes(field.type) && <LookEditor field={field} onChange={onChange} />}
 
       {/* ── Campos que piden datos ── */}
       {!isContent && (
@@ -98,6 +150,7 @@ export function FieldSettings({
           <Checkbox label="Obligatorio" checked={field.required}
             onChange={(v) => set('required', v)}
             helpText="El cliente no puede enviar el pedido sin rellenarlo." />
+          {field.label && field.type !== 'location' && <LookEditor field={field} onChange={onChange} />}
         </>
       )}
 
