@@ -629,7 +629,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-ROrXSNVo.js").then(({ renderAddons }) => {
+    void import("./addons-psuM6rnA.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1264,7 +1264,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-BHVONVpL.js");
+    const { renderTrigger } = await import("./trigger-BygoWdDB.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1308,7 +1308,7 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-ROrXSNVo.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-psuM6rnA.js").catch(() => void 0);
     if (config.fields.some((f) => f.type === "location")) void import("./map-BTnRQ8LE.js").catch(() => void 0);
   };
   const ric = window.requestIdleCallback;
@@ -1337,15 +1337,17 @@ function inlineHosts() {
   return [...document.querySelectorAll("[data-cod-form]")].filter((el) => el.dataset.floating !== "true");
 }
 function fixedHosts() {
-  return inlineHosts().filter((el) => el.dataset.cart !== "true" && el.isConnected);
+  return inlineHosts().filter((el) => el.dataset.cart !== "true" && el.isConnected && !el.closest(CART_AREA));
 }
 function findInline(kind) {
   var _a2;
   return (_a2 = fixedHosts().find((el) => el.dataset.codRendered === kind && el.getClientRects().length > 0)) != null ? _a2 : null;
 }
+const CART_AREA = '#pd-cart, .pd-panel, cart-drawer, cart-notification, [id*="CartDrawer"], [id*="cart-drawer"], [class*="cart-drawer"], [class*="CartDrawer"], [class*="mini-cart"], [class*="minicart"], [id*="mini-cart"], [role="dialog"]';
 function ensureFloating(from) {
   var _a2, _b;
   if (!(DIRECT == null ? void 0 : DIRECT.floating) || from.dataset.floating === "true" || from.dataset.cart === "true") return;
+  if (from.closest(CART_AREA)) return;
   if (document.querySelector('[data-cod-form][data-floating="true"]')) return;
   const el = document.createElement("div");
   el.setAttribute("data-cod-form", "");
