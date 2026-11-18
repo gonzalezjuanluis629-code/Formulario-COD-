@@ -9,6 +9,7 @@ export default [
   route("figui-api/resources", "routes/figui-api.resources.ts"),
   route("figui-api/disconnect", "routes/figui-api.disconnect.ts"),
   route("figui-api/session", "routes/figui-api.session.ts"),
+  route("figui-api/client-error", "routes/figui-api.client-error.ts"),
   route("figui-api/token", "routes/figui-api.token.ts"),
   // El mismo editor, abierto desde Figui (sin Shopify App Bridge).
   route("figui", "routes/figui.tsx", [

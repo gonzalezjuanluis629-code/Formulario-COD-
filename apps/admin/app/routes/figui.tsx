@@ -199,12 +199,29 @@ export function ErrorBoundary() {
     // Figui vuelve a abrir el editor con una sesión nueva.
     if (expired && window.parent !== window) window.parent.postMessage({ type: 'cod:need-token' }, '*');
   }, [expired]);
+  // Un fallo inesperado: se avisa al servidor (para arreglarlo) y la página se
+  // recupera sola recargando una vez, sin que la persona tenga que hacerlo.
+  const [recovering, setRecovering] = useState(false);
+  useEffect(() => {
+    if (expired || isRouteErrorResponse(error)) return;
+    const e = error as { message?: string; stack?: string } | null;
+    try {
+      void fetch('/figui-api/client-error', { method: 'POST', body: JSON.stringify({ message: e?.message ?? String(error), stack: e?.stack ?? '', path: window.location.pathname }) });
+    } catch { /* sin aviso */ }
+    let last = 0;
+    try { last = Number(sessionStorage.getItem('cod-recover') || 0); } catch { /* sin almacenamiento */ }
+    if (Date.now() - last > 30_000) {
+      try { sessionStorage.setItem('cod-recover', String(Date.now())); } catch { /* sin almacenamiento */ }
+      setRecovering(true);
+      window.setTimeout(() => window.location.reload(), 400);
+    }
+  }, [error, expired]);
   const message = isRouteErrorResponse(error)
     ? String(error.data || 'No se pudo abrir el formulario.')
     : 'Algo salió mal al abrir el formulario. Recarga la página.';
   return (
     <div style={{ padding: 32, fontFamily: 'Inter, -apple-system, sans-serif', color: '#303030', textAlign: 'center' }}>
-      <p style={{ fontWeight: 600, marginBottom: 6 }}>{expired ? 'Reconectando…' : 'No se pudo abrir el formulario'}</p>
+      <p style={{ fontWeight: 600, marginBottom: 6 }}>{expired || recovering ? 'Reconectando…' : 'No se pudo abrir el formulario'}</p>
       <p style={{ color: '#616161', fontSize: 14 }}>{message}</p>
     </div>
   );
