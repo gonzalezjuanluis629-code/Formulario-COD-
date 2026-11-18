@@ -74,7 +74,7 @@ export class SubmitService {
 
     /* 2 ─ Rate limit por IP y por teléfono. */
     const ipHash = this.crypto.hash(ip);
-    if (!(await this.redis.allow(this.redis.key(ctx.shopId, 'rl:ip', ipHash), 10, 600))) {
+    if (!(await this.redis.allow(this.redis.key(ctx.shopId, 'rl:ip', ipHash), 30, 600))) {
       throw new ConflictException('Demasiados intentos. Espera unos minutos.');
     }
 
@@ -93,7 +93,7 @@ export class SubmitService {
     await this.antifraud.assertNotBlocked(ctx.shopId, { phoneHash, ipHash });
     const lines = orderLines(dto);
     const cartHash = this.crypto.hash(lines.map((l) => `${l.variantId}:${l.qty}`).sort().join('|'));
-    await this.antifraud.assertNotDuplicate(ctx.shopId, phoneHash, cartHash);
+    await this.antifraud.assertNotDuplicate(ctx.shopId, phoneHash, cartHash, dto.idempotencyKey);
     await this.antifraud.assertUnderDailyLimit(
       ctx.shopId, phoneHash, settings.antifraud.maxOrdersPerPhonePerDay,
     );
@@ -170,7 +170,9 @@ export class SubmitService {
     const hold =
       settings.antifraud.holdHighRisk && risk.score >= settings.antifraud.riskThreshold;
 
-    const submission = await this.prisma.$transaction(async (tx) => {
+    let submission;
+    try {
+    submission = await this.prisma.$transaction(async (tx) => {
       const s = await tx.submission.create({
         data: {
           shopId: ctx.shopId,
@@ -218,6 +220,17 @@ export class SubmitService {
 
       return s;
     });
+    } catch (e) {
+      // El mismo envío llegó dos veces a la vez (reintento del navegador): es UN pedido.
+      if ((e as { code?: string }).code === 'P2002') {
+        const prev = await this.prisma.submission.findUnique({ where: { idempotencyKey: dto.idempotencyKey } });
+        if (prev) {
+          const n = String(dto.fields.firstName ?? dto.fields.fullName ?? '').split(' ')[0] ?? '';
+          return this.response(prev.id, settings, { name: n, phone: phoneE164 }, (prev.totals as { totalCents?: number })?.totalCents ?? 0);
+        }
+      }
+      throw e;
+    }
 
     this.log.log(
       `Submission ${submission.id} ${hold ? 'RETENIDA' : 'aceptada'} (riesgo ${risk.score})`,

@@ -44,8 +44,28 @@ export const api = {
   reverse: (lat: number, lng: number) =>
     call<ReverseGeocodeResponse>('/geo/reverse', { method: 'POST', body: JSON.stringify({ lat, lng }) }),
 
-  submit: (body: SubmitRequest) =>
-    call<SubmitResponse>('/submit', { method: 'POST', body: JSON.stringify(body) }),
+  /**
+   * Enviar el pedido. Si la conexión falla o el servidor está ocupado, se
+   * reintenta solo (hasta 4 veces) con la MISMA clave: nunca se duplica y el
+   * cliente no tiene que volver a pulsar.
+   */
+  submit: async (body: SubmitRequest) => {
+    const waits = [600, 1500, 3000, 5000];
+    for (let i = 0; ; i++) {
+      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctl ? setTimeout(() => ctl.abort(), 20000) : 0;
+      try {
+        return await call<SubmitResponse>('/submit', { method: 'POST', body: JSON.stringify(body), signal: ctl?.signal });
+      } catch (e) {
+        // Errores del pedido (datos, bloqueo…): se muestran. Red, tiempo o servidor caído: se reintenta.
+        const retry = !(e instanceof ApiError) || e.status >= 500 || e.status === 429;
+        if (!retry || i >= waits.length) throw e instanceof ApiError ? e : new ApiError(0, 'Sin conexión. Revisa tu internet e inténtalo de nuevo.');
+        await new Promise((r) => setTimeout(r, waits[i]));
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    }
+  },
 
   /** Enlace de «Estado del pedido» de Shopify (cuando el pedido ya está creado). */
   orderStatus: (submissionId: string, key: string) =>
