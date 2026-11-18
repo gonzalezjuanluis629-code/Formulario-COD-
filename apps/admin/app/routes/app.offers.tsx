@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Badge, Banner, BlockStack, Box, Button, ButtonGroup, Checkbox, Collapsible, Divider, Frame, Icon, IndexTable,
-  InlineStack, Modal, Page, Select, Tabs, Text, TextField, Toast,
+  InlineStack, Modal, Page, Select, Tabs, Text, TextField, 
 } from '@shopify/polaris';
+import { SavedToast } from '../components/SavedToast';
 import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, DeleteIcon, PlusIcon } from '@shopify/polaris-icons';
 import { Form, useFetcher, useLoaderData, useSubmit } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
@@ -542,7 +543,7 @@ export default function Offers() {
         </div>
 
         <CouponModal open={couponModal} onClose={() => setCouponModal(false)} />
-        {toast && <Toast content={toast} onDismiss={() => setToast(null)} />}
+        {toast && <SavedToast content={toast} onDismiss={() => setToast(null)} />}
       </Page>
     </Frame>
   );

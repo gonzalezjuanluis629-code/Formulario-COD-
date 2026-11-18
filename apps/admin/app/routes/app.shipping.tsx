@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import {
-  BlockStack, Card, InlineStack, Layout, Page, Text, TextField, Toast, Banner, Button,
+  BlockStack, Card, InlineStack, Layout, Page, Text, TextField, Banner, Button,
 } from '@shopify/polaris';
+import { SavedToast } from '../components/SavedToast';
 import { useFetcher, useLoaderData } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { ShopSettingsSchema } from '@cod/contracts';
@@ -138,7 +139,7 @@ export default function Shipping() {
         </Layout.Section>
       </Layout>
 
-      {fetcher.data?.message && <Toast content={fetcher.data.message} onDismiss={() => {}} />}
+      {fetcher.data?.message && <SavedToast content={fetcher.data.message} onDismiss={() => {}} />}
     </Page>
   );
 }

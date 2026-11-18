@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Badge, Banner, BlockStack, Button, Frame, InlineStack, Page, Select, Tabs, Text, TextField, Toast,
+  Badge, Banner, BlockStack, Button, Frame, InlineStack, Page, Select, Tabs, Text, TextField, 
 } from '@shopify/polaris';
+import { SavedToast } from '../components/SavedToast';
 import { useFetcher, useLoaderData, useNavigate, useSearchParams } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { AddonSchema, FieldSchema, OfferSchema, ThemeTokensSchema, type Field, type ThemeTokens } from '@cod/contracts';
@@ -347,7 +348,7 @@ export default function FormEditor() {
           </div>
         </div>
 
-        {toast && <Toast content={toast} onDismiss={() => setToast(null)} />}
+        {toast && <SavedToast content={toast} onDismiss={() => setToast(null)} />}
       </Page>
     </Frame>
   );
