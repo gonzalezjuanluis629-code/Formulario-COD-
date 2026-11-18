@@ -379,7 +379,7 @@ export default function EditorFacil() {
 
           {/* 1 ─ El formulario: datos, títulos y textos */}
           <section className="ef-card">
-            <h2><span className="ef-n">1</span> Lo que ve y llena el cliente</h2>
+            <h2><span className="ef-n n1">1</span> Lo que ve y llena el cliente</h2>
             <p className="ef-hint">Datos, títulos, textos e imágenes del formulario. Usa las flechas para cambiar el orden y <b>Ajustes</b> en cada uno para todo lo demás (ancho, icono, color, reglas…).</p>
             <button type="button" className={`ef-pill ef-more ef-lookbtn${lookOpen === 'form' ? ' on' : ''}`} aria-expanded={lookOpen === 'form'} onClick={() => toggleLook('form')}>
               <Ic s={ColorIcon} size={16} />{lookOpen === 'form' ? 'Cerrar ajustes del formulario' : 'Ajustes del formulario: colores, letra, esquinas, espacios'}
@@ -480,7 +480,7 @@ export default function EditorFacil() {
 
           {/* 2 ─ Botones */}
           <section className="ef-card">
-            <h2><span className="ef-n">2</span> Los botones y la ventana</h2>
+            <h2><span className="ef-n n2">2</span> Los botones y la ventana</h2>
             <label className="ef-label">Botón para abrir el formulario
               <input className="ef-input" value={trigger} onChange={(e) => { setTrigger(e.target.value); touch(); }} placeholder="Comprar ahora" />
             </label>
@@ -532,7 +532,7 @@ export default function EditorFacil() {
 
           {/* 3 ─ Dónde se muestra */}
           <section className="ef-card">
-            <h2><span className="ef-n">3</span> Dónde y cómo se muestra</h2>
+            <h2><span className="ef-n n3">3</span> Dónde y cómo se muestra</h2>
             <label className={`ef-pill big${where.active ? ' on' : ''}`}>
               <input type="checkbox" checked={where.active} onChange={(e) => upWhere({ active: e.target.checked })} />
               <Ic s={where.active ? CheckIcon : HideIcon} size={16} />{where.active ? 'El formulario está activo en tu tienda' : 'El formulario está pausado (no se ve en la tienda)'}
@@ -563,7 +563,7 @@ export default function EditorFacil() {
 
           {/* 3 ─ Precios */}
           <section className="ef-card">
-            <h2><span className="ef-n">4</span> Precios por cantidad</h2>
+            <h2><span className="ef-n n4">4</span> Precios por cantidad</h2>
             <p className="ef-hint">Pon cuánto cobras en total si el cliente lleva 2, 3… unidades. Si tu página de producto ya tiene su caja de ofertas, se usan esos precios y aquí no tienes que poner nada.</p>
             {products.map((p, pi) => (
               <div key={p.id} className="ef-prod">
@@ -620,7 +620,7 @@ export default function EditorFacil() {
 
           {/* 4 ─ Envío */}
           <section className="ef-card">
-            <h2><span className="ef-n">5</span> Envío</h2>
+            <h2><span className="ef-n n5">5</span> Envío</h2>
             <div className="ef-seg" role="radiogroup" aria-label="Envío">
               <button type="button" role="radio" aria-checked={ship.mode === 'free'} className={ship.mode === 'free' ? 'on' : ''} onClick={() => upShip({ mode: 'free' })}><Ic s={DeliveryIcon} />Envío gratis siempre</button>
               <button type="button" role="radio" aria-checked={ship.mode === 'paid'} className={ship.mode === 'paid' ? 'on' : ''} onClick={() => upShip({ mode: 'paid' })}><Ic s={CashDollarIcon} />Cobrar envío</button>
@@ -640,7 +640,7 @@ export default function EditorFacil() {
 
           {/* 5 ─ Cupones */}
           <section className="ef-card">
-            <h2><span className="ef-n">6</span> Cupones de descuento</h2>
+            <h2><span className="ef-n n6">6</span> Cupones de descuento</h2>
             <p className="ef-hint">Códigos que el cliente escribe en el formulario. Los cupones que ya tienes en Shopify también funcionan.</p>
             {coupons.map((cp, i) => (
               <div key={cp.id ?? `n${i}`} className="ef-coupon">
@@ -666,7 +666,7 @@ export default function EditorFacil() {
 
           {/* 6 ─ Después del pedido */}
           <section className="ef-card">
-            <h2><span className="ef-n">7</span> Después del pedido</h2>
+            <h2><span className="ef-n n7">7</span> Después del pedido</h2>
             <p className="ef-hint">Lo que ve el cliente al terminar. Escribe tu propio título y mensaje.</p>
             <div className="ef-done-pv" aria-label="Así se ve la pantalla final">
               <span className="ef-done-tick"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg></span>
@@ -724,8 +724,10 @@ export default function EditorFacil() {
 
 const CSS = `
 .ef{
-  --blue-grad:linear-gradient(180deg,#4A9DF8 0%,#1A73E8 100%);
-  --blue-glow:0 8px 18px -6px rgba(26,115,232,.55),0 2px 4px rgba(26,115,232,.18),inset 0 1px 0 rgba(255,255,255,.24);
+  /* Seleccionado: grafito (nada de azul que canse). Guardar: verde. */
+  --sel-grad:linear-gradient(180deg,#3B4252 0%,#1F242E 100%);
+  --sel-glow:0 8px 16px -8px rgba(17,24,39,.55),0 2px 4px rgba(17,24,39,.14),inset 0 1px 0 rgba(255,255,255,.14);
+  --sel-ink:#fff;--focus:#6B7280;--focus-ring:rgba(107,114,128,.18);--hover-line:#C9CED6;
   --green-grad:linear-gradient(180deg,#34D07A 0%,#16A34A 100%);
   --green-glow:0 10px 22px -8px rgba(22,163,74,.6),0 2px 4px rgba(22,163,74,.2),inset 0 1px 0 rgba(255,255,255,.28);
   --soft-grad:linear-gradient(180deg,#FFFFFF 0%,#F6F8FB 100%);
@@ -745,9 +747,17 @@ const CSS = `
 .ef-head p{margin:6px 0 0;color:#475467;font-size:15px;line-height:1.45}
 .ef-card{background:#fff;border-radius:18px;padding:18px;border:1px solid var(--line);box-shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px -12px rgba(16,24,40,.12)}
 .ef-card h2{display:flex;align-items:center;gap:10px;margin:0 0 6px;font-size:19px;font-weight:800}
-.ef-n{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--blue-grad);box-shadow:var(--blue-glow);color:#fff;font-size:15px;flex:none}
+.ef-n{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--n,var(--sel-grad));box-shadow:0 6px 14px -6px var(--nc,rgba(17,24,39,.5)),inset 0 1px 0 rgba(255,255,255,.25);color:#fff;font-size:15px;flex:none}
+/* Cada sección con su color, para ubicarse rápido */
+.ef-n.n1{--n:linear-gradient(180deg,#9F7AEA,#7C3AED);--nc:rgba(124,58,237,.55)}
+.ef-n.n2{--n:linear-gradient(180deg,#2DD4BF,#0D9488);--nc:rgba(13,148,136,.55)}
+.ef-n.n3{--n:linear-gradient(180deg,#FBBF24,#D97706);--nc:rgba(217,119,6,.55)}
+.ef-n.n4{--n:linear-gradient(180deg,#FB7185,#E11D48);--nc:rgba(225,29,72,.5)}
+.ef-n.n5{--n:linear-gradient(180deg,#34D399,#059669);--nc:rgba(5,150,105,.55)}
+.ef-n.n6{--n:linear-gradient(180deg,#FB923C,#EA580C);--nc:rgba(234,88,12,.55)}
+.ef-n.n7{--n:linear-gradient(180deg,#F472B6,#DB2777);--nc:rgba(219,39,119,.5)}
 .ef-hint{margin:0 0 12px;color:var(--muted);font-size:14px;line-height:1.45}
-.ef-hint a{color:#1A73E8;font-weight:700}
+.ef-hint a{color:var(--ink);font-weight:700;text-decoration:underline;text-underline-offset:2px}
 .ef-done-pv{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:18px 14px;margin:0 0 14px;border-radius:14px;border:1px dashed var(--line);background:#f8fafc}
 .ef-done-pv b{font-size:17px;color:#111827}.ef-done-pv span{font-size:13.5px;color:#4b5563;line-height:1.45;white-space:pre-line}
 .ef-done-tick{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:#16a34a;color:#fff;box-shadow:0 6px 16px -6px rgba(22,163,74,.6)}
@@ -763,13 +773,13 @@ const CSS = `
 .ef-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
 .ef-kind{font-size:12px;font-weight:700;color:#98A2B3;text-transform:uppercase;letter-spacing:.04em}
 .ef-input{width:100%;box-sizing:border-box;border:1px solid #D0D5DD;border-radius:11px;padding:11px 12px;font:inherit;font-size:16px;background:#fff;color:var(--ink);outline:none;box-shadow:inset 0 1px 2px rgba(16,24,40,.05)}
-.ef-input:focus{border-color:#4F8FE0;box-shadow:0 0 0 3px rgba(79,143,224,.18)}
+.ef-input:focus{border-color:var(--focus);box-shadow:0 0 0 3px var(--focus-ring)}
 .ef-opts{resize:vertical;font-size:15px;line-height:1.5}
 .ef-toggles{display:flex;gap:8px;flex-wrap:wrap}
 .ef-pill{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--soft-grad);box-shadow:var(--soft-shadow);font-size:14px;font-weight:600;cursor:pointer;user-select:none;color:#475467;transition:box-shadow .15s ease}
 .ef-pill:hover{box-shadow:var(--soft-shadow-hover)}
 .ef-pill input{position:absolute;opacity:0;pointer-events:none}
-.ef-pill.on{background:var(--blue-grad);border-color:transparent;color:#fff;box-shadow:var(--blue-glow)}
+.ef-pill.on{background:var(--sel-grad);border-color:transparent;color:var(--sel-ink);box-shadow:var(--sel-glow)}
 .ef-pill.big{margin-top:12px;padding:12px 16px;font-size:15px}
 .ef-del{display:grid;place-items:center;color:#D92D20;border:1px solid #FECDCA;background:linear-gradient(180deg,#FFF6F5,#FEE4E2);box-shadow:0 1px 2px rgba(180,35,24,.08),inset 0 1px 0 #fff;width:40px;height:40px;border-radius:11px;font-size:17px;cursor:pointer;flex:none}
 .ef-sub{margin:16px 0 8px;font-weight:800;font-size:15px}
@@ -777,7 +787,7 @@ const CSS = `
 .ef-kind{display:inline-flex;align-items:center;gap:5px}
 .ef-divider-line{display:block;height:2px;margin:10px 0;border-radius:2px;background:var(--line)}
 .ef-more{font:inherit;font-size:14px;font-weight:600}
-.ef-field.open{border-color:#BFD5F2}
+.ef-field.open{border-color:var(--hover-line)}
 .ef-detail{margin-top:8px;padding:14px;border-radius:14px;background:var(--detail,#fff);border:1px solid var(--line)}
 html.cod-dark .ef-detail{--detail:#10141a}
 .ef-morebtns{display:flex;flex-direction:column;gap:8px;margin-top:12px}
@@ -787,19 +797,19 @@ html.cod-dark .ef-detail{--detail:#10141a}
 .ef-lookpanel{margin:0 0 10px}
 .ef-add{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 .ef-add button{display:flex;align-items:center;gap:8px;padding:13px 12px;border:1px solid var(--line);border-radius:13px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font:inherit;font-size:15px;font-weight:600;cursor:pointer;text-align:left;color:var(--ink)}
-.ef-add button:hover{box-shadow:var(--soft-shadow-hover);border-color:#BFD5F2}
-.ef-add-ic{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#EEF4FF;color:#1A73E8;flex:none}
+.ef-add button:hover{box-shadow:var(--soft-shadow-hover);border-color:var(--hover-line)}
+.ef-add-ic{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:#F2F4F7;color:#344054;flex:none}
 .ef-label{display:flex;flex-direction:column;gap:6px;margin:10px 0 0;font-size:14px;font-weight:700;color:#344054}
 .ef-colors{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
 .ef-colors button,.ef-custom{width:42px;height:42px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px #D0D5DD,0 4px 10px -4px rgba(16,24,40,.25),inset 0 1px 0 rgba(255,255,255,.3);cursor:pointer}
-.ef-colors button.on{box-shadow:0 0 0 3px #1A73E8,0 6px 14px -4px rgba(26,115,232,.45)}
+.ef-colors button.on{box-shadow:0 0 0 3px #1F242E,0 6px 14px -4px rgba(17,24,39,.45)}
 .ef-custom{display:grid;place-items:center;background:var(--soft-grad);color:#475467;position:relative;overflow:hidden}
 .ef-custom input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .ef-seg{display:flex;gap:6px;padding:5px;border-radius:14px;background:#F2F4F7;box-shadow:inset 0 1px 2px rgba(16,24,40,.08);flex-wrap:wrap}
 .ef-seg.col{flex-direction:column}
 .ef-seg button{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-width:0;padding:11px 12px;border:0;border-radius:10px;background:transparent;font:inherit;font-size:15px;font-weight:700;color:#475467;cursor:pointer;text-align:center}
 .ef-seg.col button{justify-content:flex-start;text-align:left}
-.ef-seg button.on{background:var(--blue-grad);color:#fff;box-shadow:var(--blue-glow)}
+.ef-seg button.on{background:var(--sel-grad);color:var(--sel-ink);box-shadow:var(--sel-glow)}
 .ef-seg.small{padding:3px;flex:none}
 .ef-seg.small button{padding:8px 11px;font-size:14px}
 .ef-prod,.ef-coupon{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;background:var(--soft-grad);box-shadow:var(--soft-shadow)}
@@ -813,18 +823,18 @@ html.cod-dark .ef-detail{--detail:#10141a}
 .ef-qty{width:70px!important;text-align:center}
 .ef-code{flex:1;min-width:140px;width:auto!important;text-transform:uppercase}
 .ef-money{display:flex;align-items:center;border:1px solid #D0D5DD;border-radius:11px;background:#fff;padding-left:10px;flex:1;min-width:120px;box-shadow:inset 0 1px 2px rgba(16,24,40,.05)}
-.ef-money:focus-within{border-color:#4F8FE0;box-shadow:0 0 0 3px rgba(79,143,224,.18)}
+.ef-money:focus-within{border-color:var(--focus);box-shadow:0 0 0 3px var(--focus-ring)}
 .ef-money i{font-style:normal;color:#98A2B3;font-weight:600}
 .ef-money .ef-input{border:0;box-shadow:none}
 .ef-x{display:grid;place-items:center;border:0;background:transparent;font-size:16px;color:#98A2B3;cursor:pointer;width:32px;height:32px;border-radius:8px}
 .ef-x:hover{background:#F2F4F7;color:#475467}
 .ef-row small{flex-basis:100%;font-size:13px;font-weight:600}
 .ef-save{color:#067647}.ef-warn{color:#B54708}
-.ef-link{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:#1A73E8;font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:8px 0}
+.ef-link{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:#0F766E;font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:8px 0}
 .ef-btn-ghost{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font:inherit;font-size:15px;font-weight:700;cursor:pointer;color:var(--ink)}
-.ef-btn-ghost:hover{box-shadow:var(--soft-shadow-hover);border-color:#BFD5F2}
+.ef-btn-ghost:hover{box-shadow:var(--soft-shadow-hover);border-color:var(--hover-line)}
 .ef-save-btn{flex:none;display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 18px;border-radius:12px;font:inherit;font-size:15px;font-weight:750;cursor:pointer;border:1px solid var(--line);background:var(--soft-grad);color:var(--muted);box-shadow:var(--soft-shadow)}
-.ef-save-btn.dirty{border-color:transparent;background:var(--blue-grad);color:#fff;box-shadow:var(--blue-glow)}
+.ef-save-btn.dirty{border-color:transparent;background:var(--green-grad);color:#fff;box-shadow:var(--green-glow)}
 .ef-save-btn.dirty:hover{filter:brightness(1.05)}
 .ef-save-btn:hover{filter:brightness(1.04)}
 .ef-save-btn:disabled{opacity:.7}
@@ -833,7 +843,9 @@ html.cod-dark .ef-detail{--detail:#10141a}
 html.cod-dark .ef{--soft-grad:linear-gradient(180deg,#262a32 0%,#20242b 100%);
   --soft-shadow:0 1px 2px rgba(0,0,0,.4),0 3px 8px -3px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);
   --soft-shadow-hover:0 2px 4px rgba(0,0,0,.45),0 8px 16px -6px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05);
-  --line:#2f333a;--ink:#e4e8ef;--muted:#9fa5ae;--page:#10141a}
+  --line:#2f333a;--ink:#e4e8ef;--muted:#9fa5ae;--page:#10141a;
+  --sel-grad:linear-gradient(180deg,#F4F5F7 0%,#D5D9DF 100%);--sel-glow:0 8px 16px -8px rgba(0,0,0,.6),inset 0 1px 0 #fff;--sel-ink:#111827;
+  --focus:#9CA3AF;--focus-ring:rgba(156,163,175,.22);--hover-line:#4a505a}
 html.cod-dark .ef-head p,html.cod-dark .ef-pill,html.cod-dark .ef-seg button{color:#b4bac4}
 html.cod-dark .ef-label{color:#c9ced6}
 html.cod-dark .ef-done-pv{background:#12161c;border-color:#2a3039}html.cod-dark .ef-done-pv b{color:#f3f4f6}html.cod-dark .ef-done-pv span{color:#aab2bf}
@@ -844,16 +856,16 @@ html.cod-dark .ef-money .ef-input{background:transparent}
 html.cod-dark .ef-input::placeholder{color:#6f7682}
 html.cod-dark .ef-move button,html.cod-dark .ef-custom{color:#c9ced6}
 html.cod-dark .ef-seg{background:#10141a;box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
-html.cod-dark .ef-seg button.on,html.cod-dark .ef-pill.on{color:#fff}
+html.cod-dark .ef-seg button.on,html.cod-dark .ef-pill.on{color:var(--sel-ink)}
 html.cod-dark .ef-del{background:linear-gradient(180deg,#3d1c24,#33171d);border-color:#5c2630;color:#ff8a80;box-shadow:none}
-html.cod-dark .ef-add-ic{background:#1c2b40;color:#5AA0F2}
-html.cod-dark .ef-add button:hover,html.cod-dark .ef-btn-ghost:hover{border-color:#3d5a80}
+html.cod-dark .ef-add-ic{background:#262a32;color:#c9ced6}
+html.cod-dark .ef-add button:hover,html.cod-dark .ef-btn-ghost:hover{border-color:#4a505a}
 html.cod-dark .ef-colors button,html.cod-dark .ef-custom{border-color:#1a1e25;box-shadow:0 0 0 1px #3a3f48,0 4px 10px -4px rgba(0,0,0,.6)}
-html.cod-dark .ef-colors button.on{box-shadow:0 0 0 3px #5AA0F2,0 6px 14px -4px rgba(26,115,232,.45)}
+html.cod-dark .ef-colors button.on{box-shadow:0 0 0 3px #E4E8EF,0 6px 14px -4px rgba(0,0,0,.6)}
 html.cod-dark .ef-x{color:#7f8692}
 html.cod-dark .ef-x:hover{background:#262a32;color:#c9ced6}
 html.cod-dark .ef-save{color:#4ade80}html.cod-dark .ef-warn{color:#fbbf24}
-html.cod-dark .ef-hint a,html.cod-dark .ef-link{color:#5AA0F2}
+html.cod-dark .ef-hint a{color:#e4e8ef}html.cod-dark .ef-link{color:#5EEAD4}
 html.cod-dark html.cod-dark .ef-preview{background:#10141a;box-shadow:0 8px 24px -12px rgba(0,0,0,.6)}
 @media (max-width: 900px){
   .ef{grid-template-columns:1fr;padding:12px}
