@@ -20,8 +20,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // (botón «Opciones avanzadas» y la flecha de volver).
   const url = new URL(request.url);
   if (basePath(request) === '/figui' && forms.length >= 1 && !url.searchParams.has('lista')) {
-    const ft = url.searchParams.get('ft');
-    throw redirect(`/figui/facil${ft ? `?ft=${encodeURIComponent(ft)}` : ''}`);
+    // Se conservan la sesión (ft) y el modo claro/oscuro de Figui (theme).
+    const keep = new URLSearchParams();
+    for (const k of ['ft', 'theme']) { const v = url.searchParams.get(k); if (v) keep.set(k, v); }
+    throw redirect(`/figui/facil${keep.size ? `?${keep}` : ''}`);
   }
   return { forms };
 }

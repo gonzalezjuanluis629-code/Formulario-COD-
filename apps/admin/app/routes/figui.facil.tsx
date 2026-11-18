@@ -339,6 +339,9 @@ export default function EditorFacil() {
               <h1>Edita tu formulario</h1>
               <p>Cambia lo que quieras y pulsa <b>Guardar</b>. En la vista previa lo ves tal cual lo verá tu cliente.</p>
             </div>
+            <button type="button" className={`ef-save-btn${dirty ? ' dirty' : ''}`} disabled={busy || !dirty} onClick={save}>
+              {!busy && <Ic s={dirty ? SaveIcon : CheckIcon} size={18} />}{busy ? 'Guardando…' : dirty ? 'Guardar' : 'Guardado'}
+            </button>
           </header>
           {fetcher.data && !fetcher.data.ok && !busy && <Banner tone="critical">{fetcher.data.message}</Banner>}
 
@@ -555,12 +558,7 @@ export default function EditorFacil() {
             )}
           </section>
 
-                    <div className="ef-save-bar">
-            <button type="button" className="ef-save-btn" disabled={busy} onClick={save}>
-              {!busy && <Ic s={dirty ? SaveIcon : CheckIcon} />}{busy ? 'Guardando…' : dirty ? 'Guardar cambios' : 'Todo guardado'}
-            </button>
-          </div>
-        </div>
+                  </div>
 
         <div className="ef-preview">
           <Preview fields={fields} tokens={pvTokens} offers={pvOffers} unitPriceCents={pvProduct?.priceCents ?? 0}
@@ -583,13 +581,14 @@ const CSS = `
   --soft-grad:linear-gradient(180deg,#FFFFFF 0%,#F6F8FB 100%);
   --soft-shadow:0 1px 2px rgba(16,24,40,.06),0 3px 8px -3px rgba(16,24,40,.10),inset 0 1px 0 #fff;
   --soft-shadow-hover:0 2px 4px rgba(16,24,40,.06),0 8px 16px -6px rgba(16,24,40,.14),inset 0 1px 0 #fff;
-  --line:#E3E7ED;--ink:#0A1120;--muted:#667085;
+  --line:#E3E7ED;--ink:#0A1120;--muted:#667085;--page:#F2F4F8;
   display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:18px;align-items:start;padding:16px;max-width:1240px;margin:0 auto;
   font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink)}
 .ef-ic{width:20px;height:20px;fill:currentColor;flex:none}
 .ef button{transition:transform .12s ease,box-shadow .15s ease,filter .15s ease}
 .ef button:active{transform:translateY(1px)}
-.ef-side{display:flex;flex-direction:column;gap:14px;min-width:0;padding-bottom:90px}
+.ef-side{display:flex;flex-direction:column;gap:14px;min-width:0;padding-bottom:24px}
+.ef-head{position:sticky;top:56px;z-index:6;display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:10px 0;margin:-10px 0 0;background:var(--page)}
 .ef-head h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
 .ef-head p{margin:6px 0 0;color:#475467;font-size:15px;line-height:1.45}
 .ef-card{background:#fff;border-radius:18px;padding:18px;border:1px solid var(--line);box-shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px -12px rgba(16,24,40,.12)}
@@ -655,8 +654,9 @@ const CSS = `
 .ef-link{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:#1A73E8;font:inherit;font-size:14px;font-weight:700;cursor:pointer;padding:8px 0}
 .ef-btn-ghost{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font:inherit;font-size:15px;font-weight:700;cursor:pointer;color:var(--ink)}
 .ef-btn-ghost:hover{box-shadow:var(--soft-shadow-hover);border-color:#BFD5F2}
-.ef-save-bar{position:sticky;bottom:0;padding:12px 0;background:linear-gradient(transparent,#f1f1f1 35%);z-index:5}
-.ef-save-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:17px;border:0;border-radius:15px;background:var(--green-grad);color:#fff;font:inherit;font-size:18px;font-weight:800;cursor:pointer;box-shadow:var(--green-glow)}
+.ef-save-btn{flex:none;display:inline-flex;align-items:center;gap:7px;height:42px;padding:0 18px;border-radius:12px;font:inherit;font-size:15px;font-weight:750;cursor:pointer;border:1px solid var(--line);background:var(--soft-grad);color:var(--muted);box-shadow:var(--soft-shadow)}
+.ef-save-btn.dirty{border-color:transparent;background:var(--blue-grad);color:#fff;box-shadow:var(--blue-glow)}
+.ef-save-btn.dirty:hover{filter:brightness(1.05)}
 .ef-save-btn:hover{filter:brightness(1.04)}
 .ef-save-btn:disabled{opacity:.7}
 .ef-preview{position:sticky;top:76px;height:calc(100vh - 92px);min-height:560px;border-radius:18px;overflow:hidden;border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(16,24,40,.18);background:#f1f1f1}
@@ -664,7 +664,7 @@ const CSS = `
 html.cod-dark .ef{--soft-grad:linear-gradient(180deg,#262a32 0%,#20242b 100%);
   --soft-shadow:0 1px 2px rgba(0,0,0,.4),0 3px 8px -3px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);
   --soft-shadow-hover:0 2px 4px rgba(0,0,0,.45),0 8px 16px -6px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.05);
-  --line:#2f333a;--ink:#e4e8ef;--muted:#9fa5ae}
+  --line:#2f333a;--ink:#e4e8ef;--muted:#9fa5ae;--page:#10141a}
 html.cod-dark .ef-head p,html.cod-dark .ef-pill,html.cod-dark .ef-seg button{color:#b4bac4}
 html.cod-dark .ef-label{color:#c9ced6}
 html.cod-dark .ef-card{background:#1a1e25;box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6)}
@@ -683,8 +683,7 @@ html.cod-dark .ef-x{color:#7f8692}
 html.cod-dark .ef-x:hover{background:#262a32;color:#c9ced6}
 html.cod-dark .ef-save{color:#4ade80}html.cod-dark .ef-warn{color:#fbbf24}
 html.cod-dark .ef-hint a,html.cod-dark .ef-link{color:#5AA0F2}
-html.cod-dark .ef-save-bar{background:linear-gradient(transparent,#10141a 35%)}
-html.cod-dark .ef-preview{background:#10141a;box-shadow:0 8px 24px -12px rgba(0,0,0,.6)}
+html.cod-dark html.cod-dark .ef-preview{background:#10141a;box-shadow:0 8px 24px -12px rgba(0,0,0,.6)}
 @media (max-width: 900px){
   .ef{grid-template-columns:1fr;padding:12px}
   .ef-preview{position:relative;top:0;height:640px}

@@ -8,6 +8,7 @@ import { requireShop } from '../lib/shop.server';
 import { figuiToken, saveFiguiToken } from '../lib/base';
 import { ResourcePickerHost } from '../components/ResourcePickerHost';
 import { COD_THEME_BOOT, setCodDark, useCodDark } from '../lib/codTheme';
+import { FIGUI_SKIN } from '../lib/figuiSkin';
 import {
   EditIcon, DiscountIcon, DeliveryIcon, PaintBrushFlatIcon, OrderIcon, ChartVerticalIcon, ShieldCheckMarkIcon, SettingsIcon, AdjustIcon,
 } from '@shopify/polaris-icons';
@@ -142,7 +143,7 @@ export default function FiguiLayout() {
   return (
     <PolarisAppProvider i18n={esTranslations} linkComponent={PolarisLink} theme={dark ? 'dark-experimental' : 'light'}>
       <script dangerouslySetInnerHTML={{ __html: COD_THEME_BOOT }} />
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <style dangerouslySetInnerHTML={{ __html: FIGUI_SKIN + CSS }} />
       <TabBar />
       <Outlet />
       <ResourcePickerHost />
