@@ -13,10 +13,13 @@ import type { ShopContext } from '../../infra/shopify/shop-context.service';
  * desde el servidor (nunca del navegador del cliente, que podría cambiarlas),
  * y se guardan 5 minutos.
  */
+type Row = { qty: number; cents: number };
+
 @Injectable()
 export class PageOffersService {
   private readonly log = new Logger(PageOffersService.name);
-  private cache = new Map<string, { at: number; offers: Offer[] }>();
+  private cache = new Map<string, { at: number; rows: Row[] }>();
+  private refreshing = new Map<string, Promise<Row[]>>();
   private static TTL = 5 * 60_000;
 
   constructor(private admin: AdminClientService, private redis: RedisService) {}
@@ -26,34 +29,63 @@ export class PageOffersService {
     if (!/^gid:\/\/shopify\/Product\/\d+$/.test(productGid)) return [];
     const key = `${ctx.shopId}:${productGid}`;
     const hit = this.cache.get(key);
-    let rows: { qty: number; cents: number }[];
-    if (hit && Date.now() - hit.at < PageOffersService.TTL) {
-      rows = hit.offers.map((o) => ({ qty: o.minQty, cents: o.bundlePriceCents ?? 0 }));
+    let rows: Row[];
+    if (hit) {
+      // Rápido: se responde con lo guardado y, si ya es viejo, se actualiza aparte.
+      rows = hit.rows;
+      if (Date.now() - hit.at >= PageOffersService.TTL) void this.refresh(ctx, productGid, key);
     } else {
+      // Primera vez en este servidor: lo último conocido (Redis) al instante.
+      const last = await this.redis.client.get(this.lastKey(ctx, productGid))
+        .then((v) => (v ? JSON.parse(v) as Row[] : null)).catch(() => null);
+      if (last) {
+        rows = last;
+        this.cache.set(key, { at: 0, rows });
+        void this.refresh(ctx, productGid, key);
+      } else {
+        rows = await this.refresh(ctx, productGid, key);
+      }
+    }
+    // Solo cuentan las que rebajan el precio (nunca se cobra más que en Shopify).
+    return rows.filter((r) => r.qty > 1 && r.cents > 0 && r.cents < unitPriceCents * r.qty).map((r) => toOffer(r.qty, r.cents));
+  }
+
+  private lastKey(ctx: ShopContext, productGid: string): string {
+    return this.redis.key(ctx.shopId, 'page-offers', productGid.split('/').pop() ?? '');
+  }
+
+  /** Lee la página y guarda el resultado. Las lecturas iguales simultáneas comparten una. */
+  private refresh(ctx: ShopContext, productGid: string, key: string): Promise<Row[]> {
+    const running = this.refreshing.get(key);
+    if (running) return running;
+    const p = (async () => {
       const r = await this.read(ctx, productGid).catch((e) => {
         this.log.warn(`No se pudo leer la página de ${productGid} en ${ctx.domain}: ${(e as Error).message}`);
         return null;
       });
       // Lo último bueno queda guardado: si la tienda responde con una pantalla de
       // «verificando conexión» o tarda, se siguen usando los precios de su página.
-      const lastKey = this.redis.key(ctx.shopId, 'page-offers', productGid.split('/').pop() ?? '');
+      const lastKey = this.lastKey(ctx, productGid);
+      let rows: Row[];
       if (r === null) {
-        rows = await this.redis.client.get(lastKey).then((v) => (v ? JSON.parse(v) as { qty: number; cents: number }[] : [])).catch(() => []);
+        rows = this.cache.get(key)?.rows
+          ?? await this.redis.client.get(lastKey).then((v) => (v ? JSON.parse(v) as Row[] : [])).catch(() => []);
       } else {
         rows = r;
         if (rows.length) void this.redis.client.set(lastKey, JSON.stringify(rows), 'EX', 60 * 60 * 24 * 30).catch(() => undefined);
         else void this.redis.client.del(lastKey).catch(() => undefined);
       }
       if (this.cache.size > 2000) this.cache.clear();
-      this.cache.set(key, { at: Date.now(), offers: rows.map((r) => toOffer(r.qty, r.cents)) });
-    }
-    // Solo cuentan las que rebajan el precio (nunca se cobra más que en Shopify).
-    return rows.filter((r) => r.qty > 1 && r.cents > 0 && r.cents < unitPriceCents * r.qty).map((r) => toOffer(r.qty, r.cents));
+      this.cache.set(key, { at: Date.now(), rows });
+      return rows;
+    })().finally(() => this.refreshing.delete(key));
+    this.refreshing.set(key, p);
+    return p;
   }
 
   /** Ofertas de la página; [] si la página no tiene caja; null si no se pudo saber. */
   private async read(ctx: ShopContext, productGid: string): Promise<{ qty: number; cents: number }[] | null> {
-    const d = await this.admin.graphql<{ product: { handle: string; onlineStoreUrl: string | null } | null }>(
+    const d = await this.admin.cachedGraphql<{ product: { handle: string; onlineStoreUrl: string | null } | null }>(
       ctx, `query($id: ID!){ product(id:$id){ handle onlineStoreUrl } }`, { id: productGid },
     );
     if (!d.product) return [];

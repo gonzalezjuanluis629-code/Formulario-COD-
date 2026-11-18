@@ -27,7 +27,15 @@ export const CSS = `
   transition:width .6s var(--cod-ease)}
 
 .cod-fields{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--cod-gap)}
-.cod-field{grid-column:span 12;animation:cod-in .35s var(--cod-ease) both}
+.cod-field{grid-column:span 12;animation:cod-in .22s var(--cod-ease) both}
+/* En la ventana ya entra todo junto: los campos no se animan uno a uno (más fluido en el móvil). */
+.cod-modal .cod-field{animation:none}
+/* Mientras el cliente escribe, las animaciones que se repiten se detienen: el teclado y el
+   desplazamiento van fluidos. Vuelven al salir del campo. */
+.cod-form:focus-within .cod-submit,.cod-form:focus-within .cod-submit::before,.cod-form:focus-within .cod-submit::after,
+.cod-form:focus-within .cod-seg-btn{animation-play-state:paused!important}
+/* Con la ventana abierta, el botón de la página (que queda detrás) no se anima. */
+:host([data-cod-paused]) .cod-trigger,:host([data-cod-paused]) .cod-trigger::before,:host([data-cod-paused]) .cod-trigger::after{animation-play-state:paused!important}
 .cod-w50{grid-column:span 6}.cod-w33{grid-column:span 4}.cod-w25{grid-column:span 3}
 .cod-w66{grid-column:span 8}.cod-w75{grid-column:span 9}
 .cod-hidden{display:none}
@@ -190,9 +198,6 @@ ${buttonAnimationCss('cod-submit', 'var(--cod-btn-solid)')}
   border-top-color:#fff;border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-loading .cod-spinner{display:block}
 .cod-loading .cod-submit-label,.cod-loading .cod-submit-icon{opacity:.7}
-.cod-wa-btn{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:11px 20px;
-  background:#25d366;color:#fff;border-radius:99px;font-weight:700;text-decoration:none;font-size:14px}
-.cod-wa-btn:active{transform:scale(.97)}
 
 /* ── Confirmación. SIN resumen: ni productos, ni cantidades, ni total. ── */
 .cod-done{text-align:center;padding:26px 10px;animation:cod-in .45s var(--cod-ease) both}
@@ -275,8 +280,7 @@ ${buttonAnimationCss('cod-submit', 'var(--cod-btn-solid)')}
    abierto la ventana se encoge en vez de taparlo todo, y la X siempre se ve. */
 .cod-modal-overlay{position:fixed;left:0;right:0;top:var(--cod-vv-top,0px);height:var(--cod-vv-h,100%);
   z-index:2147483000;display:flex;align-items:flex-end;justify-content:center;
-  background:rgba(0,0,0,.5);opacity:0;transition:opacity .25s var(--cod-ease);
-  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);overscroll-behavior:contain}
+  background:rgba(0,0,0,.55);opacity:0;transition:opacity .22s var(--cod-ease);overscroll-behavior:contain}
 .cod-modal-overlay.cod-open{opacity:1}
 .cod-modal{position:relative;display:flex;flex-direction:column;width:100%;max-width:440px;
   max-height:calc(var(--cod-vv-h,100vh) - 28px);background:var(--cod-surface);border-radius:20px 20px 0 0;

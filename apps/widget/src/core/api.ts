@@ -47,6 +47,10 @@ export const api = {
   submit: (body: SubmitRequest) =>
     call<SubmitResponse>('/submit', { method: 'POST', body: JSON.stringify(body) }),
 
+  /** Enlace de «Estado del pedido» de Shopify (cuando el pedido ya está creado). */
+  orderStatus: (submissionId: string, key: string) =>
+    call<{ ready: boolean; url: string | null }>('/order-status', { method: 'POST', body: JSON.stringify({ submissionId, key }) }),
+
   /** Evento de embudo. sendBeacon no bloquea al cliente ni espera respuesta. */
   track: (formId: string, event: string, sessionId: string, field?: string | null) => {
     const body = JSON.stringify({ formId, event, sessionId, field: field ?? null, ts: Date.now() });

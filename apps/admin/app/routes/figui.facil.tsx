@@ -667,18 +667,30 @@ export default function EditorFacil() {
           {/* 6 ─ Después del pedido */}
           <section className="ef-card">
             <h2><span className="ef-n">7</span> Después del pedido</h2>
-            <label className="ef-label">Título del mensaje de gracias
+            <p className="ef-hint">Lo que ve el cliente al terminar. Escribe tu propio título y mensaje.</p>
+            <div className="ef-done-pv" aria-label="Así se ve la pantalla final">
+              <span className="ef-done-tick"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg></span>
+              <b>{after.title.trim() || '¡Pedido confirmado!'}</b>
+              {after.message.trim() && <span>{after.message}</span>}
+              {after.target !== 'none' && <i className="ef-done-bar" />}
+            </div>
+            <label className="ef-label">Título
               <input className="ef-input" value={after.title} onChange={(e) => upAfter({ title: e.target.value })} placeholder="¡Pedido confirmado!" />
             </label>
-            <label className="ef-label">Mensaje
+            <label className="ef-label">Mensaje (opcional)
               <textarea className="ef-input ef-opts" rows={2} value={after.message} onChange={(e) => upAfter({ message: e.target.value })} placeholder="Te contactamos por WhatsApp para coordinar la entrega." />
             </label>
             <span className="ef-label">Luego, el cliente…</span>
             <div className="ef-seg col" role="radiogroup" aria-label="Después del pedido">
               <button type="button" role="radio" aria-checked={after.target === 'none'} className={after.target === 'none' ? 'on' : ''} onClick={() => upAfter({ target: 'none' })}><Ic s={CheckCircleIcon} />Se queda viendo el mensaje</button>
-              <button type="button" role="radio" aria-checked={after.target === 'thankyou'} className={after.target === 'thankyou' ? 'on' : ''} onClick={() => upAfter({ target: 'thankyou' })}><Ic s={PageIcon} />Va a tu página de gracias</button>
-              <button type="button" role="radio" aria-checked={after.target === 'whatsapp'} className={after.target === 'whatsapp' ? 'on' : ''} onClick={() => upAfter({ target: 'whatsapp' })}><Ic s={ChatIcon} />Te escribe por WhatsApp</button>
+              <button type="button" role="radio" aria-checked={after.target === 'thankyou'} className={after.target === 'thankyou' ? 'on' : ''} onClick={() => upAfter({ target: 'thankyou' })}><Ic s={PageIcon} />Va a «Estado del pedido»</button>
+              <button type="button" role="radio" aria-checked={after.target === 'whatsapp'} className={after.target === 'whatsapp' ? 'on' : ''} onClick={() => upAfter({ target: 'whatsapp' })}><Ic s={ChatIcon} />Te escribe por WhatsApp y queda en «Estado del pedido»</button>
             </div>
+            {after.target !== 'none' && (
+              <p className="ef-hint">{after.target === 'whatsapp'
+                ? 'Se abre WhatsApp con el mensaje ya escrito. Cuando el cliente vuelve al navegador, está en la página «Estado del pedido» de su compra.'
+                : 'Al terminar la barra, el cliente pasa a la página «Estado del pedido» de su compra.'}</p>
+            )}
             {after.target === 'whatsapp' && (
               <>
                 <label className="ef-label">Tu número de WhatsApp (con el 1 delante)
@@ -736,6 +748,11 @@ const CSS = `
 .ef-n{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--blue-grad);box-shadow:var(--blue-glow);color:#fff;font-size:15px;flex:none}
 .ef-hint{margin:0 0 12px;color:var(--muted);font-size:14px;line-height:1.45}
 .ef-hint a{color:#1A73E8;font-weight:700}
+.ef-done-pv{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:18px 14px;margin:0 0 14px;border-radius:14px;border:1px dashed var(--line);background:#f8fafc}
+.ef-done-pv b{font-size:17px;color:#111827}.ef-done-pv span{font-size:13.5px;color:#4b5563;line-height:1.45;white-space:pre-line}
+.ef-done-tick{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:#16a34a;color:#fff;box-shadow:0 6px 16px -6px rgba(22,163,74,.6)}
+.ef-done-tick svg{width:22px;height:22px}
+.ef-done-bar{display:block;width:70%;height:4px;border-radius:4px;margin-top:6px;background:linear-gradient(90deg,#16a34a 55%,#e5e7eb 55%)}
 .ef-fields{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 .ef-field{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:14px;padding:10px;background:var(--soft-grad);box-shadow:var(--soft-shadow)}
 .ef-field.off{opacity:.55}
@@ -819,6 +836,8 @@ html.cod-dark .ef{--soft-grad:linear-gradient(180deg,#262a32 0%,#20242b 100%);
   --line:#2f333a;--ink:#e4e8ef;--muted:#9fa5ae;--page:#10141a}
 html.cod-dark .ef-head p,html.cod-dark .ef-pill,html.cod-dark .ef-seg button{color:#b4bac4}
 html.cod-dark .ef-label{color:#c9ced6}
+html.cod-dark .ef-done-pv{background:#12161c;border-color:#2a3039}html.cod-dark .ef-done-pv b{color:#f3f4f6}html.cod-dark .ef-done-pv span{color:#aab2bf}
+html.cod-dark .ef-done-bar{background:linear-gradient(90deg,#16a34a 55%,#2a3039 55%)}
 html.cod-dark .ef-card{background:#1a1e25;box-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6)}
 html.cod-dark .ef-input,html.cod-dark .ef-money{background:#10141a;border-color:#3a3f48;color:#e4e8ef;box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
 html.cod-dark .ef-money .ef-input{background:transparent}

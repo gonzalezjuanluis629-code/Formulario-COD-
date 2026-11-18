@@ -15,6 +15,24 @@ export class ShopifyUserError extends Error {
 @Injectable()
 export class AdminClientService {
   private readonly log = new Logger(AdminClientService.name);
+  private readonly memo = new Map<string, { at: number; p: Promise<unknown> }>();
+
+  /**
+   * Lecturas que se repiten mucho (precio de una variante, datos del producto):
+   * se guardan unos segundos en memoria. Abrir el formulario y cotizar no
+   * esperan a Shopify cada vez. Las peticiones iguales simultáneas comparten
+   * una sola llamada.
+   */
+  cachedGraphql<T>(ctx: ShopContext, query: string, variables: Record<string, unknown> = {}, ttlMs = 30_000): Promise<T> {
+    const key = `${ctx.shopId}|${query}|${JSON.stringify(variables)}`;
+    const hit = this.memo.get(key);
+    if (hit && Date.now() - hit.at < ttlMs) return hit.p as Promise<T>;
+    if (this.memo.size > 5000) this.memo.clear();
+    const p = this.graphql<T>(ctx, query, variables);
+    this.memo.set(key, { at: Date.now(), p });
+    p.catch(() => { if (this.memo.get(key)?.p === p) this.memo.delete(key); });
+    return p;
+  }
 
   async graphql<T>(ctx: ShopContext, query: string, variables: Record<string, unknown> = {}): Promise<T> {
     const url = `https://${ctx.domain}/admin/api/${ctx.apiVersion}/graphql.json`;

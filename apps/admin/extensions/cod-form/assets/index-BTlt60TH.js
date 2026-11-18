@@ -33,6 +33,8 @@ const api = {
   /** La API key de Google no toca jamás el navegador. */
   reverse: (lat, lng) => call("/geo/reverse", { method: "POST", body: JSON.stringify({ lat, lng }) }),
   submit: (body) => call("/submit", { method: "POST", body: JSON.stringify(body) }),
+  /** Enlace de «Estado del pedido» de Shopify (cuando el pedido ya está creado). */
+  orderStatus: (submissionId, key) => call("/order-status", { method: "POST", body: JSON.stringify({ submissionId, key }) }),
   /** Evento de embudo. sendBeacon no bloquea al cliente ni espera respuesta. */
   track: (formId, event, sessionId, field) => {
     const body = JSON.stringify({ formId, event, sessionId, field: field != null ? field : null, ts: Date.now() });
@@ -627,7 +629,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-C2vHsIvb.js").then(({ renderAddons }) => {
+    void import("./addons-ROrXSNVo.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -917,7 +919,15 @@ const CSS = `
   transition:width .6s var(--cod-ease)}
 
 .cod-fields{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--cod-gap)}
-.cod-field{grid-column:span 12;animation:cod-in .35s var(--cod-ease) both}
+.cod-field{grid-column:span 12;animation:cod-in .22s var(--cod-ease) both}
+/* En la ventana ya entra todo junto: los campos no se animan uno a uno (más fluido en el móvil). */
+.cod-modal .cod-field{animation:none}
+/* Mientras el cliente escribe, las animaciones que se repiten se detienen: el teclado y el
+   desplazamiento van fluidos. Vuelven al salir del campo. */
+.cod-form:focus-within .cod-submit,.cod-form:focus-within .cod-submit::before,.cod-form:focus-within .cod-submit::after,
+.cod-form:focus-within .cod-seg-btn{animation-play-state:paused!important}
+/* Con la ventana abierta, el botón de la página (que queda detrás) no se anima. */
+:host([data-cod-paused]) .cod-trigger,:host([data-cod-paused]) .cod-trigger::before,:host([data-cod-paused]) .cod-trigger::after{animation-play-state:paused!important}
 .cod-w50{grid-column:span 6}.cod-w33{grid-column:span 4}.cod-w25{grid-column:span 3}
 .cod-w66{grid-column:span 8}.cod-w75{grid-column:span 9}
 .cod-hidden{display:none}
@@ -1080,9 +1090,6 @@ ${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
   border-top-color:#fff;border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-loading .cod-spinner{display:block}
 .cod-loading .cod-submit-label,.cod-loading .cod-submit-icon{opacity:.7}
-.cod-wa-btn{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:11px 20px;
-  background:#25d366;color:#fff;border-radius:99px;font-weight:700;text-decoration:none;font-size:14px}
-.cod-wa-btn:active{transform:scale(.97)}
 
 /* ── Confirmación. SIN resumen: ni productos, ni cantidades, ni total. ── */
 .cod-done{text-align:center;padding:26px 10px;animation:cod-in .45s var(--cod-ease) both}
@@ -1165,8 +1172,7 @@ ${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
    abierto la ventana se encoge en vez de taparlo todo, y la X siempre se ve. */
 .cod-modal-overlay{position:fixed;left:0;right:0;top:var(--cod-vv-top,0px);height:var(--cod-vv-h,100%);
   z-index:2147483000;display:flex;align-items:flex-end;justify-content:center;
-  background:rgba(0,0,0,.5);opacity:0;transition:opacity .25s var(--cod-ease);
-  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);overscroll-behavior:contain}
+  background:rgba(0,0,0,.55);opacity:0;transition:opacity .22s var(--cod-ease);overscroll-behavior:contain}
 .cod-modal-overlay.cod-open{opacity:1}
 .cod-modal{position:relative;display:flex;flex-direction:column;width:100%;max-width:440px;
   max-height:calc(var(--cod-vv-h,100vh) - 28px);background:var(--cod-surface);border-radius:20px 20px 0 0;
@@ -1229,6 +1235,7 @@ async function mount(opts) {
   style.textContent = `:host{${tokensToCss(config.tokens)}}
 ${CSS}
 ${config.tokens.customCss}`;
+  preloadParts(config);
   const isCart = host.dataset.cart === "true";
   const renderInto = (mountRoot) => {
     if (isCart) {
@@ -1257,7 +1264,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-D6GnG8pc.js");
+    const { renderTrigger } = await import("./trigger-BHVONVpL.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1295,6 +1302,18 @@ ${config.tokens.customCss}`;
   } catch {
   }
   root.addEventListener("focusin", () => fireCheckoutPixel(config), { once: true });
+}
+let preloaded = false;
+function preloadParts(config) {
+  if (preloaded) return;
+  preloaded = true;
+  const go = () => {
+    if (config.addons.length) void import("./addons-ROrXSNVo.js").catch(() => void 0);
+    if (config.fields.some((f) => f.type === "location")) void import("./map-BTnRQ8LE.js").catch(() => void 0);
+  };
+  const ric = window.requestIdleCallback;
+  if (ric) ric(go, { timeout: 2500 });
+  else window.setTimeout(go, 1200);
 }
 function renderCartInto(mountRoot, config) {
   mountRoot.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
@@ -1481,14 +1500,32 @@ ${config.tokens.customCss}`;
   const overlay = document.createElement("div");
   overlay.className = `cod-modal-overlay cod-mode-${(_a2 = config.tokens.display) != null ? _a2 : "sheet"}`;
   const vv = window.visualViewport;
+  let fitTop = -1, fitH = -1, fitRaf = 0;
   const fit = () => {
-    if (!vv) return;
-    overlay.style.setProperty("--cod-vv-top", `${vv.offsetTop}px`);
-    overlay.style.setProperty("--cod-vv-h", `${vv.height}px`);
+    if (!vv || fitRaf) return;
+    fitRaf = requestAnimationFrame(() => {
+      fitRaf = 0;
+      const t = Math.round(vv.offsetTop), h = Math.round(vv.height);
+      if (t !== fitTop) {
+        fitTop = t;
+        overlay.style.setProperty("--cod-vv-top", `${t}px`);
+      }
+      if (h !== fitH) {
+        fitH = h;
+        overlay.style.setProperty("--cod-vv-h", `${h}px`);
+      }
+    });
   };
-  fit();
-  vv == null ? void 0 : vv.addEventListener("resize", fit);
-  vv == null ? void 0 : vv.addEventListener("scroll", fit);
+  if (vv) {
+    fitTop = Math.round(vv.offsetTop);
+    fitH = Math.round(vv.height);
+    overlay.style.setProperty("--cod-vv-top", `${fitTop}px`);
+    overlay.style.setProperty("--cod-vv-h", `${fitH}px`);
+  }
+  vv == null ? void 0 : vv.addEventListener("resize", fit, { passive: true });
+  vv == null ? void 0 : vv.addEventListener("scroll", fit, { passive: true });
+  const pausedHosts = [...document.querySelectorAll("[data-cod-form]")];
+  pausedHosts.forEach((h) => h.setAttribute("data-cod-paused", ""));
   const modal = document.createElement("div");
   modal.className = "cod-modal";
   modal.setAttribute("role", "dialog");
@@ -1508,6 +1545,8 @@ ${config.tokens.customCss}`;
     document.removeEventListener("keydown", esc2);
     vv == null ? void 0 : vv.removeEventListener("resize", fit);
     vv == null ? void 0 : vv.removeEventListener("scroll", fit);
+    if (fitRaf) cancelAnimationFrame(fitRaf);
+    pausedHosts.forEach((h) => h.removeAttribute("data-cod-paused"));
     setTimeout(() => portal.remove(), 250);
   };
   const esc2 = (e) => {
@@ -1548,6 +1587,8 @@ class FormState {
     __publicField(this, "quoteKey", "");
     __publicField(this, "quoteTimer", 0);
     __publicField(this, "startedAt", Date.now());
+    /** Recotiza (con pausa de 300 ms) solo si cambió algo que afecta al precio. */
+    __publicField(this, "quoteSeq", 0);
     this.config = config;
     this.idempotencyKey = crypto.randomUUID();
     for (const f of config.fields) {
@@ -1578,24 +1619,28 @@ class FormState {
       ...this.cart ? { cart: this.cart, cartToken: this.cartToken, cartTotalCents: this.cartTotalCents } : {}
     };
   }
-  /** Recotiza (con pausa de 300 ms) solo si cambió algo que afecta al precio. */
   requestQuote() {
     const key = JSON.stringify(this.quoteInput());
     if (key === this.quoteKey) return;
     this.quoteKey = key;
     window.clearTimeout(this.quoteTimer);
     this.quoteTimer = window.setTimeout(() => {
+      const seq = ++this.quoteSeq;
       this.quoter(this.quoteInput()).then((q) => {
+        if (seq !== this.quoteSeq) return;
         this.quote = q;
         this.quoteListeners.forEach((fn) => fn(q));
       }).catch(() => {
-        this.quoteKey = "";
+        if (seq === this.quoteSeq) this.quoteKey = "";
       });
-    }, 300);
+    }, 120);
   }
   /** Valida un código en el servidor. Devuelve la cotización con o sin el descuento aplicado. */
   async applyDiscount(code) {
+    const seq = ++this.quoteSeq;
+    window.clearTimeout(this.quoteTimer);
     const q = await this.quoter(this.quoteInput(code));
+    if (seq !== this.quoteSeq) return q;
     this.discountCode = q.appliedDiscount ? q.appliedDiscount.code : null;
     this.quote = q;
     this.quoteKey = JSON.stringify(this.quoteInput());
@@ -1622,6 +1667,14 @@ async function submit(root, config, state) {
   btn.disabled = true;
   btn.classList.add("cod-loading");
   errBox.textContent = "";
+  const addonEls = root.querySelectorAll("[data-addon-id]");
+  if (addonEls.length) {
+    const on = new Set([...addonEls].filter((el) => {
+      var _a2;
+      return el.classList.contains("cod-upsell-on") || !!((_a2 = el.querySelector('input[type="checkbox"]')) == null ? void 0 : _a2.checked);
+    }).map((el) => el.dataset.addonId));
+    state.acceptedAddons = config.addons.filter((a) => on.has(a.id)).map((a) => ({ id: a.id, variantId: a.variantId, qty: a.qty }));
+  }
   const payload = {
     formId: config.formId,
     formVersionId: config.formVersionId,
@@ -1645,7 +1698,7 @@ async function submit(root, config, state) {
       api.track(config.formId, "submit_attempt", state.idempotencyKey);
     } catch {
     }
-    showConfirmation(root, res);
+    showConfirmation(root, res, state.idempotencyKey);
   } catch (e) {
     btn.disabled = false;
     btn.classList.remove("cod-loading");
@@ -1653,11 +1706,10 @@ async function submit(root, config, state) {
     errBox.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 }
-function showConfirmation(root, res) {
+function showConfirmation(root, res, key) {
   var _a2;
   const goWhatsapp = res.redirectTarget === "whatsapp" && !!res.whatsappUrl;
   const willRedirect = goWhatsapp || res.redirectTarget === "thankyou";
-  const dest = goWhatsapp ? res.whatsappUrl : res.redirectUrl;
   if (res.purchasePixel) firePurchasePixel(res.purchasePixel);
   root.innerHTML = `
     <div class="cod-done">
@@ -1666,18 +1718,56 @@ function showConfirmation(root, res) {
              stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
       </div>
       <h3>${escapeHtml(res.title)}</h3>
-      <p>${escapeHtml(res.message)}</p>
-      ${willRedirect ? `<div class="cod-done-bar"><span style="animation-duration:${res.redirectDelayMs}ms"></span></div>
-           <small>${goWhatsapp ? "Abriendo WhatsApp…" : "Redirigiendo…"}</small>` : ""}
-      ${goWhatsapp ? `<a class="cod-wa-btn" href="${res.whatsappUrl}" target="_blank" rel="noopener">
-             Continuar por WhatsApp</a>` : ""}
+      ${res.message ? `<p>${escapeHtml(res.message)}</p>` : ""}
+      ${willRedirect ? `<div class="cod-done-bar"><span style="animation-duration:${res.redirectDelayMs}ms"></span></div>` : ""}
     </div>`;
   (_a2 = root.querySelector(".cod-done")) == null ? void 0 : _a2.scrollIntoView({ behavior: "smooth", block: "center" });
-  if (willRedirect) {
-    window.setTimeout(() => {
-      window.location.assign(dest);
-    }, res.redirectDelayMs);
-  }
+  if (!willRedirect) return;
+  const statusUrl = waitForStatusUrl(res.submissionId, key, Math.max(res.redirectDelayMs, 2500) + 6e3);
+  const delay = new Promise((r) => window.setTimeout(r, res.redirectDelayMs));
+  void Promise.all([statusUrl.peek(Math.max(res.redirectDelayMs, 2500)), delay]).then(([url2]) => {
+    if (!goWhatsapp) {
+      window.location.assign(url2 || res.redirectUrl);
+      return;
+    }
+    const toStatus = (u) => {
+      if (!u) return;
+      try {
+        const t = new URL(u, location.href);
+        if (t.origin === location.origin) history.replaceState(history.state, "", t.pathname + t.search + t.hash);
+      } catch {
+      }
+      let wasHidden = document.visibilityState === "hidden";
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") wasHidden = true;
+        else if (wasHidden) window.location.replace(u);
+      });
+      window.addEventListener("pageshow", (e) => {
+        if (e.persisted) window.location.replace(u);
+      });
+    };
+    if (url2) toStatus(url2);
+    else void statusUrl.done.then(toStatus);
+    window.location.assign(res.whatsappUrl);
+  });
+}
+function waitForStatusUrl(submissionId, key, maxMs) {
+  const until = Date.now() + maxMs;
+  const done = (async () => {
+    while (Date.now() < until) {
+      try {
+        const r = await api.orderStatus(submissionId, key);
+        if (r.ready && r.url) return r.url;
+      } catch {
+      }
+      await new Promise((r) => window.setTimeout(r, 700));
+    }
+    return null;
+  })();
+  return {
+    done,
+    peek: (ms) => Promise.race([done, new Promise((r) => window.setTimeout(() => r(null), ms))])
+  };
 }
 function metaAttribution() {
   try {

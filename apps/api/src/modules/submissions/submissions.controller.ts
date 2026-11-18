@@ -22,3 +22,22 @@ export class SubmissionsController {
     return this.submit.submit(ctx, dto, clientIp(req), req.get('user-agent') ?? '');
   }
 }
+
+/**
+ * Enlace a la página «Estado del pedido» de Shopify, para llevar ahí al cliente
+ * al terminar. El pedido lo crea el worker al momento, así que el formulario
+ * pregunta unos segundos hasta que esté. Solo responde a quien tiene la clave
+ * única del envío (la conoce únicamente el navegador que hizo el pedido).
+ */
+@Controller('apps/cod/order-status')
+@UseGuards(AppProxyGuard)
+export class OrderStatusController {
+  constructor(private submit: SubmitService) {}
+
+  @Post()
+  status(@Shop() ctx: ShopContext, @Body() body: { submissionId?: unknown; key?: unknown }) {
+    const id = typeof body?.submissionId === 'string' ? body.submissionId.slice(0, 64) : '';
+    const key = typeof body?.key === 'string' ? body.key.slice(0, 100) : '';
+    return this.submit.statusUrl(ctx, id, key);
+  }
+}

@@ -3,6 +3,7 @@ import type { SubmitRequest, SubmitResponse, Field } from '@cod/contracts';
 import { ShopSettingsSchema } from '@cod/contracts';
 import { getCountryProfile, type NormalizedAddress } from '@cod/geo';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { AdminClientService } from '../../infra/shopify/admin-client.service';
 import { RedisService } from '../../infra/redis/redis.service';
 import { CryptoService } from '../../shared/crypto/crypto.service';
 import type { ShopContext } from '../../infra/shopify/shop-context.service';
@@ -37,7 +38,23 @@ export class SubmitService {
     private quote: QuoteService,
     private antifraud: AntifraudService,
     private addons: AddonsService,
+    private admin: AdminClientService,
   ) {}
+
+  /** Enlace de «Estado del pedido» en Shopify (null mientras el pedido se crea). */
+  async statusUrl(ctx: ShopContext, submissionId: string, key: string): Promise<{ ready: boolean; url: string | null }> {
+    if (!submissionId || !key) return { ready: false, url: null };
+    const sub = await this.prisma.submission.findFirst({
+      where: { id: submissionId, shopId: ctx.shopId, idempotencyKey: key },
+      select: { shopifyOrderId: true, status: true },
+    });
+    if (!sub?.shopifyOrderId) return { ready: false, url: null };
+    const d = await this.admin.cachedGraphql<{ order: { statusPageUrl: string | null } | null }>(
+      ctx, 'query($id: ID!){ order(id:$id){ statusPageUrl } }', { id: sub.shopifyOrderId }, 10 * 60_000,
+    ).catch(() => null);
+    const url = d?.order?.statusPageUrl ?? null;
+    return { ready: !!url, url };
+  }
 
   async submit(ctx: ShopContext, dto: SubmitRequest, ip: string, ua: string): Promise<SubmitResponse> {
     const settings = { ...ShopSettingsSchema.parse(ctx.settings ?? {}), ...(ctx.currency ? { currency: ctx.currency } : {}) };

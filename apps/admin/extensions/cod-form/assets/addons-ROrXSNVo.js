@@ -1,4 +1,4 @@
-import { m as money } from "./index-BnxJWyT2.js";
+import { m as money } from "./index-BTlt60TH.js";
 function renderAddons(host, config, state, onChange) {
   var _a;
   const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty);
@@ -29,6 +29,7 @@ function priceTag(a, cls) {
 function renderBump(a, state, onChange) {
   const el = document.createElement("label");
   el.className = "cod-bump";
+  el.dataset.addonId = a.id;
   el.setAttribute("style", cardStyle(a));
   el.innerHTML = `
     <input type="checkbox">
@@ -49,6 +50,7 @@ function renderBump(a, state, onChange) {
 function renderUpsell(a, downsell, state, onChange) {
   const el = document.createElement("div");
   el.className = "cod-upsell";
+  el.dataset.addonId = a.id;
   el.setAttribute("style", cardStyle(a));
   el.innerHTML = `
     ${a.image ? `<img class="cod-upsell-img" src="${esc(a.image)}" alt="" loading="lazy">` : ""}
