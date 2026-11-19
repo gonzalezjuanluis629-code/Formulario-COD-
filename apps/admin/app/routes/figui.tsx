@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { AppProvider as PolarisAppProvider } from '@shopify/polaris';
 import esTranslations from '@shopify/polaris/locales/es.json';
-import { Link, Outlet, isRouteErrorResponse, useLoaderData, useLocation, useRouteError } from 'react-router';
+import { Link, Outlet, isRouteErrorResponse, useLoaderData, useLocation, useNavigate, useRouteError } from 'react-router';
 import type { HeadersFunction, LoaderFunctionArgs } from 'react-router';
 import polarisStyles from '@shopify/polaris/build/esm/styles.css?url';
 import { requireShop } from '../lib/shop.server';
@@ -46,6 +46,16 @@ if (typeof window !== 'undefined' && !(window as unknown as { __codFetch?: boole
 }
 
 export const links = () => [{ rel: 'stylesheet', href: polarisStyles }];
+
+/**
+ * Figui pone su propia barra de secciones (?bar=figui): aquí se esconde la del
+ * editor y Figui elige la sección por mensaje. Se recuerda en la pestaña.
+ * Se ejecuta antes de pintar, sin destello de la barra.
+ */
+const BAR_BOOT = `(function(){try{var q=new URLSearchParams(location.search).get('bar');if(q==='figui')sessionStorage.setItem('cod-figui-bar','1');if(sessionStorage.getItem('cod-figui-bar')==='1')document.documentElement.classList.add('cod-nobar');}catch(e){}})();`;
+
+/** Secciones a las que Figui puede llevar al editor. */
+const FIGUI_PATH = /^\/figui(?:\/(?:facil|offers|shipping|orders|analytics|antifraud|settings|design))?$/;
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { shop } = await requireShop(request);
@@ -121,28 +131,38 @@ function TabBar() {
 export default function FiguiLayout() {
   useLoaderData<typeof loader>();
   const dark = useCodDark();
-  // Figui avisa cuando cambias entre claro y oscuro.
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  // Figui avisa cuando cambias entre claro y oscuro, y elige la sección desde su barra.
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.source !== window.parent || window.parent === window) return;
-      const d = e.data as { type?: string; dark?: unknown } | null;
+      const d = e.data as { type?: string; dark?: unknown; to?: unknown } | null;
       if (d?.type === 'cod:theme') setCodDark(d.dark === true);
+      if (d?.type === 'cod:navigate' && typeof d.to === 'string' && FIGUI_PATH.test(d.to)) navigate(d.to);
     };
     window.addEventListener('message', onMessage);
+    // Ya escucha: Figui puede mandarle la sección.
+    if (window.parent !== window) window.parent.postMessage({ type: 'cod:hello' }, '*');
     return () => window.removeEventListener('message', onMessage);
-  }, []);
+  }, [navigate]);
+  // Figui marca en su barra la sección en la que está el editor.
+  useEffect(() => {
+    if (window.parent !== window) window.parent.postMessage({ type: 'cod:route', path: pathname }, '*');
+  }, [pathname]);
   // Quita el token de la barra de direcciones (no queda en el historial).
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (url.searchParams.has('ft') || url.searchParams.has('theme')) {
+    if (url.searchParams.has('ft') || url.searchParams.has('theme') || url.searchParams.has('bar')) {
       url.searchParams.delete('ft');
       url.searchParams.delete('theme');
+      url.searchParams.delete('bar');
       window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
     }
   }, []);
   return (
     <PolarisAppProvider i18n={esTranslations} linkComponent={PolarisLink} theme={dark ? 'dark-experimental' : 'light'}>
-      <script dangerouslySetInnerHTML={{ __html: COD_THEME_BOOT }} />
+      <script dangerouslySetInnerHTML={{ __html: COD_THEME_BOOT + BAR_BOOT }} />
       <style dangerouslySetInnerHTML={{ __html: FIGUI_SKIN + CSS }} />
       <TabBar />
       <Outlet />
@@ -185,6 +205,12 @@ const CSS = `
   @media (min-width:1300px){.cod-tabs{justify-content:center}}
   .cod-tabs-space{height:57px}
   html.cod-figui{--cod-sticky-top:70px}
+  /* Con la barra de Figui, la del editor no se muestra. */
+  html.cod-nobar .cod-tabs-wrap,html.cod-nobar .cod-tabs-space{display:none}
+  html.cod-figui.cod-nobar{--cod-sticky-top:0px}
+  /* Dentro de Figui (con su barra) el editor usa todo el ancho y empieza arriba, alineado con la barra de Figui. */
+  html.cod-figui.cod-nobar .Polaris-Page{max-width:none;padding-top:0;padding-left:2px;padding-right:2px}
+  html.cod-figui.cod-nobar .Polaris-Page > .Polaris-Box:first-child{padding-block-start:4px}
   @media (max-width:700px){
     .cod-tabs-space{height:61px}
     .cod-tab{flex-direction:column;justify-content:center;gap:4px;height:60px;padding:0 12px;font-size:12px}
