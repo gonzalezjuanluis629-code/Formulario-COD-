@@ -832,7 +832,7 @@ html.cod-dark .ef-detail{--detail:#10141a}
 .ef-save-btn.dirty:hover{filter:brightness(1.05)}
 .ef-save-btn:hover{filter:brightness(1.04)}
 .ef-save-btn:disabled{opacity:.7}
-.ef-preview{position:sticky;top:76px;height:calc(100vh - 92px);min-height:560px;border-radius:18px;overflow:hidden;border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(16,24,40,.18);background:#f1f1f1}
+.ef-preview{position:sticky;top:calc(var(--cod-sticky-top,70px) + 6px);height:calc(100vh - var(--cod-sticky-top,70px) - 22px);min-height:560px;border-radius:18px;overflow:hidden;border:1px solid var(--line);box-shadow:0 8px 24px -12px rgba(16,24,40,.18);background:#f1f1f1}
 /* ── Modo oscuro (mismos colores que Figui) ── */
 html.cod-dark .ef{--soft-grad:linear-gradient(180deg,#262a32 0%,#20242b 100%);
   --soft-shadow:0 1px 2px rgba(0,0,0,.4),0 3px 8px -3px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.04);
@@ -860,8 +860,10 @@ html.cod-dark .ef-x:hover{background:#262a32;color:#c9ced6}
 html.cod-dark .ef-save{color:#4ade80}html.cod-dark .ef-warn{color:#fbbf24}
 html.cod-dark .ef-hint a,html.cod-dark .ef-link{color:#5AA0F2}
 html.cod-dark html.cod-dark .ef-preview{background:#10141a;box-shadow:0 8px 24px -12px rgba(0,0,0,.6)}
+html.cod-nobar .ef{max-width:none;margin:0;padding:0 2px 16px;grid-template-columns:minmax(0,600px) minmax(0,1fr)}
 @media (max-width: 900px){
   .ef{grid-template-columns:1fr;padding:12px}
+  html.cod-nobar .ef{grid-template-columns:1fr;padding:0 2px 16px}
   .ef-preview{position:relative;top:0;height:640px}
 }
 `;
