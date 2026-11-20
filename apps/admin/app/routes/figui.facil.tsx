@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type HTMLAttributes, type ReactNode } from 'react';
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS as DndCSS } from '@dnd-kit/utilities';
 import { Banner, Frame } from '@shopify/polaris';
 import { SavedToast } from '../components/SavedToast';
 import { Link, redirect, useFetcher, useLoaderData } from 'react-router';
@@ -19,13 +22,27 @@ import { IconPicker } from '../components/IconPicker';
 import { DisplayPicker, type DisplayMode } from '../components/DisplayPicker';
 import {
   PersonIcon, PhoneIcon, EmailIcon, HomeIcon, LocationIcon, NoteIcon, CheckboxIcon, ListBulletedIcon,
-  ChevronUpIcon, ChevronDownIcon, DeleteIcon, XIcon, PlusIcon, CheckIcon, ViewIcon, HideIcon, ProductIcon,
+  ChevronUpIcon, DragHandleIcon, DeleteIcon, XIcon, PlusIcon, CheckIcon, ViewIcon, HideIcon, ProductIcon,
   DeliveryIcon, CashDollarIcon, DiscountCodeIcon, CheckCircleIcon, PageIcon, ChatIcon, SaveIcon, ColorIcon, AdjustIcon, ButtonIcon,
 } from '@shopify/polaris-icons';
 
 type Ico = typeof PersonIcon;
 /** Icono del sistema (mismo trazo y tamaño en todo el editor). */
 const Ic = ({ s: S, size = 20 }: { s: Ico; size?: number }) => <S className="ef-ic" width={size} height={size} aria-hidden focusable="false" />;
+
+/** El orden real de cada dato es `order` (lo usa la vista previa y el formulario): se rehace en cada cambio. */
+const reindex = (list: Field[]) => list.map((f, i) => (f.order === i + 1 ? f : { ...f, order: i + 1 }));
+
+/** Fila que se arrastra para cambiar el orden (solo desde el asa, para no estorbar al escribir). */
+function SortableRow({ id, className, children }: { id: string; className: string; children: (handle: HTMLAttributes<HTMLElement>) => ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <li ref={setNodeRef} data-fkey={id} className={`${className}${isDragging ? ' dragging' : ''}`}
+      style={{ transform: DndCSS.Translate.toString(transform), transition, position: 'relative', zIndex: isDragging ? 5 : undefined }}>
+      {children({ ...attributes, ...listeners })}
+    </li>
+  );
+}
 
 /**
  * EDITOR FÁCIL (Figui). Tres pasos en una pantalla y un solo botón «Guardar»:
@@ -278,7 +295,7 @@ const COLORS = ['#111111', '#16a34a', '#2563eb', '#dc2626', '#ea580c', '#7c3aed'
 export default function EditorFacil() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<Result>();
-  const [fields, setFields] = useState<Field[]>(data.fields);
+  const [fields, setFields] = useState<Field[]>(() => reindex(data.fields));
   // Todo el diseño en un solo objeto: lo usan los controles fáciles y el panel de diseño completo.
   const [tok, setTokRaw] = useState<ThemeTokens>(data.tokens);
   const upTok = (fn: (t: ThemeTokens) => ThemeTokens) => { setTokRaw(fn); setDirty(true); };
@@ -328,11 +345,26 @@ export default function EditorFacil() {
   const touch = () => setDirty(true);
   const setField = (i: number, p: Partial<Field>) => { setFields((l) => l.map((f, j) => (j === i ? { ...f, ...p } : f))); touch(); };
   const move = (i: number, d: -1 | 1) => {
-    setFields((l) => { const n = [...l]; const j = i + d; if (j < 0 || j >= n.length) return l; [n[i], n[j]] = [n[j]!, n[i]!]; return n; });
+    setFields((l) => { const j = i + d; if (j < 0 || j >= l.length) return l; return reindex(arrayMove(l, i, j)); });
     touch();
   };
-  const remove = (i: number) => { setFields((l) => l.filter((_, j) => j !== i)); touch(); };
-  const add = (make: (o: number) => Field) => { const f = make(fields.length + 1); setFields((l) => [...l, f]); setAddOpen(false); touch(); window.setTimeout(() => document.querySelector(`[data-fkey="${f.key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60); };
+  const remove = (i: number) => { setFields((l) => reindex(l.filter((_, j) => j !== i))); touch(); };
+  // Arrastrar para cambiar el orden (con el ratón, el dedo o el teclado desde el asa).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const onDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    setFields((l) => {
+      const from = l.findIndex((f) => f.key === active.id);
+      const to = l.findIndex((f) => f.key === over.id);
+      return from < 0 || to < 0 ? l : reindex(arrayMove(l, from, to));
+    });
+    touch();
+  };
+  const add = (make: (o: number) => Field) => { const f = make(fields.length + 1); setFields((l) => reindex([...l, f])); setAddOpen(false); touch(); window.setTimeout(() => document.querySelector(`[data-fkey="${f.key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60); };
 
   const addProduct = async () => {
     const picked = await pickResources({ type: 'product' });
@@ -380,7 +412,7 @@ export default function EditorFacil() {
           {/* 1 ─ El formulario: datos, títulos y textos */}
           <section className="ef-card">
             <h2><span className="ef-n">1</span> Lo que ve y llena el cliente</h2>
-            <p className="ef-hint">Datos, títulos, textos e imágenes del formulario. Usa las flechas para cambiar el orden y <b>Ajustes</b> en cada uno para todo lo demás (ancho, icono, color, reglas…).</p>
+            <p className="ef-hint">Datos, títulos, textos e imágenes del formulario. Arrastra desde <b>⠿</b> para cambiar el orden y usa <b>Ajustes</b> en cada uno para todo lo demás (ancho, icono, color, reglas…).</p>
             <button type="button" className={`ef-pill ef-more ef-lookbtn${lookOpen === 'form' ? ' on' : ''}`} aria-expanded={lookOpen === 'form'} onClick={() => toggleLook('form')}>
               <Ic s={ColorIcon} size={16} />{lookOpen === 'form' ? 'Cerrar ajustes del formulario' : 'Ajustes del formulario: colores, letra, esquinas, espacios'}
             </button>
@@ -389,6 +421,8 @@ export default function EditorFacil() {
                 <DesignPanel tokens={tok} onChange={(t) => upTok(() => t)} open={null} onOpen={noop} only={['colors', 'shape', 'extras']} />
               </div>
             )}
+            <DndContext id="ef-fields-dnd" sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+            <SortableContext items={fields.map((f) => f.key)} strategy={verticalListSortingStrategy}>
             <ul className="ef-fields">
               {fields.map((f, i) => {
                 const isContent = CONTENT_TYPES.includes(f.type);
@@ -398,11 +432,10 @@ export default function EditorFacil() {
                 const meta = FIELD_META[f.type];
                 const open = openKey === f.key;
                 return (
-                  <li key={f.key} data-fkey={f.key} className={`ef-field${f.visible ? '' : ' off'}${open ? ' open' : ''}`}>
-                    <div className="ef-move">
-                      <button type="button" aria-label="Subir" disabled={i === 0} onClick={() => move(i, -1)}><Ic s={ChevronUpIcon} /></button>
-                      <button type="button" aria-label="Bajar" disabled={i === fields.length - 1} onClick={() => move(i, 1)}><Ic s={ChevronDownIcon} /></button>
-                    </div>
+                  <SortableRow key={f.key} id={f.key} className={`ef-field${f.visible ? '' : ' off'}${open ? ' open' : ''}`}>{(handle) => (<>
+                    <button type="button" className="ef-grip" aria-label="Arrastrar para cambiar el orden" title="Arrastra para cambiar el orden" {...handle}>
+                      <Ic s={DragHandleIcon} />
+                    </button>
                     <div className="ef-main">
                       <span className="ef-kind">{meta?.icon && <Ic s={meta.icon} size={14} />}{meta?.label ?? f.type}{f.conditions.length ? ' · con reglas' : ''}</span>
                       {f.type === 'divider' ? (
@@ -447,10 +480,12 @@ export default function EditorFacil() {
                       )}
                     </div>
                     <button type="button" className="ef-del" aria-label={`Quitar ${name || meta?.label}`} onClick={() => remove(i)}><Ic s={DeleteIcon} /></button>
-                  </li>
+                  </>)}</SortableRow>
                 );
               })}
             </ul>
+            </SortableContext>
+            </DndContext>
             <p className="ef-sub">Añadir rápido</p>
             <div className="ef-add">
               {ADD.map((a) => (
@@ -760,6 +795,10 @@ const CSS = `
 .ef-fields{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 .ef-field{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:14px;padding:10px;background:var(--soft-grad);box-shadow:var(--soft-shadow)}
 .ef-field.off{opacity:.55}
+.ef-grip{display:grid;place-items:center;flex:none;width:34px;min-height:44px;align-self:stretch;border:1px solid var(--line);border-radius:10px;background:var(--soft-grad);box-shadow:var(--soft-shadow);color:#667085;cursor:grab;touch-action:none;padding:0}
+.ef-grip:hover{box-shadow:var(--soft-shadow-hover);color:#344054}
+.ef-grip:active{cursor:grabbing}
+.ef-field.dragging{box-shadow:0 14px 30px -10px rgba(16,24,40,.35);border-color:#BFD5F2;opacity:.97}
 .ef-move{display:flex;flex-direction:column;gap:5px}
 .ef-move button{display:grid;place-items:center;width:38px;height:31px;border:1px solid var(--line);border-radius:9px;background:var(--soft-grad);box-shadow:var(--soft-shadow);font-size:12px;cursor:pointer;color:#344054}
 .ef-move button:hover:not(:disabled){box-shadow:var(--soft-shadow-hover)}
@@ -847,7 +886,7 @@ html.cod-dark .ef-card{background:#1a1e25;box-shadow:0 1px 2px rgba(0,0,0,.4),0 
 html.cod-dark .ef-input,html.cod-dark .ef-money{background:#10141a;border-color:#3a3f48;color:#e4e8ef;box-shadow:inset 0 1px 2px rgba(0,0,0,.3)}
 html.cod-dark .ef-money .ef-input{background:transparent}
 html.cod-dark .ef-input::placeholder{color:#6f7682}
-html.cod-dark .ef-move button,html.cod-dark .ef-custom{color:#c9ced6}
+html.cod-dark .ef-move button,html.cod-dark .ef-grip,html.cod-dark .ef-custom{color:#c9ced6}
 html.cod-dark .ef-seg{background:#10141a;box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
 html.cod-dark .ef-seg button.on,html.cod-dark .ef-pill.on{color:var(--sel-ink)}
 html.cod-dark .ef-del{background:linear-gradient(180deg,#3d1c24,#33171d);border-color:#5c2630;color:#ff8a80;box-shadow:none}
