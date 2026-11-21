@@ -64,18 +64,37 @@ export async function mount(opts: MountOptions): Promise<void> {
   const renderInto = (mountRoot: HTMLElement) => {
     if (isCart) { renderCartInto(mountRoot, config); return; }
     const state = new FormState(config);
+    state.productId = opts.productId;
     // Si la página ya tiene su propia oferta o selector de cantidad («2 unidades»),
     // el formulario empieza con esa cantidad y la sigue mientras esté abierto.
-    const fromPage = pageQuantityInfo(config.product.variantId);
+    const fromPage = pageQuantityInfo(state.variantId);
     if (fromPage && (fromPage.qty > 1 || fromPage.managed)) { state.qty = fromPage.qty; state.qtyFromPage = true; }
     if (fromPage?.managed) state.pageManagesQty = true;
     renderForm(mountRoot, config, state, {
       onSubmit: () => submit(mountRoot, config, state),
     });
-    const follow = () => window.setTimeout(() => {
-      if (!mountRoot.isConnected) { document.removeEventListener('change', follow, true); return; }
-      const q = pageQuantity(config.product.variantId);
+    const sync = () => {
+      followPageVariant(opts.productId, state);
+      const q = pageQuantity(state.variantId);
       if (q) state.setQtyFromPage(q);
+    };
+    // La variante elegida en la página antes de abrir el formulario, y mientras
+    // está abierto (hay temas que la cambian un momento después, sin avisar).
+    followPageVariant(opts.productId, state);
+    const watch = window.setInterval(() => {
+      if (!mountRoot.isConnected) { if (!keptRoots.has(mountRoot)) window.clearInterval(watch); return; }
+      if (mountRoot.querySelector('.cod-done')) { window.clearInterval(watch); return; }
+      void followPageVariant(opts.productId, state);
+    }, 500);
+    // Al volver a abrir un formulario guardado, toma la cantidad que haya ahora en la página.
+    (mountRoot as HTMLElement & { codSync?: () => void }).codSync = sync;
+    const follow = () => window.setTimeout(() => {
+      if (!mountRoot.isConnected) {
+        // Cerrado pero guardado para cuando lo vuelva a abrir: se sigue escuchando.
+        if (!keptRoots.has(mountRoot)) document.removeEventListener('change', follow, true);
+        return;
+      }
+      sync();
     }, 60);
     document.addEventListener('change', follow, true);
   };
@@ -106,7 +125,7 @@ export async function mount(opts: MountOptions): Promise<void> {
       // botón puede quedar encima del «Comprar ahora» del carrito).
       if (!isCart && DIRECT?.cartButton && cartOpen()) { void openCartForm(); return; }
       fireCheckoutPixel(config); // «Inicio de pago»: al abrir el formulario, no al cargar la página
-      openModal(shadow, config, renderInto);
+      openModal(shadow, config, renderInto, isCart ? undefined : `${config.formId}:${config.product.variantId}`);
     });
     try { api.track(config.formId, 'view', config.formVersionId); } catch { /* nunca bloquea */ }
     if (!floating && !isCart) ensureFloating(host);
@@ -336,7 +355,14 @@ async function openCartForm(): Promise<void> {
 }
 
 /** Modal para el modo popup. El formulario se monta fresco cada apertura. */
-function openModal(shadow: ShadowRoot | null, config: WidgetConfig, renderInto: (el: HTMLElement) => void): void {
+/**
+ * Formularios cerrados sin pedir: si el cliente cierra sin querer y lo vuelve a
+ * abrir, encuentra lo que ya había escrito (nombre, teléfono, dirección…).
+ */
+const keptForms = new Map<string, HTMLElement>();
+const keptRoots = new WeakSet<HTMLElement>();
+
+function openModal(shadow: ShadowRoot | null, config: WidgetConfig, renderInto: (el: HTMLElement) => void, keepKey?: string): void {
   // La ventana va en su propio contenedor AL FINAL DE LA PÁGINA (no dentro de la
   // sección del tema): las animaciones/transformaciones del tema podían dejarla
   // atrapada debajo de otras capas («se ve pero no se puede tocar»).
@@ -389,10 +415,26 @@ function openModal(shadow: ShadowRoot | null, config: WidgetConfig, renderInto: 
 
   requestAnimationFrame(() => overlay.classList.add('cod-open'));
 
+  // «Atrás» del teléfono con el formulario abierto: cierra el formulario y el
+  // cliente sigue en la página del producto (antes salía de la página).
+  let pushed = false;
+  try { history.pushState({ ...(history.state ?? {}), codModal: true }, ''); pushed = true; } catch { /* sin historial */ }
+  const onPop = () => close(true);
+  if (pushed) window.addEventListener('popstate', onPop);
+
   let closed = false;
-  const close = () => {
+  const close = (fromBack = false) => {
     if (closed) return;
     closed = true;
+    window.removeEventListener('popstate', onPop);
+    // Cerrado con la X, tocando fuera o con Escape: se quita la entrada que se añadió.
+    if (pushed && !fromBack && (history.state as { codModal?: boolean } | null)?.codModal) {
+      try { history.back(); } catch { /* nada */ }
+    }
+    if (keepKey && formRoot.isConnected && !formRoot.querySelector('.cod-done')) {
+      keptForms.set(keepKey, formRoot);
+      keptRoots.add(formRoot);
+    } else if (keepKey) keptForms.delete(keepKey);
     overlay.classList.remove('cod-open');
     document.body.style.overflow = prevOverflow;
     document.removeEventListener('keydown', esc);
@@ -404,13 +446,20 @@ function openModal(shadow: ShadowRoot | null, config: WidgetConfig, renderInto: 
   };
   const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-  modal.querySelector('.cod-modal-close')!.addEventListener('click', close);
+  modal.querySelector('.cod-modal-close')!.addEventListener('click', () => close());
   document.addEventListener('keydown', esc);
 
-  const formRoot = document.createElement('div');
-  formRoot.className = 'cod-root';
+  const kept = keepKey ? keptForms.get(keepKey) : undefined;
+  const formRoot = kept ?? document.createElement('div');
+  if (!kept) formRoot.className = 'cod-root';
   modal.querySelector<HTMLElement>('.cod-modal-body')!.appendChild(formRoot);
-  renderInto(formRoot);
+  if (kept) {
+    keptForms.delete(keepKey!);
+    keptRoots.delete(kept);
+    (kept as HTMLElement & { codSync?: () => void }).codSync?.();
+  } else {
+    renderInto(formRoot);
+  }
 }
 
 export interface QuoteInput {
@@ -438,6 +487,16 @@ export class FormState {
   discountCode: string | null = null;
   acceptedAddons: { id: string; variantId: string | null; qty: number }[] = [];
   readonly idempotencyKey: string;
+  /**
+   * Variante que se pide. Empieza con la de la página al cargar y sigue al
+   * cliente si elige otra talla/color en la página (validada por el servidor).
+   */
+  variantId: string;
+  /** Producto del formulario (para validar la variante elegida en la página). */
+  productId = '';
+  /** Precio de la variante elegida (para las tarjetas de cantidad). */
+  unitPriceCents: number;
+  private variantListeners: (() => void)[] = [];
 
   /** Última cotización del servidor (precio real, descuento validado). */
   quote: QuoteResponse | null = null;
@@ -452,6 +511,8 @@ export class FormState {
     // Se genera al ABRIR el formulario, no al enviarlo: un doble-tap en
     // "Finalizar" manda la misma clave y el backend devuelve el mismo pedido.
     this.idempotencyKey = crypto.randomUUID();
+    this.variantId = config.product.variantId;
+    this.unitPriceCents = config.product.unitPriceCents;
 
     for (const f of config.fields) {
       if (f.defaultValue) this.values[f.key] = f.defaultValue;
@@ -461,6 +522,17 @@ export class FormState {
   onQuote(fn: (q: QuoteResponse) => void) { this.quoteListeners.push(fn); }
 
   onQtyChange(fn: (q: number) => void) { this.qtyListeners.push(fn); }
+
+  onVariantChange(fn: () => void) { this.variantListeners.push(fn); }
+
+  /** El cliente eligió otra variante en la página: el pedido y el precio la siguen. */
+  setVariant(variantId: string, unitPriceCents: number): void {
+    if (variantId === this.variantId) return;
+    this.variantId = variantId;
+    this.unitPriceCents = unitPriceCents;
+    this.variantListeners.forEach((fn) => fn());
+    this.requestQuote();
+  }
 
   /** Cambio de cantidad que viene de la página (no de las tarjetas del formulario). */
   setQtyFromPage(q: number): void {
@@ -473,7 +545,7 @@ export class FormState {
   private quoteInput(discountCode = this.discountCode): QuoteInput {
     return {
       formId: this.config.formId,
-      variantId: this.config.product.variantId,
+      variantId: this.variantId,
       qty: this.qty,
       province: this.values.province || this.values.provinceCode || null,
       discountCode,
@@ -535,6 +607,18 @@ async function submit(root: HTMLElement, config: WidgetConfig, state: FormState)
   btn.classList.add('cod-loading');
   errBox.textContent = '';
 
+  // Algunos temas cambian la variante sin avisar (solo la dirección o el campo
+  // escondido): se revisa justo antes de pedir. Si con eso cambió el precio, no
+  // se pide todavía: el cliente ve el total nuevo y vuelve a tocar.
+  const priceBefore = state.unitPriceCents;
+  await followPageVariant(state.productId, state);
+  if (state.unitPriceCents !== priceBefore) {
+    btn.disabled = false;
+    btn.classList.remove('cod-loading');
+    errBox.textContent = 'Actualizamos el precio según la opción que elegiste. Revisa el total y toca de nuevo para pedir.';
+    return;
+  }
+
   // Los extras que se envían son EXACTAMENTE los que el cliente ve marcados.
   const addonEls = root.querySelectorAll<HTMLElement>('[data-addon-id]');
   if (addonEls.length) {
@@ -548,7 +632,7 @@ async function submit(root: HTMLElement, config: WidgetConfig, state: FormState)
     formId: config.formId,
     formVersionId: config.formVersionId,
     idempotencyKey: state.idempotencyKey,
-    variantId: config.product.variantId,
+    variantId: state.variantId,
     qty: state.qty,
     discountCode: state.discountCode,
     acceptedAddons: state.acceptedAddons,
@@ -856,6 +940,35 @@ export function pageQuantityInfo(variantId: string): { qty: number; managed: boo
   const q = Math.floor(Number(input?.value));
   if (!input || !Number.isFinite(q) || q < 1 || q > 99) return null;
   return { qty: q, managed: input instanceof HTMLInputElement && input.type === 'hidden' };
+}
+
+/**
+ * Variante elegida AHORA en la página del producto: el selector de talla/color
+ * del tema escribe su id en el campo «id» del formulario de compra (y en la
+ * dirección, ?variant=). null si la página no dice otra cosa.
+ */
+export function pageVariant(): string | null {
+  if (!/\/products\//.test(location.pathname)) return null;
+  const forms = [...document.querySelectorAll<HTMLFormElement>('form[action*="/cart/add"]')]
+    .filter((f) => !f.closest('[data-cod-form], [data-cod-modal]') && !f.closest(CARD));
+  const main = forms.find((f) => f.closest('main, #MainContent, [id*="main"], [id*="product-information"], [id*="product-template"]'))
+    ?? (forms.length === 1 ? forms[0] : undefined);
+  let id = main?.querySelector<HTMLInputElement | HTMLSelectElement>('[name="id"]')?.value ?? '';
+  if (!/^\d+$/.test(id)) id = new URLSearchParams(location.search).get('variant') ?? '';
+  return /^\d+$/.test(id) ? `gid://shopify/ProductVariant/${id}` : null;
+}
+
+/**
+ * Si el cliente eligió otra variante en la página, el formulario la sigue. El
+ * servidor confirma que la variante es de ESTE producto (si no, se ignora) y da
+ * su precio. Así el pedido nunca sale con la talla/color equivocado.
+ */
+export function followPageVariant(productId: string, state: FormState): Promise<void> {
+  const v = state.cart ? null : pageVariant();
+  if (!productId || !v || v === state.variantId) return Promise.resolve();
+  return api.config(productId, v)
+    .then((c) => { if (pageVariant() === v) state.setVariant(c.product.variantId, c.product.unitPriceCents); })
+    .catch(() => undefined);
 }
 
 /** Opción (radio) de una caja de ofertas: cantidad numérica con un precio en su etiqueta. */

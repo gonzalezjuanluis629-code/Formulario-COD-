@@ -50,7 +50,10 @@ export function renderForm(
   const form = root.querySelector<HTMLFormElement>('.cod-form')!;
   const box = root.querySelector<HTMLElement>('.cod-fields')!;
 
-  renderOffers(root.querySelector<HTMLElement>('.cod-offers-slot')!, config, state, () => update(root, state));
+  const offersSlot = root.querySelector<HTMLElement>('.cod-offers-slot')!;
+  renderOffers(offersSlot, config, state, () => update(root, state));
+  // Otra variante con otro precio: las tarjetas muestran el precio nuevo.
+  state.onVariantChange(() => { offersSlot.innerHTML = ''; renderOffers(offersSlot, config, state, () => update(root, state)); });
 
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
@@ -200,10 +203,14 @@ function renderField(
   const label = f.label ? `<label for="${id}" class="cod-flabel" style="${lk.style}">${lk.icon}<span>${esc(f.label)}</span> ${req}</label>` : '';
   const help = f.help ? `<span class="cod-help">${esc(f.help)}</span>` : '';
 
+  // Con límite de largo, el campo no deja pasarse: así no aparece un aviso de
+  // «Máximo N caracteres» que mueve el formulario justo cuando el cliente toca.
+  const maxLen = f.validation?.maxLength != null ? ` maxlength="${Number(f.validation.maxLength)}"` : '';
+
   let control: string;
   switch (f.type) {
     case 'textarea':
-      control = `<textarea id="${id}" rows="2" placeholder="${esc(f.placeholder)}"></textarea>`;
+      control = `<textarea id="${id}" rows="2"${maxLen} placeholder="${esc(f.placeholder)}"></textarea>`;
       break;
     case 'select':
       control = `<div class="cod-select"><select id="${id}">
@@ -232,7 +239,7 @@ function renderField(
       break;
     default: {
       const type = f.type === 'email' ? 'email' : f.type === 'date' ? 'date' : f.type === 'time' ? 'time' : 'text';
-      control = `<input type="${type}" id="${id}"
+      control = `<input type="${type}" id="${id}"${maxLen}
         placeholder="${esc(f.placeholder)}" ${f.type === 'number' ? 'inputmode="numeric"' : ''}>`;
     }
   }
@@ -256,8 +263,11 @@ function renderField(
     if (f.type === 'checkbox') {
       state.values[f.key] = input.checked ? 'true' : '';
     } else if (f.type === 'phone') {
-      // Máscara dominicana: 809 555 1234
-      const d = input.value.replace(/\D/g, '').slice(0, 10);
+      // Máscara dominicana: 809 555 1234. Si el cliente pega el número con el
+      // código del país («+1 809-555-1234», como lo copia de WhatsApp), el 1 se quita.
+      let d = input.value.replace(/\D/g, '');
+      if (d.startsWith('1') && (d.length > 10 || /^1(809|829|849)/.test(d))) d = d.slice(1);
+      d = d.slice(0, 10);
       input.value = d.length > 6 ? `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`
                   : d.length > 3 ? `${d.slice(0, 3)} ${d.slice(3)}` : d;
       state.values[f.key] = input.value;

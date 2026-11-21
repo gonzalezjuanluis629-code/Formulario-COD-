@@ -1,4 +1,4 @@
-import { A as ANIMATION_SPEEDS, m as money, e as marchSvg } from "./index-pBWHD2nY.js";
+import { A as ANIMATION_SPEEDS, m as money, e as marchSvg } from "./index-bf9ZMbgL.js";
 function renderAddons(host, config, state, onChange) {
   var _a;
   const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty);

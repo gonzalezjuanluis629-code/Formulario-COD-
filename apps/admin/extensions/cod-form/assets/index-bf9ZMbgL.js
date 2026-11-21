@@ -567,13 +567,16 @@ function quote(ctx) {
     appliedDiscount: ctx.discount ? { code: ctx.discount.code, source: ctx.discount.source, label: ctx.discount.label } : null
   };
 }
-const money = (cents, currency = "DOP") => `${currency === "DOP" ? "RD$" : currency} ${(cents / 100).toLocaleString("en-US")}`;
+const money = (cents, currency = "DOP") => {
+  const frac = Math.round(cents) % 100 !== 0 ? 2 : 0;
+  return `${currency === "DOP" ? "RD$" : currency} ${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: frac, maximumFractionDigits: 2 })}`;
+};
 function renderOffers(host, config, state, onChange) {
   var _a2;
   const list = [...config.offers].sort((a, b) => a.minQty - b.minQty);
   if (!list.some((o) => o.minQty > 1)) return;
   if (state.pageManagesQty || config.tokens.offerCard.showInForm === false) return;
-  const unit = config.product.unitPriceCents;
+  const unit = state.unitPriceCents;
   const cur = config.settings.currency;
   const style = config.tokens.offerCard;
   const base = (_a2 = list.find((o) => o.minQty === 1)) != null ? _a2 : {
@@ -657,11 +660,16 @@ function renderForm(root, config, state, handlers) {
     </form>`;
   const form = root.querySelector(".cod-form");
   const box = root.querySelector(".cod-fields");
-  renderOffers(root.querySelector(".cod-offers-slot"), config, state, () => update(root, state));
+  const offersSlot = root.querySelector(".cod-offers-slot");
+  renderOffers(offersSlot, config, state, () => update(root, state));
+  state.onVariantChange(() => {
+    offersSlot.innerHTML = "";
+    renderOffers(offersSlot, config, state, () => update(root, state));
+  });
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-B-P_LTfP.js").then(({ renderAddons }) => {
+    void import("./addons-diXKyt0o.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -767,6 +775,7 @@ function renderDiscount(f, config, state, onChange, wrap) {
   return wrap;
 }
 function renderField(f, config, state, onChange) {
+  var _a2;
   const wrap = document.createElement("div");
   wrap.className = `cod-field cod-w${f.width}`;
   wrap.dataset.key = f.key;
@@ -812,10 +821,11 @@ function renderField(f, config, state, onChange) {
   const req = f.required ? '<span class="cod-req">*</span>' : '<span class="cod-opt">Opcional</span>';
   const label = f.label ? `<label for="${id}" class="cod-flabel" style="${lk.style}">${lk.icon}<span>${esc(f.label)}</span> ${req}</label>` : "";
   const help = f.help ? `<span class="cod-help">${esc(f.help)}</span>` : "";
+  const maxLen = ((_a2 = f.validation) == null ? void 0 : _a2.maxLength) != null ? ` maxlength="${Number(f.validation.maxLength)}"` : "";
   let control;
   switch (f.type) {
     case "textarea":
-      control = `<textarea id="${id}" rows="2" placeholder="${esc(f.placeholder)}"></textarea>`;
+      control = `<textarea id="${id}" rows="2"${maxLen} placeholder="${esc(f.placeholder)}"></textarea>`;
       break;
     case "select":
       control = `<div class="cod-select"><select id="${id}">
@@ -844,7 +854,7 @@ function renderField(f, config, state, onChange) {
       break;
     default: {
       const type = f.type === "email" ? "email" : f.type === "date" ? "date" : f.type === "time" ? "time" : "text";
-      control = `<input type="${type}" id="${id}"
+      control = `<input type="${type}" id="${id}"${maxLen}
         placeholder="${esc(f.placeholder)}" ${f.type === "number" ? 'inputmode="numeric"' : ""}>`;
     }
   }
@@ -864,7 +874,9 @@ function renderField(f, config, state, onChange) {
     if (f.type === "checkbox") {
       state.values[f.key] = input.checked ? "true" : "";
     } else if (f.type === "phone") {
-      const d = input.value.replace(/\D/g, "").slice(0, 10);
+      let d = input.value.replace(/\D/g, "");
+      if (d.startsWith("1") && (d.length > 10 || /^1(809|829|849)/.test(d))) d = d.slice(1);
+      d = d.slice(0, 10);
       input.value = d.length > 6 ? `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}` : d.length > 3 ? `${d.slice(0, 3)} ${d.slice(3)}` : d;
       state.values[f.key] = input.value;
     } else {
@@ -874,8 +886,8 @@ function renderField(f, config, state, onChange) {
     onChange();
   });
   input.addEventListener("blur", () => {
-    var _a2;
-    const err = validateField(f, (_a2 = state.values[f.key]) != null ? _a2 : "");
+    var _a3;
+    const err = validateField(f, (_a3 = state.values[f.key]) != null ? _a3 : "");
     if (err) setError(wrap, err);
   });
   return wrap;
@@ -1303,7 +1315,7 @@ async function mount(opts) {
   root.className = "cod-root";
   shadow.appendChild(root);
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  if (host.dataset.mode !== "embedded") void import("./trigger-D8j4iRnK.js").catch(() => void 0);
+  if (host.dataset.mode !== "embedded") void import("./trigger-DrKanlg4.js").catch(() => void 0);
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -1327,7 +1339,8 @@ ${config.tokens.customCss}`;
       return;
     }
     const state = new FormState(config);
-    const fromPage = pageQuantityInfo(config.product.variantId);
+    state.productId = opts.productId;
+    const fromPage = pageQuantityInfo(state.variantId);
     if (fromPage && (fromPage.qty > 1 || fromPage.managed)) {
       state.qty = fromPage.qty;
       state.qtyFromPage = true;
@@ -1336,19 +1349,36 @@ ${config.tokens.customCss}`;
     renderForm(mountRoot, config, state, {
       onSubmit: () => submit(mountRoot, config, state)
     });
-    const follow = () => window.setTimeout(() => {
+    const sync = () => {
+      followPageVariant(opts.productId, state);
+      const q = pageQuantity(state.variantId);
+      if (q) state.setQtyFromPage(q);
+    };
+    followPageVariant(opts.productId, state);
+    const watch = window.setInterval(() => {
       if (!mountRoot.isConnected) {
-        document.removeEventListener("change", follow, true);
+        if (!keptRoots.has(mountRoot)) window.clearInterval(watch);
         return;
       }
-      const q = pageQuantity(config.product.variantId);
-      if (q) state.setQtyFromPage(q);
+      if (mountRoot.querySelector(".cod-done")) {
+        window.clearInterval(watch);
+        return;
+      }
+      void followPageVariant(opts.productId, state);
+    }, 500);
+    mountRoot.codSync = sync;
+    const follow = () => window.setTimeout(() => {
+      if (!mountRoot.isConnected) {
+        if (!keptRoots.has(mountRoot)) document.removeEventListener("change", follow, true);
+        return;
+      }
+      sync();
     }, 60);
     document.addEventListener("change", follow, true);
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-D8j4iRnK.js");
+    const { renderTrigger } = await import("./trigger-DrKanlg4.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1368,7 +1398,7 @@ ${config.tokens.customCss}`;
         return;
       }
       fireCheckoutPixel(config);
-      openModal(shadow, config, renderInto);
+      openModal(shadow, config, renderInto, isCart ? void 0 : `${config.formId}:${config.product.variantId}`);
     });
     try {
       api.track(config.formId, "view", config.formVersionId);
@@ -1392,7 +1422,7 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-B-P_LTfP.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-diXKyt0o.js").catch(() => void 0);
     if (config.fields.some((f) => f.type === "location")) void import("./map-BTnRQ8LE.js").catch(() => void 0);
   };
   const ric = window.requestIdleCallback;
@@ -1567,8 +1597,10 @@ async function openCartForm() {
     cartOpening = false;
   }
 }
-function openModal(shadow, config, renderInto) {
-  var _a2;
+const keptForms = /* @__PURE__ */ new Map();
+const keptRoots = /* @__PURE__ */ new WeakSet();
+function openModal(shadow, config, renderInto, keepKey) {
+  var _a2, _b, _c;
   document.querySelectorAll("[data-cod-modal]").forEach((el) => el.remove());
   const portal = document.createElement("div");
   portal.setAttribute("data-cod-modal", "");
@@ -1622,10 +1654,30 @@ ${config.tokens.customCss}`;
   const prevOverflow = document.body.style.overflow;
   document.body.style.overflow = "hidden";
   requestAnimationFrame(() => overlay.classList.add("cod-open"));
+  let pushed = false;
+  try {
+    history.pushState({ ...(_b = history.state) != null ? _b : {}, codModal: true }, "");
+    pushed = true;
+  } catch {
+  }
+  const onPop = () => close(true);
+  if (pushed) window.addEventListener("popstate", onPop);
   let closed = false;
-  const close = () => {
+  const close = (fromBack = false) => {
+    var _a3;
     if (closed) return;
     closed = true;
+    window.removeEventListener("popstate", onPop);
+    if (pushed && !fromBack && ((_a3 = history.state) == null ? void 0 : _a3.codModal)) {
+      try {
+        history.back();
+      } catch {
+      }
+    }
+    if (keepKey && formRoot.isConnected && !formRoot.querySelector(".cod-done")) {
+      keptForms.set(keepKey, formRoot);
+      keptRoots.add(formRoot);
+    } else if (keepKey) keptForms.delete(keepKey);
     overlay.classList.remove("cod-open");
     document.body.style.overflow = prevOverflow;
     document.removeEventListener("keydown", esc2);
@@ -1641,12 +1693,19 @@ ${config.tokens.customCss}`;
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) close();
   });
-  modal.querySelector(".cod-modal-close").addEventListener("click", close);
+  modal.querySelector(".cod-modal-close").addEventListener("click", () => close());
   document.addEventListener("keydown", esc2);
-  const formRoot = document.createElement("div");
-  formRoot.className = "cod-root";
+  const kept = keepKey ? keptForms.get(keepKey) : void 0;
+  const formRoot = kept != null ? kept : document.createElement("div");
+  if (!kept) formRoot.className = "cod-root";
   modal.querySelector(".cod-modal-body").appendChild(formRoot);
-  renderInto(formRoot);
+  if (kept) {
+    keptForms.delete(keepKey);
+    keptRoots.delete(kept);
+    (_c = kept.codSync) == null ? void 0 : _c.call(kept);
+  } else {
+    renderInto(formRoot);
+  }
 }
 class FormState {
   constructor(config) {
@@ -1665,6 +1724,16 @@ class FormState {
     __publicField(this, "discountCode", null);
     __publicField(this, "acceptedAddons", []);
     __publicField(this, "idempotencyKey");
+    /**
+     * Variante que se pide. Empieza con la de la página al cargar y sigue al
+     * cliente si elige otra talla/color en la página (validada por el servidor).
+     */
+    __publicField(this, "variantId");
+    /** Producto del formulario (para validar la variante elegida en la página). */
+    __publicField(this, "productId", "");
+    /** Precio de la variante elegida (para las tarjetas de cantidad). */
+    __publicField(this, "unitPriceCents");
+    __publicField(this, "variantListeners", []);
     /** Última cotización del servidor (precio real, descuento validado). */
     __publicField(this, "quote", null);
     /** Quién cotiza: la API en la tienda; un cálculo local en la vista previa del panel. */
@@ -1677,6 +1746,8 @@ class FormState {
     __publicField(this, "quoteSeq", 0);
     this.config = config;
     this.idempotencyKey = crypto.randomUUID();
+    this.variantId = config.product.variantId;
+    this.unitPriceCents = config.product.unitPriceCents;
     for (const f of config.fields) {
       if (f.defaultValue) this.values[f.key] = f.defaultValue;
     }
@@ -1686,6 +1757,17 @@ class FormState {
   }
   onQtyChange(fn) {
     this.qtyListeners.push(fn);
+  }
+  onVariantChange(fn) {
+    this.variantListeners.push(fn);
+  }
+  /** El cliente eligió otra variante en la página: el pedido y el precio la siguen. */
+  setVariant(variantId, unitPriceCents) {
+    if (variantId === this.variantId) return;
+    this.variantId = variantId;
+    this.unitPriceCents = unitPriceCents;
+    this.variantListeners.forEach((fn) => fn());
+    this.requestQuote();
   }
   /** Cambio de cantidad que viene de la página (no de las tarjetas del formulario). */
   setQtyFromPage(q) {
@@ -1697,7 +1779,7 @@ class FormState {
   quoteInput(discountCode = this.discountCode) {
     return {
       formId: this.config.formId,
-      variantId: this.config.product.variantId,
+      variantId: this.variantId,
       qty: this.qty,
       province: this.values.province || this.values.provinceCode || null,
       discountCode,
@@ -1753,6 +1835,14 @@ async function submit(root, config, state) {
   btn.disabled = true;
   btn.classList.add("cod-loading");
   errBox.textContent = "";
+  const priceBefore = state.unitPriceCents;
+  await followPageVariant(state.productId, state);
+  if (state.unitPriceCents !== priceBefore) {
+    btn.disabled = false;
+    btn.classList.remove("cod-loading");
+    errBox.textContent = "Actualizamos el precio según la opción que elegiste. Revisa el total y toca de nuevo para pedir.";
+    return;
+  }
   const addonEls = root.querySelectorAll("[data-addon-id]");
   if (addonEls.length) {
     const on = new Set([...addonEls].filter((el) => {
@@ -1765,7 +1855,7 @@ async function submit(root, config, state) {
     formId: config.formId,
     formVersionId: config.formVersionId,
     idempotencyKey: state.idempotencyKey,
-    variantId: config.product.variantId,
+    variantId: state.variantId,
     qty: state.qty,
     discountCode: state.discountCode,
     acceptedAddons: state.acceptedAddons,
@@ -2011,6 +2101,22 @@ function pageQuantityInfo(variantId) {
   if (!input || !Number.isFinite(q) || q < 1 || q > 99) return null;
   return { qty: q, managed: input instanceof HTMLInputElement && input.type === "hidden" };
 }
+function pageVariant() {
+  var _a2, _b, _c, _d;
+  if (!/\/products\//.test(location.pathname)) return null;
+  const forms = [...document.querySelectorAll('form[action*="/cart/add"]')].filter((f) => !f.closest("[data-cod-form], [data-cod-modal]") && !f.closest(CARD));
+  const main = (_a2 = forms.find((f) => f.closest('main, #MainContent, [id*="main"], [id*="product-information"], [id*="product-template"]'))) != null ? _a2 : forms.length === 1 ? forms[0] : void 0;
+  let id = (_c = (_b = main == null ? void 0 : main.querySelector('[name="id"]')) == null ? void 0 : _b.value) != null ? _c : "";
+  if (!/^\d+$/.test(id)) id = (_d = new URLSearchParams(location.search).get("variant")) != null ? _d : "";
+  return /^\d+$/.test(id) ? `gid://shopify/ProductVariant/${id}` : null;
+}
+function followPageVariant(productId, state) {
+  const v = state.cart ? null : pageVariant();
+  if (!productId || !v || v === state.variantId) return Promise.resolve();
+  return api.config(productId, v).then((c) => {
+    if (pageVariant() === v) state.setVariant(c.product.variantId, c.product.unitPriceCents);
+  }).catch(() => void 0);
+}
 function offerRadio(el) {
   var _a2, _b, _c;
   if (!(el instanceof HTMLInputElement) || el.type !== "radio" || !/^\d{1,2}$/.test(el.value)) return null;
@@ -2197,8 +2303,10 @@ export {
   buttonAnimationCss as d,
   marchSvg as e,
   CART_TRIGGERS as f,
-  mount as g,
-  pageQuantityInfo as h,
+  followPageVariant as g,
+  mount as h,
+  pageQuantityInfo as i,
+  pageVariant as j,
   money as m,
   pageQuantity as p,
   quote as q,

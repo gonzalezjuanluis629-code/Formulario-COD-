@@ -297,7 +297,12 @@ export class SubmitService {
       .replace(/\{telefono\}/g, customer.phone)
       .replace(/\{pedido\}/g, '') // el número real no existe todavía
       .replace(/\{total\}/g, '')
-      .replace(/\s+/g, ' ')
+      .replace(/[ \t]+/g, ' ')
+      // Sin el número o el total queda «mi pedido .»: se quita el espacio suelto.
+      .replace(/ +([.,;:!?)])/g, '$1')
+      .replace(/\(\s*\)/g, '')
+      .replace(/ *\n */g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
       .trim();
     const digits = phone.replace(/\D/g, '');
     return `https://wa.me/${digits}?text=${encodeURIComponent(msg)}`;

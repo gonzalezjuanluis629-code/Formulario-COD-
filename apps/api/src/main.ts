@@ -21,7 +21,10 @@ async function bootstrap() {
   });
   // El widget (y sus partes) servido desde aquí para esas tiendas.
   app.use('/storefront/widget', expressStatic(WIDGET_DIST, {
-    setHeaders: (res, file) => res.setHeader('Cache-Control', /widget\.js$/.test(file) ? 'public, max-age=300' : 'public, max-age=31536000, immutable'),
+    // widget.js siempre se confirma (respuesta 304 si no cambió): tras publicar, nadie
+    // se queda con uno viejo que pide partes que ya no existen (sin botón).
+    // Las partes llevan su huella en el nombre: se guardan para siempre.
+    setHeaders: (res, file) => res.setHeader('Cache-Control', /widget\.js$/.test(file) ? 'public, no-cache' : 'public, max-age=31536000, immutable'),
   }));
 
   // El body crudo es imprescindible: sin él no se puede verificar el HMAC de los webhooks.

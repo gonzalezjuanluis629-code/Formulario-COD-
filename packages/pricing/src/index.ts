@@ -190,5 +190,8 @@ export function quote(ctx: PricingContext): QuoteResponse {
   };
 }
 
-export const money = (cents: number, currency = 'DOP') =>
-  `${currency === 'DOP' ? 'RD$' : currency} ${(cents / 100).toLocaleString('en-US')}`;
+/** RD$ 1,890 · con centavos siempre dos cifras: RD$ 1,806.50 (nunca «1,806.5»). */
+export const money = (cents: number, currency = 'DOP') => {
+  const frac = Math.round(cents) % 100 !== 0 ? 2 : 0;
+  return `${currency === 'DOP' ? 'RD$' : currency} ${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: frac, maximumFractionDigits: 2 })}`;
+};

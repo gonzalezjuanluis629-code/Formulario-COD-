@@ -14,7 +14,8 @@ export function renderOffers(host: HTMLElement, config: WidgetConfig, state: For
   // repiten. El precio de la oferta se aplica igual con la cantidad de la página.
   if (state.pageManagesQty || config.tokens.offerCard.showInForm === false) return;
 
-  const unit = config.product.unitPriceCents;
+  // Precio de la variante elegida (sigue la talla/color que el cliente marque en la página).
+  const unit = state.unitPriceCents;
   const cur = config.settings.currency;
   const style = config.tokens.offerCard;
 

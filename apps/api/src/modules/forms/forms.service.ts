@@ -26,7 +26,7 @@ export class FormsService {
       productVariant: {
         price: string; title: string; image: { url: string } | null;
         product: {
-          title: string; vendor: string; tags: string[];
+          id?: string; title: string; vendor: string; tags: string[];
           featuredImage: { url: string } | null;
           collections: { nodes: { id: string }[] };
         };
@@ -35,6 +35,9 @@ export class FormsService {
 
     if (!variant.productVariant) throw new NotFoundException('Variante no encontrada');
     const v = variant.productVariant;
+    // La variante tiene que ser de ESTE producto: un pedido nunca puede salir
+    // con otro producto (p. ej. si la página tiene varios formularios de compra).
+    if (v.product.id && v.product.id !== productGid) throw new NotFoundException('La variante no es de este producto');
     const collectionIds = v.product.collections.nodes.map((c) => c.id);
 
     // Todas las asignaciones activas que PODRÍAN aplicar a este producto.
@@ -136,6 +139,7 @@ const VARIANT_QUERY = /* GraphQL */ `
       title
       image { url }
       product {
+        id
         title
         vendor
         tags
