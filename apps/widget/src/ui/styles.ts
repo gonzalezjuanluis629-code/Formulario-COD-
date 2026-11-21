@@ -243,6 +243,16 @@ ${cardAnimationCss('cod-card')}
 .cod-offer-price b{font-size:17px;font-weight:800}
 .cod-offer-price s{font-size:12px;color:var(--cod-muted);margin-top:3px}
 .cod-addons{display:grid;gap:9px;margin-top:4px}
+.cod-has-tag{margin-top:12px}
+.cod-tag{position:absolute;top:-12px;z-index:3;display:inline-flex;align-items:center;gap:6px;max-width:calc(100% - 24px);
+  padding:4px 10px;border-radius:999px;background:var(--tag-bg,#e11d48);color:#fff;font-size:11.5px;font-weight:800;line-height:1.2;
+  letter-spacing:.01em;white-space:nowrap;box-shadow:0 4px 10px -3px color-mix(in srgb,var(--tag-bg,#e11d48) 60%,transparent),inset 0 1px 0 rgba(255,255,255,.25);
+  pointer-events:none}
+.cod-tag-right{right:12px}.cod-tag-left{left:12px}
+.cod-tag-text{overflow:hidden;text-overflow:ellipsis}
+.cod-tag-clock{display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums}
+.cod-tag-text+.cod-tag-clock{padding-left:6px;border-left:1px solid rgba(255,255,255,.45)}
+.cod-tag-clock b{font-weight:800}
 .cod-bump{position:relative;display:flex;align-items:center;gap:12px;padding:14px 14px;cursor:pointer;
   border-radius:var(--cod-radius);transition:transform .15s var(--cod-ease),box-shadow .2s var(--cod-ease)}
 .cod-bump:active{transform:scale(.99)}

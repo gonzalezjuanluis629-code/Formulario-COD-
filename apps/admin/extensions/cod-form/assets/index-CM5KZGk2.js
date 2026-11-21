@@ -649,7 +649,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-wbRfYVG1.js").then(({ renderAddons }) => {
+    void import("./addons-Bcp1vzVY.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -935,11 +935,10 @@ ${a("march")}{border-color:transparent!important}
   animation:${k("march")} ${d(0.9)} linear infinite}
 @keyframes ${k("march")}{to{stroke-dashoffset:-24}}
 
-${a("shine")}{overflow:hidden}
-${a("shine")}::before{content:'';position:absolute;top:-20%;bottom:-20%;left:0;width:38%;pointer-events:none;z-index:1;
-  background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.75) 50%,transparent 100%);
-  transform:translateX(-160%) skewX(-12deg);animation:${k("shine")} ${d(3.2)} ease-in-out infinite}
-@keyframes ${k("shine")}{0%{transform:translateX(-160%) skewX(-12deg)}45%,100%{transform:translateX(340%) skewX(-12deg)}}
+${a("shine")}::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;
+  background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.78) 50%,transparent 62%) no-repeat;background-size:260% 100%;
+  background-position:160% 0;animation:${k("shine")} ${d(3.2)} ease-in-out infinite}
+@keyframes ${k("shine")}{0%{background-position:160% 0}45%,100%{background-position:-60% 0}}
 
 ${a("pulse")}{animation:${k("pulse")} ${d(2.2)} ease-in-out infinite}
 @keyframes ${k("pulse")}{0%,60%,100%{transform:scale(1)}20%{transform:scale(1.025)}40%{transform:scale(.995)}}
@@ -1193,6 +1192,16 @@ ${cardAnimationCss("cod-card")}
 .cod-offer-price b{font-size:17px;font-weight:800}
 .cod-offer-price s{font-size:12px;color:var(--cod-muted);margin-top:3px}
 .cod-addons{display:grid;gap:9px;margin-top:4px}
+.cod-has-tag{margin-top:12px}
+.cod-tag{position:absolute;top:-12px;z-index:3;display:inline-flex;align-items:center;gap:6px;max-width:calc(100% - 24px);
+  padding:4px 10px;border-radius:999px;background:var(--tag-bg,#e11d48);color:#fff;font-size:11.5px;font-weight:800;line-height:1.2;
+  letter-spacing:.01em;white-space:nowrap;box-shadow:0 4px 10px -3px color-mix(in srgb,var(--tag-bg,#e11d48) 60%,transparent),inset 0 1px 0 rgba(255,255,255,.25);
+  pointer-events:none}
+.cod-tag-right{right:12px}.cod-tag-left{left:12px}
+.cod-tag-text{overflow:hidden;text-overflow:ellipsis}
+.cod-tag-clock{display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums}
+.cod-tag-text+.cod-tag-clock{padding-left:6px;border-left:1px solid rgba(255,255,255,.45)}
+.cod-tag-clock b{font-weight:800}
 .cod-bump{position:relative;display:flex;align-items:center;gap:12px;padding:14px 14px;cursor:pointer;
   border-radius:var(--cod-radius);transition:transform .15s var(--cod-ease),box-shadow .2s var(--cod-ease)}
 .cod-bump:active{transform:scale(.99)}
@@ -1326,7 +1335,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-BuXxQEfb.js");
+    const { renderTrigger } = await import("./trigger-C2InWXlp.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1370,7 +1379,7 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-wbRfYVG1.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-Bcp1vzVY.js").catch(() => void 0);
     if (config.fields.some((f) => f.type === "location")) void import("./map-BTnRQ8LE.js").catch(() => void 0);
   };
   const ric = window.requestIdleCallback;

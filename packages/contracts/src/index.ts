@@ -359,6 +359,12 @@ export const AddonSchema = z.object({
     /** Animación para llamar la atención (se detiene al marcarla). */
     animation: z.enum(['none', 'march', 'shine', 'pulse', 'glow', 'shake']).catch('none').default('none'),
     animationSpeed: z.enum(['slow', 'normal', 'fast']).catch('normal').default('normal'),
+    /** Etiqueta que sobresale arriba de la tarjeta («🔥 Oferta flash»). Vacía = sin etiqueta. */
+    badgeText: z.string().max(40).catch('').default(''),
+    badgeColor: z.string().max(20).catch('#e11d48').default('#e11d48'),
+    badgeSide: z.enum(['left', 'right']).catch('right').default('right'),
+    /** Cuenta regresiva en la etiqueta, en minutos (0 = sin reloj). Es por visitante y vuelve a empezar al llegar a cero. */
+    badgeTimer: z.number().int().min(0).max(1440).catch(0).default(0),
   }).default({}),
 });
 export type Addon = z.infer<typeof AddonSchema>;

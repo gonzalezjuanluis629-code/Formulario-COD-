@@ -1,4 +1,4 @@
-import { A as ANIMATION_SPEEDS, m as money, e as marchSvg } from "./index-ClKtIxiK.js";
+import { A as ANIMATION_SPEEDS, m as money, e as marchSvg } from "./index-CM5KZGk2.js";
 function renderAddons(host, config, state, onChange) {
   var _a;
   const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty);
@@ -22,6 +22,54 @@ function cardStyle(a) {
   const st = a.style;
   const border = st.border === "none" ? "border:2px solid transparent" : `border:2px ${st.border} ${st.borderColor}`;
   return `${border};background:${st.bg};--card-color:${st.borderColor};--anim-speed:${ANIMATION_SPEEDS[(_a = st.animationSpeed) != null ? _a : "normal"]}`;
+}
+function clock(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  const p = (n) => String(n).padStart(2, "0");
+  return h ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+}
+function addTag(el, a) {
+  var _a, _b;
+  const text = ((_a = a.style.badgeText) != null ? _a : "").trim();
+  const mins = (_b = a.style.badgeTimer) != null ? _b : 0;
+  if (!text && !mins) return;
+  el.classList.add("cod-has-tag");
+  const tag = document.createElement("span");
+  tag.className = `cod-tag cod-tag-${a.style.badgeSide === "left" ? "left" : "right"}`;
+  tag.style.setProperty("--tag-bg", a.style.badgeColor || "#e11d48");
+  tag.innerHTML = `${text ? `<span class="cod-tag-text">${esc(text)}</span>` : ""}${mins ? `<span class="cod-tag-clock" aria-live="off">${text ? "" : "Termina en "}<b></b></span>` : ""}`;
+  el.appendChild(tag);
+  if (!mins) return;
+  const total = mins * 60;
+  const key = `cod-tag-${a.id}`;
+  let start = Date.now();
+  try {
+    const v = Number(localStorage.getItem(key));
+    if (v > 0 && v <= Date.now()) start = v;
+    else localStorage.setItem(key, String(start));
+  } catch {
+  }
+  const out = tag.querySelector("b");
+  const tick = () => {
+    let left = total - Math.floor((Date.now() - start) / 1e3);
+    if (left <= 0) {
+      start = Date.now();
+      try {
+        localStorage.setItem(key, String(start));
+      } catch {
+      }
+      left = total;
+    }
+    out.textContent = clock(left);
+  };
+  tick();
+  const timer = window.setInterval(() => {
+    if (!el.isConnected) {
+      window.clearInterval(timer);
+      return;
+    }
+    tick();
+  }, 1e3);
 }
 function animate(el, a) {
   var _a;
@@ -56,6 +104,7 @@ function renderBump(a, state, onChange) {
     </span>
     ${a.image ? `<img class="cod-bump-img" src="${esc(a.image)}" alt="" loading="lazy">` : ""}`;
   animate(el, a);
+  addTag(el, a);
   el.querySelector("input").addEventListener("change", (e) => {
     toggleAddon(state, a, e.target.checked);
     el.classList.toggle("cod-bump-on", e.target.checked);
@@ -77,6 +126,7 @@ function renderUpsell(a, downsell, state, onChange) {
     </div>
     <button type="button" class="cod-upsell-add">Añadir</button>`;
   animate(el, a);
+  addTag(el, a);
   const btn = el.querySelector(".cod-upsell-add");
   let added = false;
   let downsellShown = false;

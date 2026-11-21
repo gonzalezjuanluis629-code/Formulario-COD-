@@ -43,11 +43,10 @@ ${a('march')}{border-color:transparent!important}
   animation:${k('march')} ${d(0.9)} linear infinite}
 @keyframes ${k('march')}{to{stroke-dashoffset:-24}}
 
-${a('shine')}{overflow:hidden}
-${a('shine')}::before{content:'';position:absolute;top:-20%;bottom:-20%;left:0;width:38%;pointer-events:none;z-index:1;
-  background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.75) 50%,transparent 100%);
-  transform:translateX(-160%) skewX(-12deg);animation:${k('shine')} ${d(3.2)} ease-in-out infinite}
-@keyframes ${k('shine')}{0%{transform:translateX(-160%) skewX(-12deg)}45%,100%{transform:translateX(340%) skewX(-12deg)}}
+${a('shine')}::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;
+  background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.78) 50%,transparent 62%) no-repeat;background-size:260% 100%;
+  background-position:160% 0;animation:${k('shine')} ${d(3.2)} ease-in-out infinite}
+@keyframes ${k('shine')}{0%{background-position:160% 0}45%,100%{background-position:-60% 0}}
 
 ${a('pulse')}{animation:${k('pulse')} ${d(2.2)} ease-in-out infinite}
 @keyframes ${k('pulse')}{0%,60%,100%{transform:scale(1)}20%{transform:scale(1.025)}40%{transform:scale(.995)}}

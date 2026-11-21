@@ -57,6 +57,43 @@ function cardStyle(a: Addon): string {
   return `${border};background:${st.bg};--card-color:${st.borderColor};--anim-speed:${ANIMATION_SPEEDS[st.animationSpeed ?? 'normal']}`;
 }
 
+/** «09:59» o «1:05:30». */
+function clock(sec: number): string {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const p = (n: number) => String(n).padStart(2, '0');
+  return h ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+}
+
+/**
+ * Etiqueta que sobresale arriba de la tarjeta («🔥 Oferta flash»), con cuenta
+ * regresiva opcional. El reloj es por visitante (se recuerda en el navegador)
+ * y vuelve a empezar al llegar a cero.
+ */
+function addTag(el: HTMLElement, a: Addon): void {
+  const text = (a.style.badgeText ?? '').trim();
+  const mins = a.style.badgeTimer ?? 0;
+  if (!text && !mins) return;
+  el.classList.add('cod-has-tag');
+  const tag = document.createElement('span');
+  tag.className = `cod-tag cod-tag-${a.style.badgeSide === 'left' ? 'left' : 'right'}`;
+  tag.style.setProperty('--tag-bg', a.style.badgeColor || '#e11d48');
+  tag.innerHTML = `${text ? `<span class="cod-tag-text">${esc(text)}</span>` : ''}${mins ? `<span class="cod-tag-clock" aria-live="off">${text ? '' : 'Termina en '}<b></b></span>` : ''}`;
+  el.appendChild(tag);
+  if (!mins) return;
+  const total = mins * 60;
+  const key = `cod-tag-${a.id}`;
+  let start = Date.now();
+  try { const v = Number(localStorage.getItem(key)); if (v > 0 && v <= Date.now()) start = v; else localStorage.setItem(key, String(start)); } catch { /* sin almacenamiento: dura esta visita */ }
+  const out = tag.querySelector('b')!;
+  const tick = () => {
+    let left = total - Math.floor((Date.now() - start) / 1000);
+    if (left <= 0) { start = Date.now(); try { localStorage.setItem(key, String(start)); } catch { /* nada */ } left = total; }
+    out.textContent = clock(left);
+  };
+  tick();
+  const timer = window.setInterval(() => { if (!el.isConnected) { window.clearInterval(timer); return; } tick(); }, 1000);
+}
+
 /** Clase y dibujo de la animación elegida para la tarjeta (si hay). */
 function animate(el: HTMLElement, a: Addon): void {
   const anim = a.style.animation ?? 'none';
@@ -94,6 +131,7 @@ function renderBump(a: Addon, state: FormState, onChange: () => void): HTMLEleme
     </span>
     ${a.image ? `<img class="cod-bump-img" src="${esc(a.image)}" alt="" loading="lazy">` : ''}`;
   animate(el, a);
+  addTag(el, a);
 
   el.querySelector('input')!.addEventListener('change', (e) => {
     toggleAddon(state, a, (e.target as HTMLInputElement).checked);
@@ -118,6 +156,7 @@ function renderUpsell(a: Addon, downsell: Addon | null, state: FormState, onChan
     </div>
     <button type="button" class="cod-upsell-add">Añadir</button>`;
   animate(el, a);
+  addTag(el, a);
 
   const btn = el.querySelector<HTMLButtonElement>('.cod-upsell-add')!;
   let added = false;

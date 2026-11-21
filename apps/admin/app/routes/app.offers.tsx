@@ -37,6 +37,7 @@ type AddonDraft = {
   title: string; description: string; image: string; price: string; compareAt: string; replacesId: string;
   border: 'dashed' | 'solid' | 'none'; borderColor: string; bg: string;
   animation: CardAnimation; animationSpeed: 'slow' | 'normal' | 'fast';
+  badgeText: string; badgeColor: string; badgeSide: 'left' | 'right'; badgeTimer: string;
 };
 
 const cents = (v: string) => Math.round((Number(String(v).replace(/[^0-9.]/g, '')) || 0) * 100);
@@ -63,7 +64,9 @@ function toAddon(d: AddonDraft): Addon {
     title: d.title || 'Extra', description: d.description, image: d.image || null,
     priceCents: cents(d.price), compareAtCents: d.compareAt ? cents(d.compareAt) : null,
     qty: 1, replacesId: d.kind === 'DOWNSELL' ? (d.replacesId || null) : null, minCartCents: 0,
-    style: { border: d.border, borderColor: d.borderColor, bg: d.bg, animation: d.animation, animationSpeed: d.animationSpeed },
+    style: { border: d.border, borderColor: d.borderColor, bg: d.bg, animation: d.animation, animationSpeed: d.animationSpeed,
+      badgeText: d.badgeText.trim(), badgeColor: d.badgeColor, badgeSide: d.badgeSide,
+      badgeTimer: Math.min(1440, Math.max(0, parseInt(d.badgeTimer, 10) || 0)) },
   };
 }
 
@@ -108,6 +111,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       price: fromCents(a.priceCents), compareAt: fromCents(a.compareAtCents), replacesId: a.replacesId ?? '',
       border: a.style.border, borderColor: a.style.borderColor, bg: a.style.bg,
       animation: a.style.animation, animationSpeed: a.style.animationSpeed,
+      badgeText: a.style.badgeText, badgeColor: a.style.badgeColor, badgeSide: a.style.badgeSide, badgeTimer: a.style.badgeTimer ? String(a.style.badgeTimer) : '',
     };
   });
 
@@ -289,6 +293,7 @@ export default function Offers() {
       price: chargeType === 'charge' ? '350' : '', compareAt: '', replacesId: '',
       border: 'dashed', borderColor: chargeType === 'charge' ? '#94b07f' : '#1f2a44', bg: chargeType === 'charge' ? '#f7faf3' : '#eef0fa',
       animation: 'none', animationSpeed: 'normal',
+      badgeText: '', badgeColor: '#e11d48', badgeSide: 'right', badgeTimer: '',
     };
     setAddons((l) => [...l, d]); setOpen(d.id); setDirty(true);
   };
@@ -474,6 +479,18 @@ export default function Offers() {
                       <Color label="Color de fondo" value={a.bg} onChange={(v) => updAddon(a.id, { bg: v })} />
                       <CardAnimationPicker value={a.animation} speed={a.animationSpeed} border={a.border} borderColor={a.borderColor} background={a.bg}
                         onChange={(v) => updAddon(a.id, { animation: v })} onSpeed={(v) => updAddon(a.id, { animationSpeed: v })} />
+                      <Divider />
+                      <Text as="h3" variant="headingSm">Etiqueta</Text>
+                      <TextField label="Texto de la etiqueta" value={a.badgeText} autoComplete="off" maxLength={40} placeholder="🔥 Oferta flash"
+                        helpText="Sobresale arriba de la tarjeta. Déjalo vacío para no mostrar etiqueta." onChange={(v) => updAddon(a.id, { badgeText: v })} />
+                      {(a.badgeText.trim() || a.badgeTimer) && (<>
+                        <Choice label="Lado" value={a.badgeSide} onChange={(v) => updAddon(a.id, { badgeSide: v as AddonDraft['badgeSide'] })}
+                          options={[['left', 'Izquierda'], ['right', 'Derecha']]} />
+                        <Color label="Color de la etiqueta" value={a.badgeColor} onChange={(v) => updAddon(a.id, { badgeColor: v })} />
+                      </>)}
+                      <TextField label="Temporizador (minutos)" type="number" min={0} max={1440} value={a.badgeTimer} autoComplete="off" placeholder="Sin temporizador"
+                        helpText="Cuenta regresiva en la etiqueta, por ejemplo 15. Cada cliente ve su propio reloj; al llegar a cero vuelve a empezar."
+                        onChange={(v) => updAddon(a.id, { badgeTimer: v.replace(/[^0-9]/g, '').slice(0, 4) })} />
                       <ItemFooter active={a.active} onActive={(v) => updAddon(a.id, { active: v })}
                         onDelete={() => { setAddons((l) => l.filter((x) => x.id !== a.id)); setDirty(true); }} />
                     </Item>
