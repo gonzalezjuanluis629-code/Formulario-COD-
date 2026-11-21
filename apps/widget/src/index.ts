@@ -36,6 +36,10 @@ export async function mount(opts: MountOptions): Promise<void> {
 
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
 
+  // El botón «Comprar ahora» se descarga mientras llegan los datos del formulario
+  // (no después): el botón sale antes.
+  if (host.dataset.mode !== 'embedded') void import('./ui/trigger').catch(() => undefined);
+
   let config: WidgetConfig;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -968,6 +972,9 @@ if (DIRECT?.cartButton) {
     window.setTimeout(() => void openCartForm(), 600);
   }
 }
+
+// El cargador pone el botón cuando sabe el producto: lo monta al instante.
+if (DIRECT) (DIRECT as { boot?: () => void }).boot = boot;
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', boot);

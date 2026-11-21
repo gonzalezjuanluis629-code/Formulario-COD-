@@ -18,10 +18,12 @@ function url(path: string): string {
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url(path), {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-  });
+  // Sin cabeceras propias en las lecturas, y en texto plano entre dominios: así
+  // el navegador no hace la consulta previa de permiso (CORS) antes de cada
+  // llamada, que en un móvil es un viaje de ida y vuelta más.
+  const headers: Record<string, string> = init?.body == null ? {}
+    : { 'Content-Type': DIRECT ? 'text/plain;charset=UTF-8' : 'application/json' };
+  const res = await fetch(url(path), { ...init, headers: { ...headers, ...((init?.headers as Record<string, string>) ?? {}) } });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: 'Error de red' }));
     throw new ApiError(res.status, (body as { message?: string }).message ?? 'Error');
@@ -29,13 +31,32 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * Formulario de cada producto: una sola petición aunque haya dos botones
+ * (el de la página y el flotante). El cargador puede haberla adelantado
+ * mientras se descargaba este código.
+ */
+const configs = new Map<string, Promise<WidgetConfig>>();
+function loadConfig(productId: string, variantId: string): Promise<WidgetConfig> {
+  const q = `productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`;
+  let p = configs.get(q);
+  if (!p) {
+    const pre = (DIRECT as (Direct & { pre?: Record<string, Promise<WidgetConfig>> }) | undefined)?.pre?.[q];
+    const fresh = () => call<WidgetConfig>(`/form?${q}`);
+    p = pre ? pre.then((c) => (c && (c as { formId?: string }).formId ? c : fresh()), fresh) : fresh();
+    configs.set(q, p);
+    // Si falla, el próximo intento vuelve a pedirlo.
+    p.catch(() => configs.delete(q));
+  }
+  return p;
+}
+
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) { super(message); }
 }
 
 export const api = {
-  config: (productId: string, variantId: string) =>
-    call<WidgetConfig>(`/form?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`),
+  config: (productId: string, variantId: string) => loadConfig(productId, variantId),
 
   quote: (body: { formId: string; variantId: string; qty: number; province?: string | null; discountCode?: string | null; addonIds?: string[]; cart?: { variantId: string; qty: number }[]; cartToken?: string; cartTotalCents?: number }) =>
     call<QuoteResponse>('/quote', { method: 'POST', body: JSON.stringify(body) }),
@@ -83,7 +104,7 @@ export const api = {
         if (sent) return;
       }
     } catch { /* cae al fetch */ }
-    void fetch(url('/track'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true });
+    void fetch(url('/track'), { method: 'POST', headers: { 'Content-Type': DIRECT ? 'text/plain;charset=UTF-8' : 'application/json' }, body, keepalive: true });
   },
 };
 

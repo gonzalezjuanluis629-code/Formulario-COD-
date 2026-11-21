@@ -11,15 +11,27 @@ function url(path) {
 }
 async function call(path, init) {
   var _a2, _b;
-  const res = await fetch(url(path), {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(_a2 = init == null ? void 0 : init.headers) != null ? _a2 : {} }
-  });
+  const headers = (init == null ? void 0 : init.body) == null ? {} : { "Content-Type": DIRECT ? "text/plain;charset=UTF-8" : "application/json" };
+  const res = await fetch(url(path), { ...init, headers: { ...headers, ...(_a2 = init == null ? void 0 : init.headers) != null ? _a2 : {} } });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: "Error de red" }));
     throw new ApiError(res.status, (_b = body.message) != null ? _b : "Error");
   }
   return res.json();
+}
+const configs = /* @__PURE__ */ new Map();
+function loadConfig(productId, variantId) {
+  var _a2;
+  const q = `productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`;
+  let p = configs.get(q);
+  if (!p) {
+    const pre = (_a2 = DIRECT == null ? void 0 : DIRECT.pre) == null ? void 0 : _a2[q];
+    const fresh = () => call(`/form?${q}`);
+    p = pre ? pre.then((c) => c && c.formId ? c : fresh(), fresh) : fresh();
+    configs.set(q, p);
+    p.catch(() => configs.delete(q));
+  }
+  return p;
 }
 class ApiError extends Error {
   constructor(status, message) {
@@ -28,7 +40,7 @@ class ApiError extends Error {
   }
 }
 const api = {
-  config: (productId, variantId) => call(`/form?productId=${encodeURIComponent(productId)}&variantId=${encodeURIComponent(variantId)}`),
+  config: (productId, variantId) => loadConfig(productId, variantId),
   quote: (body) => call("/quote", { method: "POST", body: JSON.stringify(body) }),
   /** La API key de Google no toca jamás el navegador. */
   reverse: (lat, lng) => call("/geo/reverse", { method: "POST", body: JSON.stringify({ lat, lng }) }),
@@ -65,7 +77,7 @@ const api = {
       }
     } catch {
     }
-    void fetch(url("/track"), { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true });
+    void fetch(url("/track"), { method: "POST", headers: { "Content-Type": DIRECT ? "text/plain;charset=UTF-8" : "application/json" }, body, keepalive: true });
   }
 };
 const shopRoot = () => {
@@ -649,7 +661,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-Bcp1vzVY.js").then(({ renderAddons }) => {
+    void import("./addons-B-P_LTfP.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1291,6 +1303,7 @@ async function mount(opts) {
   root.className = "cod-root";
   shadow.appendChild(root);
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
+  if (host.dataset.mode !== "embedded") void import("./trigger-D8j4iRnK.js").catch(() => void 0);
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -1335,7 +1348,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-C2InWXlp.js");
+    const { renderTrigger } = await import("./trigger-D8j4iRnK.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1379,7 +1392,7 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-Bcp1vzVY.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-B-P_LTfP.js").catch(() => void 0);
     if (config.fields.some((f) => f.type === "location")) void import("./map-BTnRQ8LE.js").catch(() => void 0);
   };
   const ric = window.requestIdleCallback;
@@ -2111,6 +2124,7 @@ if (DIRECT == null ? void 0 : DIRECT.cartButton) {
     window.setTimeout(() => void openCartForm(), 600);
   }
 }
+if (DIRECT) DIRECT.boot = boot;
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", boot);
 } else {

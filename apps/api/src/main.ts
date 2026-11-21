@@ -2,8 +2,8 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { json, text, static as expressStatic } from 'express';
-import { resolve } from 'node:path';
 import { AppModule } from './app.module';
+import { WIDGET_DIST } from './shared/storefront/widget-files';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
@@ -20,7 +20,7 @@ async function bootstrap() {
     next();
   });
   // El widget (y sus partes) servido desde aquí para esas tiendas.
-  app.use('/storefront/widget', expressStatic(resolve(__dirname, '../../widget/dist'), {
+  app.use('/storefront/widget', expressStatic(WIDGET_DIST, {
     setHeaders: (res, file) => res.setHeader('Cache-Control', /widget\.js$/.test(file) ? 'public, max-age=300' : 'public, max-age=31536000, immutable'),
   }));
 
