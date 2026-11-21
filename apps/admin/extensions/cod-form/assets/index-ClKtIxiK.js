@@ -649,7 +649,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-Btat0s7L.js").then(({ renderAddons }) => {
+    void import("./addons-wbRfYVG1.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -919,6 +919,45 @@ function videoEmbed(url2) {
   return `<div class="cod-video"><video src="${esc(u)}" controls playsinline preload="metadata"></video></div>`;
 }
 const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+function marchSvg(cls, rx = 12) {
+  return `<svg class="${cls}-march" aria-hidden="true" focusable="false"><rect x="0" y="0" width="100%" height="100%" rx="${rx}" ry="${rx}"/></svg>`;
+}
+function cardAnimationCss(cls, done = ".cod-bump-on,.cod-upsell-on") {
+  const a = (n) => `.${cls}.${cls}-anim-${n}`;
+  const k = (n) => `${cls}-k-${n}`;
+  const d = (s) => `calc(${s}s * var(--anim-speed, 1))`;
+  const doneSel = done.split(",").map((s) => `${s.trim()}.${cls}`).join(",");
+  return `
+.${cls}{will-change:transform}
+${a("march")}{border-color:transparent!important}
+.${cls}-march{position:absolute;inset:-1px;width:calc(100% + 2px);height:calc(100% + 2px);overflow:visible;pointer-events:none}
+.${cls}-march rect{fill:none;stroke:var(--card-color,#1f2a44);stroke-width:2;stroke-dasharray:7 5;
+  animation:${k("march")} ${d(0.9)} linear infinite}
+@keyframes ${k("march")}{to{stroke-dashoffset:-24}}
+
+${a("shine")}{overflow:hidden}
+${a("shine")}::before{content:'';position:absolute;top:-20%;bottom:-20%;left:0;width:38%;pointer-events:none;z-index:1;
+  background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.75) 50%,transparent 100%);
+  transform:translateX(-160%) skewX(-12deg);animation:${k("shine")} ${d(3.2)} ease-in-out infinite}
+@keyframes ${k("shine")}{0%{transform:translateX(-160%) skewX(-12deg)}45%,100%{transform:translateX(340%) skewX(-12deg)}}
+
+${a("pulse")}{animation:${k("pulse")} ${d(2.2)} ease-in-out infinite}
+@keyframes ${k("pulse")}{0%,60%,100%{transform:scale(1)}20%{transform:scale(1.025)}40%{transform:scale(.995)}}
+
+${a("glow")}{animation:${k("glow")} ${d(2.4)} ease-in-out infinite}
+@keyframes ${k("glow")}{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--card-color,#1f2a44) 0%,transparent)}
+  50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--card-color,#1f2a44) 22%,transparent),0 6px 18px -6px color-mix(in srgb,var(--card-color,#1f2a44) 45%,transparent)}}
+
+${a("shake")}{animation:${k("shake")} ${d(3.4)} ease-in-out infinite}
+@keyframes ${k("shake")}{0%,70%,100%{transform:translate3d(0,0,0) rotate(0)}73%{transform:translate3d(-3px,0,0) rotate(-.6deg)}
+  76%{transform:translate3d(3px,0,0) rotate(.6deg)}79%{transform:translate3d(-2px,0,0) rotate(-.4deg)}82%{transform:translate3d(2px,0,0) rotate(.3deg)}85%{transform:translate3d(0,0,0)}}
+
+${doneSel}{animation:none}
+${done.split(",").map((s) => `${s.trim()}.${cls}::before`).join(",")}{animation:none;opacity:0}
+${done.split(",").map((s) => `${s.trim()} .${cls}-march rect`).join(",")}{animation:none}
+@media (prefers-reduced-motion:reduce){.${cls},.${cls}::before,.${cls}-march rect{animation:none!important}}
+`;
+}
 const CSS = `
 *,*::before,*::after{box-sizing:border-box}
 .cod-root{font-family:var(--cod-font);font-size:var(--cod-size);color:var(--cod-text);
@@ -1106,6 +1145,7 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-submit:disabled{opacity:.75;cursor:default}
 .cod-submit-icon{font-size:1.1em;line-height:1}
 ${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
+${cardAnimationCss("cod-card")}
 .cod-spinner{display:none;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);
   border-top-color:#fff;border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-loading .cod-spinner{display:block}
@@ -1160,7 +1200,9 @@ ${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
 .cod-bump input{position:absolute;opacity:0;width:0;height:0}
 .cod-bump-box{flex-shrink:0;width:22px;height:22px;border:2px solid #9a9a9a;border-radius:6px;background:#fff;position:relative;
   transition:background .2s,border-color .2s}
-.cod-bump input:checked+.cod-bump-box{background:var(--cod-ok);border-color:var(--cod-ok)}
+.cod-bump input:checked+.cod-bump-box{background:var(--cod-ok);border-color:var(--cod-ok);animation:cod-bump-pop .3s cubic-bezier(.34,1.56,.64,1)}
+@keyframes cod-bump-pop{0%{transform:scale(.7)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.cod-bump input:checked+.cod-bump-box{animation:none}}
 .cod-bump input:checked+.cod-bump-box::after{content:'';position:absolute;left:6px;top:2px;width:5px;height:10px;
   border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}
 .cod-bump-img{width:56px;height:56px;object-fit:contain;border-radius:8px;flex-shrink:0}
@@ -1171,7 +1213,7 @@ ${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
 .cod-bump-price,.cod-upsell-price{display:inline-block;margin-top:3px;font-weight:800;font-size:13.5px;white-space:nowrap}
 .cod-bump-price s,.cod-upsell-price s{color:var(--cod-muted);font-weight:400;margin-right:5px;font-size:12px}
 
-.cod-upsell{display:flex;align-items:center;gap:11px;padding:12px 13px;
+.cod-upsell{position:relative;display:flex;align-items:center;gap:11px;padding:12px 13px;
   border-radius:var(--cod-radius);background:var(--cod-surface);animation:cod-in .3s var(--cod-ease) both}
 .cod-upsell-on{box-shadow:0 0 0 3px color-mix(in srgb,var(--cod-ok) 22%,transparent)}
 .cod-upsell-img{width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0}
@@ -1284,7 +1326,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-kozsESU-.js");
+    const { renderTrigger } = await import("./trigger-BuXxQEfb.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1328,7 +1370,7 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-Btat0s7L.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-wbRfYVG1.js").catch(() => void 0);
     if (config.fields.some((f) => f.type === "location")) void import("./map-BTnRQ8LE.js").catch(() => void 0);
   };
   const ric = window.requestIdleCallback;
@@ -2130,9 +2172,10 @@ export {
   buttonBackground as b,
   buttonIconSvg as c,
   buttonAnimationCss as d,
-  CART_TRIGGERS as e,
-  mount as f,
-  pageQuantityInfo as g,
+  marchSvg as e,
+  CART_TRIGGERS as f,
+  mount as g,
+  pageQuantityInfo as h,
   money as m,
   pageQuantity as p,
   quote as q,

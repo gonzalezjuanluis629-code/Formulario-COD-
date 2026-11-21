@@ -15,6 +15,8 @@ import { productInfo } from '../lib/products.server';
 import { IntentButton } from '../components/IntentButton';
 import { Preview } from '../features/builder/Preview';
 import { DEFAULT_FIELDS } from '../lib/defaults';
+import { CardAnimationPicker } from '../features/builder/CardAnimationPicker';
+import type { CardAnimation } from '../../../widget/src/ui/cardAnimations';
 
 /* ─────────────── Borradores (lo que se edita en pantalla) ─────────────── */
 
@@ -34,6 +36,7 @@ type AddonDraft = {
   chargeType: 'product' | 'charge'; variantId: string; productTitle: string;
   title: string; description: string; image: string; price: string; compareAt: string; replacesId: string;
   border: 'dashed' | 'solid' | 'none'; borderColor: string; bg: string;
+  animation: CardAnimation; animationSpeed: 'slow' | 'normal' | 'fast';
 };
 
 const cents = (v: string) => Math.round((Number(String(v).replace(/[^0-9.]/g, '')) || 0) * 100);
@@ -60,7 +63,7 @@ function toAddon(d: AddonDraft): Addon {
     title: d.title || 'Extra', description: d.description, image: d.image || null,
     priceCents: cents(d.price), compareAtCents: d.compareAt ? cents(d.compareAt) : null,
     qty: 1, replacesId: d.kind === 'DOWNSELL' ? (d.replacesId || null) : null, minCartCents: 0,
-    style: { border: d.border, borderColor: d.borderColor, bg: d.bg },
+    style: { border: d.border, borderColor: d.borderColor, bg: d.bg, animation: d.animation, animationSpeed: d.animationSpeed },
   };
 }
 
@@ -104,6 +107,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       title: a.title, description: a.description, image: a.image ?? '',
       price: fromCents(a.priceCents), compareAt: fromCents(a.compareAtCents), replacesId: a.replacesId ?? '',
       border: a.style.border, borderColor: a.style.borderColor, bg: a.style.bg,
+      animation: a.style.animation, animationSpeed: a.style.animationSpeed,
     };
   });
 
@@ -284,6 +288,7 @@ export default function Offers() {
       description: chargeType === 'charge' ? 'Recíbelo en menos de 24 horas' : '', image: '',
       price: chargeType === 'charge' ? '350' : '', compareAt: '', replacesId: '',
       border: 'dashed', borderColor: chargeType === 'charge' ? '#94b07f' : '#1f2a44', bg: chargeType === 'charge' ? '#f7faf3' : '#eef0fa',
+      animation: 'none', animationSpeed: 'normal',
     };
     setAddons((l) => [...l, d]); setOpen(d.id); setDirty(true);
   };
@@ -467,6 +472,8 @@ export default function Offers() {
                         options={[['dashed', 'Rayas'], ['solid', 'Línea'], ['none', 'Sin borde']]} />
                       {a.border !== 'none' && <Color label="Color del borde" value={a.borderColor} onChange={(v) => updAddon(a.id, { borderColor: v })} />}
                       <Color label="Color de fondo" value={a.bg} onChange={(v) => updAddon(a.id, { bg: v })} />
+                      <CardAnimationPicker value={a.animation} speed={a.animationSpeed} border={a.border} borderColor={a.borderColor} background={a.bg}
+                        onChange={(v) => updAddon(a.id, { animation: v })} onSpeed={(v) => updAddon(a.id, { animationSpeed: v })} />
                       <ItemFooter active={a.active} onActive={(v) => updAddon(a.id, { active: v })}
                         onDelete={() => { setAddons((l) => l.filter((x) => x.id !== a.id)); setDirty(true); }} />
                     </Item>

@@ -1,4 +1,4 @@
-import { m as money } from "./index-BeWA8ym3.js";
+import { A as ANIMATION_SPEEDS, m as money, e as marchSvg } from "./index-ClKtIxiK.js";
 function renderAddons(host, config, state, onChange) {
   var _a;
   const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty);
@@ -18,9 +18,24 @@ function richTitle(a) {
   return esc(a.title).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\{precio\}/gi, `<b>${money(a.priceCents)}</b>`);
 }
 function cardStyle(a) {
+  var _a;
   const st = a.style;
   const border = st.border === "none" ? "border:2px solid transparent" : `border:2px ${st.border} ${st.borderColor}`;
-  return `${border};background:${st.bg}`;
+  return `${border};background:${st.bg};--card-color:${st.borderColor};--anim-speed:${ANIMATION_SPEEDS[(_a = st.animationSpeed) != null ? _a : "normal"]}`;
+}
+function animate(el, a) {
+  var _a;
+  const anim = (_a = a.style.animation) != null ? _a : "none";
+  if (anim === "none") return;
+  el.classList.add("cod-card", `cod-card-anim-${anim}`);
+  if (anim !== "march") return;
+  el.insertAdjacentHTML("afterbegin", marchSvg("cod-card"));
+  requestAnimationFrame(() => {
+    var _a2, _b;
+    const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 12;
+    (_a2 = el.querySelector(".cod-card-march rect")) == null ? void 0 : _a2.setAttribute("rx", String(Math.max(0, r - 1)));
+    (_b = el.querySelector(".cod-card-march rect")) == null ? void 0 : _b.setAttribute("ry", String(Math.max(0, r - 1)));
+  });
 }
 function priceTag(a, cls) {
   if (/\{precio\}/i.test(a.title) || !(a.priceCents > 0)) return "";
@@ -40,6 +55,7 @@ function renderBump(a, state, onChange) {
       ${priceTag(a, "cod-bump-price")}
     </span>
     ${a.image ? `<img class="cod-bump-img" src="${esc(a.image)}" alt="" loading="lazy">` : ""}`;
+  animate(el, a);
   el.querySelector("input").addEventListener("change", (e) => {
     toggleAddon(state, a, e.target.checked);
     el.classList.toggle("cod-bump-on", e.target.checked);
@@ -60,6 +76,7 @@ function renderUpsell(a, downsell, state, onChange) {
       ${priceTag(a, "cod-upsell-price")}
     </div>
     <button type="button" class="cod-upsell-add">Añadir</button>`;
+  animate(el, a);
   const btn = el.querySelector(".cod-upsell-add");
   let added = false;
   let downsellShown = false;

@@ -6,6 +6,7 @@
  * Vive dentro del Shadow DOM: no puede ensuciar el tema, ni el tema a él.
  */
 import { buttonAnimationCss } from "./animations";
+import { cardAnimationCss } from "./cardAnimations";
 
 export const CSS = `
 *,*::before,*::after{box-sizing:border-box}
@@ -194,6 +195,7 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-submit:disabled{opacity:.75;cursor:default}
 .cod-submit-icon{font-size:1.1em;line-height:1}
 ${buttonAnimationCss('cod-submit', 'var(--cod-btn-solid)')}
+${cardAnimationCss('cod-card')}
 .cod-spinner{display:none;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);
   border-top-color:#fff;border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-loading .cod-spinner{display:block}
@@ -248,7 +250,9 @@ ${buttonAnimationCss('cod-submit', 'var(--cod-btn-solid)')}
 .cod-bump input{position:absolute;opacity:0;width:0;height:0}
 .cod-bump-box{flex-shrink:0;width:22px;height:22px;border:2px solid #9a9a9a;border-radius:6px;background:#fff;position:relative;
   transition:background .2s,border-color .2s}
-.cod-bump input:checked+.cod-bump-box{background:var(--cod-ok);border-color:var(--cod-ok)}
+.cod-bump input:checked+.cod-bump-box{background:var(--cod-ok);border-color:var(--cod-ok);animation:cod-bump-pop .3s cubic-bezier(.34,1.56,.64,1)}
+@keyframes cod-bump-pop{0%{transform:scale(.7)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.cod-bump input:checked+.cod-bump-box{animation:none}}
 .cod-bump input:checked+.cod-bump-box::after{content:'';position:absolute;left:6px;top:2px;width:5px;height:10px;
   border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}
 .cod-bump-img{width:56px;height:56px;object-fit:contain;border-radius:8px;flex-shrink:0}
@@ -259,7 +263,7 @@ ${buttonAnimationCss('cod-submit', 'var(--cod-btn-solid)')}
 .cod-bump-price,.cod-upsell-price{display:inline-block;margin-top:3px;font-weight:800;font-size:13.5px;white-space:nowrap}
 .cod-bump-price s,.cod-upsell-price s{color:var(--cod-muted);font-weight:400;margin-right:5px;font-size:12px}
 
-.cod-upsell{display:flex;align-items:center;gap:11px;padding:12px 13px;
+.cod-upsell{position:relative;display:flex;align-items:center;gap:11px;padding:12px 13px;
   border-radius:var(--cod-radius);background:var(--cod-surface);animation:cod-in .3s var(--cod-ease) both}
 .cod-upsell-on{box-shadow:0 0 0 3px color-mix(in srgb,var(--cod-ok) 22%,transparent)}
 .cod-upsell-img{width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0}

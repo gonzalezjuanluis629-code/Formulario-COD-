@@ -1,6 +1,8 @@
 import type { Addon, WidgetConfig } from '@cod/contracts';
 import type { FormState } from '../index';
 import { money } from '@cod/pricing';
+import { ANIMATION_SPEEDS } from './animations';
+import { marchSvg } from './cardAnimations';
 
 /**
  * Order bumps, upsells y downsells dentro del formulario.
@@ -52,7 +54,22 @@ function richTitle(a: Addon): string {
 function cardStyle(a: Addon): string {
   const st = a.style;
   const border = st.border === 'none' ? 'border:2px solid transparent' : `border:2px ${st.border} ${st.borderColor}`;
-  return `${border};background:${st.bg}`;
+  return `${border};background:${st.bg};--card-color:${st.borderColor};--anim-speed:${ANIMATION_SPEEDS[st.animationSpeed ?? 'normal']}`;
+}
+
+/** Clase y dibujo de la animación elegida para la tarjeta (si hay). */
+function animate(el: HTMLElement, a: Addon): void {
+  const anim = a.style.animation ?? 'none';
+  if (anim === 'none') return;
+  el.classList.add('cod-card', `cod-card-anim-${anim}`);
+  if (anim !== 'march') return;
+  el.insertAdjacentHTML('afterbegin', marchSvg('cod-card'));
+  // Las rayas siguen la misma esquina redondeada que la tarjeta.
+  requestAnimationFrame(() => {
+    const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 12;
+    el.querySelector('.cod-card-march rect')?.setAttribute('rx', String(Math.max(0, r - 1)));
+    el.querySelector('.cod-card-march rect')?.setAttribute('ry', String(Math.max(0, r - 1)));
+  });
 }
 
 /** Precio aparte solo si el título no lo incluye ya con {precio}. */
@@ -76,6 +93,7 @@ function renderBump(a: Addon, state: FormState, onChange: () => void): HTMLEleme
       ${priceTag(a, 'cod-bump-price')}
     </span>
     ${a.image ? `<img class="cod-bump-img" src="${esc(a.image)}" alt="" loading="lazy">` : ''}`;
+  animate(el, a);
 
   el.querySelector('input')!.addEventListener('change', (e) => {
     toggleAddon(state, a, (e.target as HTMLInputElement).checked);
@@ -99,6 +117,7 @@ function renderUpsell(a: Addon, downsell: Addon | null, state: FormState, onChan
       ${priceTag(a, 'cod-upsell-price')}
     </div>
     <button type="button" class="cod-upsell-add">Añadir</button>`;
+  animate(el, a);
 
   const btn = el.querySelector<HTMLButtonElement>('.cod-upsell-add')!;
   let added = false;

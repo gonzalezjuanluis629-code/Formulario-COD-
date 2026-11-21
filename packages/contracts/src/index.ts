@@ -356,6 +356,9 @@ export const AddonSchema = z.object({
     border: z.enum(['dashed', 'solid', 'none']).default('dashed'),
     borderColor: z.string().default('#94b07f'),
     bg: z.string().default('#f7faf3'),
+    /** Animación para llamar la atención (se detiene al marcarla). */
+    animation: z.enum(['none', 'march', 'shine', 'pulse', 'glow', 'shake']).catch('none').default('none'),
+    animationSpeed: z.enum(['slow', 'normal', 'fast']).catch('normal').default('normal'),
   }).default({}),
 });
 export type Addon = z.infer<typeof AddonSchema>;
