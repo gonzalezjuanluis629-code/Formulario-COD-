@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Addon, AcceptedAddon } from '@cod/contracts';
-import { AddonSchema } from '@cod/contracts';
+import { AddonSchema, provinceAllows } from '@cod/contracts';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { AdminClientService } from '../../infra/shopify/admin-client.service';
 import type { ShopContext } from '../../infra/shopify/shop-context.service';
@@ -33,9 +33,16 @@ export class AddonsService {
    * - Sin producto (cargo, p. ej. «Envío express»): se cobra el precio del panel.
    * El precio NUNCA sale del navegador: solo de la configuración del servidor.
    */
+  /**
+   * @param opts.province  provincia del cliente: los extras que no se ofrecen
+   *                       ahí no se cobran ni entran al pedido.
+   * @param opts.track     contar la aceptación en las métricas (solo al pedir,
+   *                       no en cada cotización).
+   */
   async resolve(
     ctx: ShopContext,
     acceptedIds: string[],
+    opts: { province?: string | null; track?: boolean } = {},
   ): Promise<{
     lineItems: { variantId: string; qty: number; priceCents: number }[];
     charges: { title: string; priceCents: number }[];
@@ -53,7 +60,8 @@ export class AddonsService {
       },
     });
 
-    const addons = rows.map((r) => AddonSchema.parse({ id: r.id, ...(r.payload as object) }));
+    const addons = rows.map((r) => AddonSchema.parse({ id: r.id, ...(r.payload as object) }))
+      .filter((a) => provinceAllows(a.provinces, opts.province ?? null));
     const out: Awaited<ReturnType<AddonsService['resolve']>> = { lineItems: [], charges: [], totalCents: 0, accepted: [] };
 
     for (const a of addons) {
@@ -70,8 +78,8 @@ export class AddonsService {
       out.accepted.push({ id: a.id, variantId: a.variantId, qty: a.qty, title: plainTitle(a.title), priceCents: price });
       out.totalCents += price * a.qty;
 
-      // Métrica de take-rate.
-      await this.prisma.offer.update({
+      // Métrica de take-rate (solo con pedido real).
+      if (opts.track !== false) await this.prisma.offer.update({
         where: { id: a.id },
         data: { accepts: { increment: 1 }, revenue: { increment: (price * a.qty) / 100 } },
       }).catch(() => undefined);

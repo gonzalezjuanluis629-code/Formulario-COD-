@@ -72,7 +72,8 @@ async function themeFor(shopId: string, themeId: string | null) {
 }
 
 /** Una oferta «fácil»: un solo producto y precio total del paquete. */
-const isSimple = (o: Offer) => o.productIds.length === 1 && o.bundlePriceCents != null && o.minQty > 1;
+/** Ofertas que el editor fácil maneja. Las que tienen provincias se editan en «Ofertas» (aquí no se tocan). */
+const isSimple = (o: Offer) => o.productIds.length === 1 && o.bundlePriceCents != null && o.minQty > 1 && o.provinces.mode === 'all';
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { shop, admin } = await requireShop(request);
@@ -390,7 +391,7 @@ export default function EditorFacil() {
   const pvOffers = useMemo<Offer[]>(() => (pvProduct?.rows ?? []).filter((r) => parseInt(r.qty, 10) >= 2 && cents(r.price) > 0).map((r) => {
     const q = parseInt(r.qty, 10);
     return { id: `pv-${q}`, type: 'QUANTITY', minQty: q, discountBps: 0, discountCents: 0, bundlePriceCents: cents(r.price), freeShipping: false,
-      label: `${q} unidades`, title: '', subtitle: '', badge: '', preselected: false, productIds: [] };
+      label: `${q} unidades`, title: '', subtitle: '', badge: '', preselected: false, productIds: [], provinces: { mode: 'all', codes: [] } };
   }), [pvProduct]);
 
   return (

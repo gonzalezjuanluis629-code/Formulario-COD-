@@ -1,6 +1,7 @@
 import type { Addon, WidgetConfig } from '@cod/contracts';
 import type { FormState } from '../index';
 import { money } from '@cod/pricing';
+import { provinceAllows } from '@cod/contracts';
 import { ANIMATION_SPEEDS } from './animations';
 import { marchSvg } from './cardAnimations';
 
@@ -24,7 +25,8 @@ export function renderAddons(
   state: FormState,
   onChange: () => void,
 ): void {
-  const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty);
+  const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty
+    && provinceAllows(a.provinces, state.province()));
   if (!addons.length) return;
 
   const downsells = addons.filter((a) => a.kind === 'DOWNSELL');
@@ -132,6 +134,11 @@ function renderBump(a: Addon, state: FormState, onChange: () => void): HTMLEleme
     ${a.image ? `<img class="cod-bump-img" src="${esc(a.image)}" alt="" loading="lazy">` : ''}`;
   animate(el, a);
   addTag(el, a);
+  // Al volver a pintarse (cambió la provincia), sigue marcado si ya lo estaba.
+  if (state.acceptedAddons.some((x) => x.id === a.id)) {
+    el.querySelector('input')!.checked = true;
+    el.classList.add('cod-bump-on');
+  }
 
   el.querySelector('input')!.addEventListener('change', (e) => {
     toggleAddon(state, a, (e.target as HTMLInputElement).checked);
@@ -159,7 +166,8 @@ function renderUpsell(a: Addon, downsell: Addon | null, state: FormState, onChan
   addTag(el, a);
 
   const btn = el.querySelector<HTMLButtonElement>('.cod-upsell-add')!;
-  let added = false;
+  let added = state.acceptedAddons.some((x) => x.id === a.id);
+  if (added) { el.classList.add('cod-upsell-on'); btn.textContent = 'Quitar'; }
   let downsellShown = false;
 
   btn.addEventListener('click', () => {

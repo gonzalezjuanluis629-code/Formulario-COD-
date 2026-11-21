@@ -110,6 +110,7 @@ const toOffer = (qty: number, cents: number): Offer => ({
   id: `page-${qty}`, type: 'QUANTITY', minQty: qty, discountBps: 0, discountCents: 0,
   bundlePriceCents: cents, freeShipping: false, label: `${qty} unidades`,
   title: '', subtitle: '', badge: '', preselected: false, productIds: [],
+  provinces: { mode: 'all', codes: [] },
 });
 
 /**

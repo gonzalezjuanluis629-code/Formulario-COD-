@@ -109,6 +109,7 @@ export class SubmitService {
     const resolvedAddons = await this.addons.resolve(
       ctx,
       dto.acceptedAddons.map((a: { id: string }) => a.id),
+      { province: this.declaredProvince(dto) }, // los extras de otras provincias no entran
     );
 
     /* 6b ─ RECÁLCULO. Lo que el cliente diga que cuesta nos da igual. */

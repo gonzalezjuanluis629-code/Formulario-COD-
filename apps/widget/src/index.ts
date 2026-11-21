@@ -525,6 +525,15 @@ export class FormState {
 
   onVariantChange(fn: () => void) { this.variantListeners.push(fn); }
 
+  /** Provincia del cliente: la que eligió a mano o la del mapa (null si aún no). */
+  province(): string | null {
+    return this.values.province || this.values.provinceCode || null;
+  }
+  /** Ofertas y extras que se ven ahora (cambia con la provincia). */
+  shownKey = '';
+  /** Ya se aplicó la tarjeta «marcada de inicio» (solo una vez, al abrir). */
+  preselectDone = false;
+
   /** El cliente eligió otra variante en la página: el pedido y el precio la siguen. */
   setVariant(variantId: string, unitPriceCents: number): void {
     if (variantId === this.variantId) return;
@@ -547,7 +556,7 @@ export class FormState {
       formId: this.config.formId,
       variantId: this.variantId,
       qty: this.qty,
-      province: this.values.province || this.values.provinceCode || null,
+      province: this.province(),
       discountCode,
       addonIds: this.acceptedAddons.map((a) => a.id),
       ...(this.cart ? { cart: this.cart, cartToken: this.cartToken, cartTotalCents: this.cartTotalCents } : {}),

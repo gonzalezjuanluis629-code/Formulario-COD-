@@ -8,6 +8,7 @@ import { ArrowDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronRightIcon, DeleteIc
 import { Form, useFetcher, useLoaderData, useSubmit } from 'react-router';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from 'react-router';
 import { AddonSchema, OfferSchema, ShopSettingsSchema, ThemeTokensSchema, type Addon, type Field, type Offer, type ThemeTokens } from '@cod/contracts';
+import { DO_PROVINCES } from '@cod/geo';
 import { requireShop } from '../lib/shop.server';
 import { pickResources } from '../lib/base';
 import { db } from '../db.server';
@@ -24,7 +25,10 @@ type OfferDraft = {
   id: string; active: boolean; minQty: string; title: string; subtitle: string; badge: string;
   priceMode: 'bundle' | 'percent' | 'amount' | 'none'; bundlePrice: string; percent: string; amount: string;
   freeShipping: boolean; preselected: boolean;
-} & ProductScopeDraft;
+} & ProductScopeDraft & ProvinceDraft;
+
+/** En qué provincias sale una oferta o un extra. */
+type ProvinceDraft = { provMode: 'all' | 'only' | 'except'; provCodes: string[] };
 
 /** En qué productos vale una oferta o un cupón. */
 type ProductScopeDraft = { scope: 'all' | 'some'; products: ScopeProduct[] };
@@ -38,7 +42,10 @@ type AddonDraft = {
   border: 'dashed' | 'solid' | 'none'; borderColor: string; bg: string;
   animation: CardAnimation; animationSpeed: 'slow' | 'normal' | 'fast';
   badgeText: string; badgeColor: string; badgeSide: 'left' | 'right'; badgeTimer: string;
-};
+} & ProvinceDraft;
+
+const provincesOf = (d: ProvinceDraft) => ({ mode: d.provCodes.length ? d.provMode : 'all' as const, codes: d.provMode === 'all' ? [] : d.provCodes });
+const provinceDraft = (r: { mode: 'all' | 'only' | 'except'; codes: string[] }): ProvinceDraft => ({ provMode: r.mode, provCodes: r.codes });
 
 const cents = (v: string) => Math.round((Number(String(v).replace(/[^0-9.]/g, '')) || 0) * 100);
 const fromCents = (c: number | null | undefined) => (c != null && c > 0 ? String(c / 100) : '');
@@ -54,6 +61,7 @@ function toOffer(d: OfferDraft): Offer {
     productIds: d.products.map((p) => p.id),
     freeShipping: d.freeShipping, label: d.title || `${qty} unidades`,
     title: d.title, subtitle: d.subtitle, badge: d.badge, preselected: d.preselected,
+    provinces: provincesOf(d),
   };
 }
 
@@ -67,6 +75,7 @@ function toAddon(d: AddonDraft): Addon {
     style: { border: d.border, borderColor: d.borderColor, bg: d.bg, animation: d.animation, animationSpeed: d.animationSpeed,
       badgeText: d.badgeText.trim(), badgeColor: d.badgeColor, badgeSide: d.badgeSide,
       badgeTimer: Math.min(1440, Math.max(0, parseInt(d.badgeTimer, 10) || 0)) },
+    provinces: provincesOf(d),
   };
 }
 
@@ -97,7 +106,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       priceMode: o.bundlePriceCents != null ? 'bundle' : o.discountCents > 0 ? 'amount' : o.discountBps > 0 ? 'percent' : 'none',
       bundlePrice: fromCents(o.bundlePriceCents), percent: o.discountBps ? String(o.discountBps / 100) : '',
       amount: fromCents(o.discountCents),
-      freeShipping: o.freeShipping, preselected: o.preselected,
+      freeShipping: o.freeShipping, preselected: o.preselected, ...provinceDraft(o.provinces),
       ...scopeFrom(o.productIds, (r.payload as { productTitles?: unknown }).productTitles, live),
     };
   });
@@ -112,6 +121,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       border: a.style.border, borderColor: a.style.borderColor, bg: a.style.bg,
       animation: a.style.animation, animationSpeed: a.style.animationSpeed,
       badgeText: a.style.badgeText, badgeColor: a.style.badgeColor, badgeSide: a.style.badgeSide, badgeTimer: a.style.badgeTimer ? String(a.style.badgeTimer) : '',
+      ...provinceDraft(a.provinces),
     };
   });
 
@@ -148,6 +158,9 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result | 
       if (!d.products.length) {
         return { ok: false, message: `Elige el producto de la oferta «${d.title || `${d.minQty} unidades`}».` };
       }
+      if (d.provMode !== 'all' && !d.provCodes.length) {
+        return { ok: false, message: `Elige al menos una provincia en la oferta «${d.title || `${d.minQty} unidades`}» (o déjala en «Todas»).` };
+      }
       if (d.priceMode === 'amount' && !(cents(d.amount) > 0)) {
         return { ok: false, message: `Pon el monto de descuento de la oferta «${d.title || `${d.minQty} unidades`}».` };
       }
@@ -158,7 +171,7 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result | 
           minQty: o.minQty, discountBps: o.discountBps, freeShipping: o.freeShipping, title: o.title,
           subtitle: o.subtitle, badge: o.badge, bundlePriceCents: o.bundlePriceCents, preselected: o.preselected,
           discountCents: o.discountCents, productIds: o.productIds,
-          productTitles: d.products.map((p) => p.title),
+          productTitles: d.products.map((p) => p.title), provinces: o.provinces,
         },
       };
       if (d.id.startsWith('new-')) keepOffers.push((await db.offer.create({ data: { shopId: shop.id, ...data } })).id);
@@ -175,6 +188,7 @@ export async function action({ request }: ActionFunctionArgs): Promise<Result | 
     for (const d of ordered) {
       if (d.chargeType === 'product' && !d.variantId) return { ok: false, message: `Elige el producto del extra «${d.title || 'sin título'}».` };
       if (d.chargeType === 'charge' && !(cents(d.price) > 0)) return { ok: false, message: `Pon el precio del cargo «${d.title || 'sin título'}».` };
+      if (d.provMode !== 'all' && !d.provCodes.length) return { ok: false, message: `Elige al menos una provincia en el extra «${d.title.replace(/\*\*/g, '') || 'sin título'}» (o déjalo en «Todas»).` };
       const a = toAddon({ ...d, replacesId: idMap.get(d.replacesId) ?? d.replacesId });
       const data = {
         name: a.title.replace(/\*\*/g, '').slice(0, 120), type: a.kind, active: d.active,
@@ -281,7 +295,7 @@ export default function Offers() {
     const d: OfferDraft = {
       id: newId(), active: true, minQty: String(offers.length ? qty : 2), title: '', subtitle: '', badge: '',
       priceMode: 'bundle', bundlePrice: '', percent: '10', amount: '', freeShipping: false, preselected: false,
-      scope: 'some', products: [],
+      scope: 'some', products: [], provMode: 'all', provCodes: [],
     };
     setOffers((l) => [...l, d]); setOpen(d.id); setDirty(true);
   };
@@ -294,6 +308,7 @@ export default function Offers() {
       border: 'dashed', borderColor: chargeType === 'charge' ? '#94b07f' : '#1f2a44', bg: chargeType === 'charge' ? '#f7faf3' : '#eef0fa',
       animation: 'none', animationSpeed: 'normal',
       badgeText: '', badgeColor: '#e11d48', badgeSide: 'right', badgeTimer: '',
+      provMode: 'all', provCodes: [],
     };
     setAddons((l) => [...l, d]); setOpen(d.id); setDirty(true);
   };
@@ -326,8 +341,9 @@ export default function Offers() {
   }, [offers, open]);
   const pvOffers = useMemo(() => offers
     .filter((o) => o.active && pvProduct && o.products.some((p) => p.id === pvProduct.id))
-    .map(toOffer), [offers, pvProduct]);
-  const pvAddons = useMemo(() => addons.filter((a) => a.active).map(toAddon), [addons]);
+    // La vista previa enseña todo; las provincias se aplican en la tienda.
+    .map((o) => ({ ...toOffer(o), provinces: ALL_PROVINCES })), [offers, pvProduct]);
+  const pvAddons = useMemo(() => addons.filter((a) => a.active).map((a) => ({ ...toAddon(a), provinces: ALL_PROVINCES })), [addons]);
   const pvTokens = useMemo(() => ({ ...data.tokens, offerCard: card }), [data.tokens, card]);
 
   const busy = fetcher.state !== 'idle';
@@ -375,7 +391,7 @@ export default function Offers() {
                       subtitle={`${o.priceMode === 'bundle' && o.bundlePrice ? `Paquete por RD$ ${o.bundlePrice}`
                         : o.priceMode === 'percent' && o.percent ? `${o.percent} % de descuento`
                         : o.priceMode === 'amount' && o.amount ? `RD$ ${o.amount} de descuento` : 'Sin descuento'}${scopeLabel(o)}`}
-                      badges={[!o.active && 'Pausada', o.badge, o.preselected && 'Marcada'].filter(Boolean) as string[]}>
+                      badges={[!o.active && 'Pausada', o.badge, o.preselected && 'Marcada', provinceBadge(o)].filter(Boolean) as string[]}>
                       <InlineStack gap="200" wrap={false}>
                         <div style={{ width: 110 }}>
                           <TextField label="Unidades" type="number" min={1} value={o.minQty} autoComplete="off"
@@ -410,6 +426,7 @@ export default function Offers() {
                         onChange={(v) => updOffer(o.id, { badge: v })} />
                       <Checkbox label="Envío gratis con esta oferta" checked={o.freeShipping} onChange={(v) => updOffer(o.id, { freeShipping: v })} />
                       <Checkbox label="Que venga marcada al abrir el formulario" checked={o.preselected} onChange={(v) => updOffer(o.id, { preselected: v })} />
+                      <ProvincePicker value={o} what="esta oferta" onChange={(p) => updOffer(o.id, p)} />
                       <ItemFooter active={o.active} onActive={(v) => updOffer(o.id, { active: v })}
                         onDelete={() => { setOffers((l) => l.filter((x) => x.id !== o.id)); setDirty(true); }} />
                     </Item>
@@ -439,7 +456,7 @@ export default function Offers() {
                       showMove={addons.length > 1}
                       title={a.title.replace(/\*\*/g, '').replace(/\{precio\}/gi, a.price ? `RD$ ${a.price}` : '') || 'Extra'}
                       subtitle={a.chargeType === 'charge' ? 'Cargo extra' : a.productTitle || 'Producto sin elegir'}
-                      badges={[!a.active && 'Pausado', a.kind === 'UPSELL' ? 'Upsell' : a.kind === 'DOWNSELL' ? 'Downsell' : ''].filter(Boolean) as string[]}>
+                      badges={[!a.active && 'Pausado', a.kind === 'UPSELL' ? 'Upsell' : a.kind === 'DOWNSELL' ? 'Downsell' : '', provinceBadge(a)].filter(Boolean) as string[]}>
                       <Choice label="¿Qué se suma al pedido?" value={a.chargeType}
                         onChange={(v) => updAddon(a.id, { chargeType: v as AddonDraft['chargeType'] })}
                         options={[['product', 'Un producto'], ['charge', 'Un cargo (sin producto)']]} />
@@ -472,6 +489,7 @@ export default function Offers() {
                             ...addons.filter((x) => x.kind === 'UPSELL').map((x) => ({ label: x.title.replace(/\*\*/g, ''), value: x.id }))]}
                           onChange={(v) => updAddon(a.id, { replacesId: v })} />
                       )}
+                      <ProvincePicker value={a} what="este extra" onChange={(p) => updAddon(a.id, p)} />
                       <Divider />
                       <Choice label="Borde" value={a.border} onChange={(v) => updAddon(a.id, { border: v as AddonDraft['border'] })}
                         options={[['dashed', 'Rayas'], ['solid', 'Línea'], ['none', 'Sin borde']]} />
@@ -604,6 +622,55 @@ function Item({ open, onToggle, title, subtitle, badges, children, onUp, onDown,
         <div style={{ padding: '0 12px 14px' }}><BlockStack gap="300">{children}</BlockStack></div>
       </Collapsible>
     </div>
+  );
+}
+
+const ALL_PROVINCES = { mode: 'all' as const, codes: [] as string[] };
+/** Atajo: Santo Domingo y el Distrito Nacional (la capital y sus alrededores). */
+const GRAN_SD = ['DO-01', 'DO-32'];
+const provName = (c: string) => DO_PROVINCES.find((p) => p.code === c)?.name ?? c;
+
+function provinceBadge(d: ProvinceDraft): string {
+  if (d.provMode === 'all' || !d.provCodes.length) return '';
+  const names = d.provCodes.length <= 2 ? d.provCodes.map(provName).join(' y ') : `${d.provCodes.length} provincias`;
+  return d.provMode === 'only' ? `Solo ${names}` : `Menos ${names}`;
+}
+
+/**
+ * ¿En qué provincias sale? Todas · Solo en… · Todas menos… La provincia es la
+ * que el cliente pone a mano o la de su ubicación en el mapa.
+ */
+function ProvincePicker({ value, what, onChange }: { value: ProvinceDraft; what: string; onChange: (p: ProvinceDraft) => void }) {
+  const sel = new Set(value.provCodes);
+  const toggle = (c: string) => onChange({ ...value, provCodes: sel.has(c) ? value.provCodes.filter((x) => x !== c) : [...value.provCodes, c] });
+  const allGran = GRAN_SD.every((c) => sel.has(c));
+  const names = value.provCodes.map(provName).join(', ');
+  return (
+    <BlockStack gap="200">
+      <Divider />
+      <Choice label="¿En qué provincias sale?" value={value.provMode} onChange={(v) => onChange({ ...value, provMode: v as ProvinceDraft['provMode'] })}
+        options={[['all', 'Todas'], ['only', 'Solo en…'], ['except', 'Todas menos…']]} />
+      {value.provMode !== 'all' && (<>
+        <InlineStack gap="200">
+          <Button size="slim" pressed={allGran}
+            onClick={() => onChange({ ...value, provCodes: allGran ? value.provCodes.filter((c) => !GRAN_SD.includes(c)) : [...new Set([...value.provCodes, ...GRAN_SD])] })}>
+            Gran Santo Domingo (D. N. + Santo Domingo)
+          </Button>
+          {value.provCodes.length > 0 && <Button size="slim" variant="plain" onClick={() => onChange({ ...value, provCodes: [] })}>Quitar todas</Button>}
+        </InlineStack>
+        <div className="cod-prov-grid">
+          {DO_PROVINCES.map((p) => (
+            <button key={p.code} type="button" className="cod-prov" aria-pressed={sel.has(p.code)} onClick={() => toggle(p.code)}>{p.name}</button>
+          ))}
+        </div>
+        <Text as="p" variant="bodySm" tone={value.provCodes.length ? 'subdued' : 'critical'}>
+          {!value.provCodes.length ? 'Elige al menos una provincia.'
+            : value.provMode === 'only'
+              ? `${what[0]!.toUpperCase()}${what.slice(1)} solo sale a clientes de: ${names}. Aparece en cuanto el cliente pone su provincia (a mano o con el mapa).`
+              : `${what[0]!.toUpperCase()}${what.slice(1)} no sale a clientes de: ${names}. Se quita en cuanto el cliente pone una de esas provincias.`}
+        </Text>
+      </>)}
+    </BlockStack>
   );
 }
 
@@ -761,6 +828,12 @@ const CSS = `
 .cod-editor{display:grid;grid-template-columns:minmax(330px,420px) 1fr;gap:16px;align-items:start}
 .cod-editor-side{background:var(--p-color-bg-surface);border-radius:12px;box-shadow:0 1px 0 rgba(0,0,0,.07),0 0 0 1px rgba(0,0,0,.06);
   display:flex;flex-direction:column;height:calc(100vh - 130px);min-height:520px;overflow:hidden}
+.cod-prov-grid{display:flex;flex-wrap:wrap;gap:6px}
+.cod-prov{all:unset;box-sizing:border-box;cursor:pointer;padding:5px 10px;border-radius:999px;font-size:12.5px;line-height:1.3;
+  border:1px solid var(--p-color-border);background:var(--p-color-bg-surface);color:var(--p-color-text)}
+.cod-prov:hover{background:var(--p-color-bg-surface-hover)}
+.cod-prov[aria-pressed=true]{background:var(--p-color-bg-fill-brand);color:var(--p-color-text-brand-on-bg-fill);border-color:transparent}
+.cod-prov:focus-visible{outline:2px solid var(--p-color-border-focus);outline-offset:1px}
 .cod-editor-tabs{border-bottom:1px solid var(--p-color-border-secondary);flex-shrink:0}
 .cod-editor-body{padding:14px;overflow:auto;flex:1}
 .cod-editor-preview{position:sticky;top:var(--cod-sticky-top,12px);height:calc(100vh - 130px);min-height:520px;border-radius:12px;overflow:hidden;

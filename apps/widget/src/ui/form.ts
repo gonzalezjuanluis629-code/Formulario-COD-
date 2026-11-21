@@ -15,6 +15,7 @@ import type { FormState } from '../index';
 import { validateField } from '../core/validate';
 import { mountLocation } from './location';
 import { renderOffers } from './offers';
+import { provinceAllows } from '@cod/contracts';
 import { money } from '@cod/pricing';
 
 /**
@@ -51,6 +52,7 @@ export function renderForm(
   const box = root.querySelector<HTMLElement>('.cod-fields')!;
 
   const offersSlot = root.querySelector<HTMLElement>('.cod-offers-slot')!;
+  state.shownKey = shownKeyOf(state);
   renderOffers(offersSlot, config, state, () => update(root, state));
   // Otra variante con otro precio: las tarjetas muestran el precio nuevo.
   state.onVariantChange(() => { offersSlot.innerHTML = ''; renderOffers(offersSlot, config, state, () => update(root, state)); });
@@ -292,6 +294,9 @@ function update(root: HTMLElement, state: FormState): void {
   if (pending.get(root)) return;
   pending.set(root, requestAnimationFrame(() => {
     pending.delete(root);
+    // Cambió la provincia y con ella las ofertas/extras que se ofrecen: se repintan.
+    const key = shownKeyOf(state);
+    if (key !== state.shownKey) { state.shownKey = key; repaintOffers(root, state); }
     const visible = new Set(state.visibleFields().map((f) => f.key));
 
     root.querySelectorAll<HTMLElement>('.cod-field').forEach((el) => {
@@ -312,6 +317,29 @@ function update(root: HTMLElement, state: FormState): void {
       root.querySelector('.cod-submit')?.classList.toggle('cod-ready', pct === 100);
     }
   }));
+}
+
+/** Ofertas y extras que se ofrecen en la provincia del cliente (para saber si cambió). */
+function shownKeyOf(state: FormState): string {
+  const p = state.province();
+  return [...state.config.offers, ...state.config.addons]
+    .filter((x) => provinceAllows(x.provinces, p)).map((x) => x.id).join(',');
+}
+
+function repaintOffers(root: HTMLElement, state: FormState): void {
+  const config = state.config;
+  // Los extras que no se ofrecen en esta provincia salen del pedido.
+  const allowed = new Set(config.addons.filter((a) => provinceAllows(a.provinces, state.province())).map((a) => a.id));
+  state.acceptedAddons = state.acceptedAddons.filter((a) => allowed.has(a.id));
+  const offersSlot = root.querySelector<HTMLElement>('.cod-offers-slot');
+  if (offersSlot) { offersSlot.innerHTML = ''; renderOffers(offersSlot, config, state, () => update(root, state)); }
+  const addonsSlot = root.querySelector<HTMLElement>('.cod-addons-slot');
+  if (addonsSlot && config.addons.length) {
+    void import('./addons').then(({ renderAddons }) => {
+      addonsSlot.innerHTML = '';
+      renderAddons(addonsSlot, config, state, () => update(root, state));
+    });
+  }
 }
 
 function showError(root: HTMLElement, key: string, msg: string) {

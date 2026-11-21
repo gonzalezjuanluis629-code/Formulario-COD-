@@ -162,6 +162,8 @@ export function mountLocation(
       if (r.city) state.values.city = r.city;
       if (r.district) state.values.sector = r.district;
       if (r.street) state.values.street = [r.street, r.number].filter(Boolean).join(' ');
+      // La provincia del mapa decide qué ofertas y extras salen (y el envío).
+      onChange();
     } catch {
       addrEl.textContent = 'Ubicación marcada'; // el fallo del geocoder JAMÁS bloquea el pedido
     }

@@ -1,4 +1,5 @@
 import type { Offer, WidgetConfig } from '@cod/contracts';
+import { provinceAllows } from '@cod/contracts';
 import { money } from '@cod/pricing';
 import type { FormState } from '../index';
 
@@ -8,8 +9,13 @@ import type { FormState } from '../index';
  * con el precio del producto; el que se cobra lo recalcula SIEMPRE el servidor.
  */
 export function renderOffers(host: HTMLElement, config: WidgetConfig, state: FormState, onChange: () => void): void {
-  const list = [...config.offers].sort((a, b) => a.minQty - b.minQty);
-  if (!list.some((o) => o.minQty > 1)) return;
+  // Solo las que se ofrecen en la provincia del cliente.
+  const list = [...config.offers].filter((o) => provinceAllows(o.provinces, state.province())).sort((a, b) => a.minQty - b.minQty);
+  if (!list.some((o) => o.minQty > 1)) {
+    // La oferta elegida dejó de valer en esta provincia: vuelve a 1 unidad.
+    if (state.qty > 1 && !state.qtyFromPage) state.qty = 1;
+    return;
+  }
   // La página ya tiene su caja de ofertas (o el comerciante las ocultó): no se
   // repiten. El precio de la oferta se aplica igual con la cantidad de la página.
   if (state.pageManagesQty || config.tokens.offerCard.showInForm === false) return;
@@ -23,12 +29,20 @@ export function renderOffers(host: HTMLElement, config: WidgetConfig, state: For
   const base: Offer = list.find((o) => o.minQty === 1) ?? {
     id: 'base', type: 'QUANTITY', minQty: 1, discountBps: 0, freeShipping: false, label: '1 unidad',
     title: '', subtitle: '', badge: '', bundlePriceCents: null, discountCents: 0, productIds: [], preselected: false,
+    provinces: { mode: 'all', codes: [] },
   };
   const cards = [base, ...list.filter((o) => o.minQty > 1)];
 
+  // La tarjeta elegida ya no sale (otra provincia): se vuelve a la marcada o a 1 unidad.
+  if (!state.qtyFromPage && !cards.some((o) => o.minQty === state.qty)) {
+    state.qty = cards.find((o) => o.preselected)?.minQty ?? 1;
+  }
   const pre = cards.find((o) => o.preselected);
   // La cantidad elegida en la página manda sobre la tarjeta marcada de inicio.
-  if (pre && state.qty === 1 && !state.qtyFromPage) state.qty = pre.minQty;
+  // La marcada de inicio solo al abrir: si aparece después (p. ej. al elegir la
+  // provincia), no le cambia la cantidad al cliente sin que la toque.
+  if (pre && state.qty === 1 && !state.qtyFromPage && !state.preselectDone) state.qty = pre.minQty;
+  state.preselectDone = true;
 
   const wrap = document.createElement('div');
   wrap.className = 'cod-offers';

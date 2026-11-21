@@ -1,7 +1,7 @@
-import { A as ANIMATION_SPEEDS, m as money, e as marchSvg } from "./index-bf9ZMbgL.js";
+import { p as provinceAllows, A as ANIMATION_SPEEDS, m as money, e as marchSvg } from "./index-guhD1p96.js";
 function renderAddons(host, config, state, onChange) {
   var _a;
-  const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty);
+  const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty && provinceAllows(a.provinces, state.province()));
   if (!addons.length) return;
   const downsells = addons.filter((a) => a.kind === "DOWNSELL");
   const wrap = document.createElement("div");
@@ -105,6 +105,10 @@ function renderBump(a, state, onChange) {
     ${a.image ? `<img class="cod-bump-img" src="${esc(a.image)}" alt="" loading="lazy">` : ""}`;
   animate(el, a);
   addTag(el, a);
+  if (state.acceptedAddons.some((x) => x.id === a.id)) {
+    el.querySelector("input").checked = true;
+    el.classList.add("cod-bump-on");
+  }
   el.querySelector("input").addEventListener("change", (e) => {
     toggleAddon(state, a, e.target.checked);
     el.classList.toggle("cod-bump-on", e.target.checked);
@@ -128,7 +132,11 @@ function renderUpsell(a, downsell, state, onChange) {
   animate(el, a);
   addTag(el, a);
   const btn = el.querySelector(".cod-upsell-add");
-  let added = false;
+  let added = state.acceptedAddons.some((x) => x.id === a.id);
+  if (added) {
+    el.classList.add("cod-upsell-on");
+    btn.textContent = "Quitar";
+  }
   let downsellShown = false;
   btn.addEventListener("click", () => {
     added = !added;

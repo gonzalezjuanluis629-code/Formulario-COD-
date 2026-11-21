@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { QuoteRequest, QuoteResponse, Offer, CartLine } from '@cod/contracts';
-import { ShopSettingsSchema, OfferSchema } from '@cod/contracts';
+import { ShopSettingsSchema, OfferSchema, provinceAllows } from '@cod/contracts';
 import { quote as runPricing, offerDiscount } from '@cod/pricing';
 import { PageOffersService } from '../page-offers/page-offers.service';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -56,7 +56,9 @@ export class QuoteService {
     const offersFor = async (productId: string, unit: number): Promise<Offer[]> => {
       const fromPage = await this.pageOffers.forProduct(ctx, productId, unit);
       if (fromPage.length) return fromPage;
-      return shopOffers.filter((o) => !o.productIds.length || o.productIds.includes(productId));
+      // Solo las de ese producto y las que se ofrecen en la provincia del cliente.
+      return shopOffers.filter((o) => (!o.productIds.length || o.productIds.includes(productId))
+        && provinceAllows(o.provinces, dto.province ?? null));
     };
 
     const [only] = lines;
@@ -99,10 +101,9 @@ export class QuoteService {
     }
 
     // Total de los addons aceptados, con precio verificado en Shopify.
-    const { totalCents: addonsCents } = await this.addons.resolve(ctx, dto.addonIds ?? []);
-
     // Tarifa de la provincia declarada. Si no hay una configurada, cae a la default.
     const province = dto.province ?? null;
+    const { totalCents: addonsCents } = await this.addons.resolve(ctx, dto.addonIds ?? [], { province, track: false });
     const provinceShippingCents =
       province && settings.shippingByProvince[province] != null
         ? settings.shippingByProvince[province]

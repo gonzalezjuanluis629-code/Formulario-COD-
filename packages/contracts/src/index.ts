@@ -305,6 +305,29 @@ export const ShopSettingsSchema = z.object({
 export type ShopSettings = z.infer<typeof ShopSettingsSchema>;
 
 /* ─────────────── Ofertas y descuentos ─────────────── */
+/* ─────────────── Provincias donde se ofrece ───────────────
+ * Una oferta o un extra puede salir en todas las provincias, solo en algunas
+ * o en todas menos algunas. La provincia es la que el cliente eligió a mano o
+ * la del mapa (código ISO, p. ej. «DO-32» Santo Domingo). */
+export const ProvinceRuleSchema = z.object({
+  mode: z.enum(['all', 'only', 'except']).catch('all').default('all'),
+  codes: z.array(z.string().max(12)).max(64).catch([]).default([]),
+}).catch({ mode: 'all', codes: [] }).default({ mode: 'all', codes: [] });
+export type ProvinceRule = z.infer<typeof ProvinceRuleSchema>;
+
+/**
+ * ¿Se ofrece en esta provincia? Sin provincia todavía (el cliente no la ha
+ * puesto): las de «solo en…» no salen y las de «todas menos…» sí.
+ */
+export function provinceAllows(rule: Partial<ProvinceRule> | null | undefined, province: string | null | undefined): boolean {
+  const mode = rule?.mode ?? 'all';
+  const codes = rule?.codes ?? [];
+  if (mode === 'all' || !codes.length) return true;
+  const p = (province ?? '').trim().toUpperCase();
+  if (mode === 'only') return !!p && codes.includes(p);
+  return !p || !codes.includes(p);
+}
+
 export const OfferSchema = z.object({
   id: z.string(),
   type: z.enum(['QUANTITY', 'FREE_SHIPPING', 'PERCENTAGE']),
@@ -326,6 +349,8 @@ export const OfferSchema = z.object({
   productIds: z.array(z.string()).default([]),
   /** Esta tarjeta viene marcada al abrir el formulario. */
   preselected: z.boolean().default(false),
+  /** Provincias donde sale esta oferta. */
+  provinces: ProvinceRuleSchema,
 });
 export type Offer = z.infer<typeof OfferSchema>;
 
@@ -351,6 +376,8 @@ export const AddonSchema = z.object({
   replacesId: z.string().nullable().default(null),
   /** Se muestra solo si el carrito supera este umbral (0 = siempre). */
   minCartCents: z.number().int().default(0),
+  /** Provincias donde sale este extra. */
+  provinces: ProvinceRuleSchema,
   /** Aspecto de la tarjeta. El título admite **negritas** y {precio}. */
   style: z.object({
     border: z.enum(['dashed', 'solid', 'none']).default('dashed'),
