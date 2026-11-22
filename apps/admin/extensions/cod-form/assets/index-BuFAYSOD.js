@@ -4413,7 +4413,24 @@ const OfferSchema = objectType({
   /** Esta tarjeta viene marcada al abrir el formulario. */
   preselected: booleanType().default(false),
   /** Provincias donde sale esta oferta. */
-  provinces: ProvinceRuleSchema
+  provinces: ProvinceRuleSchema,
+  /**
+   * Aspecto de esta tarjeta (como los extras). Colores vacíos = los del
+   * diseño del formulario, así las ofertas de antes se ven igual.
+   */
+  style: objectType({
+    border: enumType(["solid", "dashed", "none"]).catch("solid").default("solid"),
+    borderColor: stringType().max(20).catch("").default(""),
+    bg: stringType().max(20).catch("").default(""),
+    /** Animación para llamar la atención (se detiene en la tarjeta elegida). */
+    animation: enumType(["none", "march", "shine", "pulse", "glow", "shake"]).catch("none").default("none"),
+    animationSpeed: enumType(["slow", "normal", "fast"]).catch("normal").default("normal"),
+    /** Color de la cinta (vacío = el degradado del diseño). */
+    badgeColor: stringType().max(20).catch("").default(""),
+    badgeSide: enumType(["left", "right"]).catch("right").default("right"),
+    /** Cuenta regresiva en la cinta, en minutos (0 = sin reloj). Por visitante; vuelve a empezar en cero. */
+    badgeTimer: numberType().int().min(0).max(1440).catch(0).default(0)
+  }).default({})
 });
 const AddonSchema = objectType({
   id: stringType(),
@@ -4675,6 +4692,44 @@ const money = (cents, currency = "DOP") => {
   const frac = Math.round(cents) % 100 !== 0 ? 2 : 0;
   return `${currency === "DOP" ? "RD$" : currency} ${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: frac, maximumFractionDigits: 2 })}`;
 };
+function marchSvg(cls, rx = 12) {
+  return `<svg class="${cls}-march" aria-hidden="true" focusable="false"><rect x="0" y="0" width="100%" height="100%" rx="${rx}" ry="${rx}"/></svg>`;
+}
+function cardAnimationCss(cls, done = ".cod-bump-on,.cod-upsell-on") {
+  const a = (n) => `.${cls}.${cls}-anim-${n}`;
+  const k = (n) => `${cls}-k-${n}`;
+  const d = (s) => `calc(${s}s * var(--anim-speed, 1))`;
+  const doneSel = done.split(",").map((s) => `${s.trim()}.${cls}`).join(",");
+  return `
+.${cls}{will-change:transform}
+${a("march")}{border-color:transparent!important}
+.${cls}-march{position:absolute;inset:-1px;width:calc(100% + 2px);height:calc(100% + 2px);overflow:visible;pointer-events:none}
+.${cls}-march rect{fill:none;stroke:var(--card-color,#1f2a44);stroke-width:2;stroke-dasharray:7 5;
+  animation:${k("march")} ${d(0.9)} linear infinite}
+@keyframes ${k("march")}{to{stroke-dashoffset:-24}}
+
+${a("shine")}::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;
+  background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.78) 50%,transparent 62%) no-repeat;background-size:260% 100%;
+  background-position:160% 0;animation:${k("shine")} ${d(3.2)} ease-in-out infinite}
+@keyframes ${k("shine")}{0%{background-position:160% 0}45%,100%{background-position:-60% 0}}
+
+${a("pulse")}{animation:${k("pulse")} ${d(2.2)} ease-in-out infinite}
+@keyframes ${k("pulse")}{0%,60%,100%{transform:scale(1)}20%{transform:scale(1.025)}40%{transform:scale(.995)}}
+
+${a("glow")}{animation:${k("glow")} ${d(2.4)} ease-in-out infinite}
+@keyframes ${k("glow")}{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--card-color,#1f2a44) 0%,transparent)}
+  50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--card-color,#1f2a44) 22%,transparent),0 6px 18px -6px color-mix(in srgb,var(--card-color,#1f2a44) 45%,transparent)}}
+
+${a("shake")}{animation:${k("shake")} ${d(3.4)} ease-in-out infinite}
+@keyframes ${k("shake")}{0%,70%,100%{transform:translate3d(0,0,0) rotate(0)}73%{transform:translate3d(-3px,0,0) rotate(-.6deg)}
+  76%{transform:translate3d(3px,0,0) rotate(.6deg)}79%{transform:translate3d(-2px,0,0) rotate(-.4deg)}82%{transform:translate3d(2px,0,0) rotate(.3deg)}85%{transform:translate3d(0,0,0)}}
+
+${doneSel}{animation:none}
+${done.split(",").map((s) => `${s.trim()}.${cls}::before`).join(",")}{animation:none;opacity:0}
+${done.split(",").map((s) => `${s.trim()} .${cls}-march rect`).join(",")}{animation:none}
+@media (prefers-reduced-motion:reduce){.${cls},.${cls}::before,.${cls}-march rect{animation:none!important}}
+`;
+}
 function renderOffers(host, config, state, onChange) {
   var _a2, _b, _c;
   const list = [...config.offers].filter((o) => provinceAllows(o.provinces, state.province())).sort((a, b) => a.minQty - b.minQty);
@@ -4700,7 +4755,8 @@ function renderOffers(host, config, state, onChange) {
     discountCents: 0,
     productIds: [],
     preselected: false,
-    provinces: { mode: "all", codes: [] }
+    provinces: { mode: "all", codes: [] },
+    style: { border: "solid", borderColor: "", bg: "", animation: "none", animationSpeed: "normal", badgeColor: "", badgeSide: "right", badgeTimer: 0 }
   };
   const cards = [base, ...list.filter((o) => o.minQty > 1)];
   if (!state.qtyFromPage && !cards.some((o) => o.minQty === state.qty)) {
@@ -4718,10 +4774,14 @@ function renderOffers(host, config, state, onChange) {
     const price = o.bundlePriceCents != null ? o.bundlePriceCents : o.discountCents > 0 ? Math.max(0, full - o.discountCents) : Math.round(full * (1 - o.discountBps / 1e4));
     const save = full > 0 && price < full ? Math.round((1 - price / full) * 100) : 0;
     const title = o.title || (o.minQty === 1 ? "1 unidad" : `${o.minQty} unidades`);
+    const st = o.style;
+    const anim = (st == null ? void 0 : st.animation) && st.animation !== "none" ? ` cod-card cod-card-anim-${st.animation}` : "";
+    const ribbon = !!(o.badge || (st == null ? void 0 : st.badgeTimer));
     return `
-    <button type="button" class="cod-offer${o.badge ? " cod-offer-has-badge" : ""}" role="radio"
-      aria-checked="${o.minQty === state.qty}" data-qty="${o.minQty}">
-      ${o.badge ? `<span class="cod-offer-ribbon">${esc$1(o.badge)}</span>` : ""}
+    <button type="button" class="cod-offer${ribbon ? " cod-offer-has-badge" : ""}${anim}" role="radio"
+      aria-checked="${o.minQty === state.qty}" data-qty="${o.minQty}" data-offer="${esc$1(o.id)}" style="${cardVars(o)}">
+      ${(st == null ? void 0 : st.animation) === "march" ? marchSvg("cod-card") : ""}
+      ${ribbon ? `<span class="cod-offer-ribbon${(st == null ? void 0 : st.badgeSide) === "left" ? " cod-offer-ribbon-left" : ""}"${(st == null ? void 0 : st.badgeColor) ? ` style="background:${cssColor(st.badgeColor)}"` : ""}>${o.badge ? `<span>${esc$1(o.badge)}</span>` : ""}${(st == null ? void 0 : st.badgeTimer) ? `<span class="cod-offer-clock">${o.badge ? "" : "Termina en "}<b data-timer="${st.badgeTimer}" data-key="${esc$1(o.id)}"></b></span>` : ""}</span>` : ""}
       <span class="cod-offer-dot"></span>
       <span class="cod-offer-text">
         <b>${esc$1(title)}</b>
@@ -4743,6 +4803,67 @@ function renderOffers(host, config, state, onChange) {
     });
   });
   host.appendChild(wrap);
+  wrap.querySelectorAll(".cod-card-anim-march").forEach((el) => requestAnimationFrame(() => {
+    var _a3, _b2;
+    const r = Math.max(0, (parseFloat(getComputedStyle(el).borderTopLeftRadius) || 12) - 1);
+    (_a3 = el.querySelector(".cod-card-march rect")) == null ? void 0 : _a3.setAttribute("rx", String(r));
+    (_b2 = el.querySelector(".cod-card-march rect")) == null ? void 0 : _b2.setAttribute("ry", String(r));
+  }));
+  wrap.querySelectorAll("[data-timer]").forEach((b) => countdown(b, Number(b.dataset.timer) || 0, `cod-offer-${b.dataset.key}`));
+}
+function cssColor(v) {
+  const c = v.trim();
+  return /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|[a-z]{3,20})$/i.test(c) ? c : "";
+}
+function cardVars(o) {
+  var _a2;
+  const st = o.style;
+  if (!st) return "";
+  const out = [];
+  const border = cssColor(st.borderColor);
+  const bg = cssColor(st.bg);
+  if (st.border === "none") out.push("--offer-border:transparent");
+  else {
+    if (border) out.push(`--offer-border:${border}`);
+    if (st.border === "dashed") out.push("--offer-border-style:dashed");
+  }
+  if (bg) out.push(`--offer-bg:${bg}`);
+  out.push(`--card-color:${border || "var(--cod-offer-accent)"}`);
+  out.push(`--anim-speed:${ANIMATION_SPEEDS[(_a2 = st.animationSpeed) != null ? _a2 : "normal"]}`);
+  return out.join(";");
+}
+function countdown(out, mins, key) {
+  if (!mins) return;
+  const total = mins * 60;
+  let start = Date.now();
+  try {
+    const v = Number(localStorage.getItem(key));
+    if (v > 0 && v <= Date.now()) start = v;
+    else localStorage.setItem(key, String(start));
+  } catch {
+  }
+  const p = (n) => String(n).padStart(2, "0");
+  const tick = () => {
+    let left = total - Math.floor((Date.now() - start) / 1e3);
+    if (left <= 0) {
+      start = Date.now();
+      try {
+        localStorage.setItem(key, String(start));
+      } catch {
+      }
+      left = total;
+    }
+    const h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), s = left % 60;
+    out.textContent = h ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+  };
+  tick();
+  const t = window.setInterval(() => {
+    if (!out.isConnected) {
+      window.clearInterval(t);
+      return;
+    }
+    tick();
+  }, 1e3);
 }
 const esc$1 = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 function lookOf(f) {
@@ -4782,7 +4903,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-Cd8pDvJI.js").then(({ renderAddons }) => {
+    void import("./addons-dZPdLlWw.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -5052,7 +5173,7 @@ function repaintOffers(root, state) {
   }
   const addonsSlot = root.querySelector(".cod-addons-slot");
   if (addonsSlot && config.addons.length) {
-    void import("./addons-Cd8pDvJI.js").then(({ renderAddons }) => {
+    void import("./addons-dZPdLlWw.js").then(({ renderAddons }) => {
       addonsSlot.innerHTML = "";
       renderAddons(addonsSlot, config, state, () => update(root, state));
     });
@@ -5082,44 +5203,6 @@ function videoEmbed(url2) {
   return `<div class="cod-video"><video src="${esc(u)}" controls playsinline preload="metadata"></video></div>`;
 }
 const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-function marchSvg(cls, rx = 12) {
-  return `<svg class="${cls}-march" aria-hidden="true" focusable="false"><rect x="0" y="0" width="100%" height="100%" rx="${rx}" ry="${rx}"/></svg>`;
-}
-function cardAnimationCss(cls, done = ".cod-bump-on,.cod-upsell-on") {
-  const a = (n) => `.${cls}.${cls}-anim-${n}`;
-  const k = (n) => `${cls}-k-${n}`;
-  const d = (s) => `calc(${s}s * var(--anim-speed, 1))`;
-  const doneSel = done.split(",").map((s) => `${s.trim()}.${cls}`).join(",");
-  return `
-.${cls}{will-change:transform}
-${a("march")}{border-color:transparent!important}
-.${cls}-march{position:absolute;inset:-1px;width:calc(100% + 2px);height:calc(100% + 2px);overflow:visible;pointer-events:none}
-.${cls}-march rect{fill:none;stroke:var(--card-color,#1f2a44);stroke-width:2;stroke-dasharray:7 5;
-  animation:${k("march")} ${d(0.9)} linear infinite}
-@keyframes ${k("march")}{to{stroke-dashoffset:-24}}
-
-${a("shine")}::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;
-  background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.78) 50%,transparent 62%) no-repeat;background-size:260% 100%;
-  background-position:160% 0;animation:${k("shine")} ${d(3.2)} ease-in-out infinite}
-@keyframes ${k("shine")}{0%{background-position:160% 0}45%,100%{background-position:-60% 0}}
-
-${a("pulse")}{animation:${k("pulse")} ${d(2.2)} ease-in-out infinite}
-@keyframes ${k("pulse")}{0%,60%,100%{transform:scale(1)}20%{transform:scale(1.025)}40%{transform:scale(.995)}}
-
-${a("glow")}{animation:${k("glow")} ${d(2.4)} ease-in-out infinite}
-@keyframes ${k("glow")}{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--card-color,#1f2a44) 0%,transparent)}
-  50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--card-color,#1f2a44) 22%,transparent),0 6px 18px -6px color-mix(in srgb,var(--card-color,#1f2a44) 45%,transparent)}}
-
-${a("shake")}{animation:${k("shake")} ${d(3.4)} ease-in-out infinite}
-@keyframes ${k("shake")}{0%,70%,100%{transform:translate3d(0,0,0) rotate(0)}73%{transform:translate3d(-3px,0,0) rotate(-.6deg)}
-  76%{transform:translate3d(3px,0,0) rotate(.6deg)}79%{transform:translate3d(-2px,0,0) rotate(-.4deg)}82%{transform:translate3d(2px,0,0) rotate(.3deg)}85%{transform:translate3d(0,0,0)}}
-
-${doneSel}{animation:none}
-${done.split(",").map((s) => `${s.trim()}.${cls}::before`).join(",")}{animation:none;opacity:0}
-${done.split(",").map((s) => `${s.trim()} .${cls}-march rect`).join(",")}{animation:none}
-@media (prefers-reduced-motion:reduce){.${cls},.${cls}::before,.${cls}-march rect{animation:none!important}}
-`;
-}
 const CSS = `
 *,*::before,*::after{box-sizing:border-box}
 .cod-root{font-family:var(--cod-font);font-size:var(--cod-size);color:var(--cod-text);
@@ -5307,7 +5390,9 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-submit:disabled{opacity:.75;cursor:default}
 .cod-submit-icon{font-size:1.1em;line-height:1}
 ${buttonAnimationCss("cod-submit", "var(--cod-btn-solid)")}
-${cardAnimationCss("cod-card")}
+${cardAnimationCss("cod-card", '.cod-bump-on,.cod-upsell-on,.cod-offer[aria-checked="true"]')}
+.cod-offer[aria-checked="true"].cod-card-anim-march{border-color:var(--cod-offer-accent)!important}
+.cod-offer[aria-checked="true"] .cod-card-march{display:none}
 .cod-spinner{display:none;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);
   border-top-color:#fff;border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-loading .cod-spinner{display:block}
@@ -5333,16 +5418,19 @@ ${cardAnimationCss("cod-card")}
 /* ── Order bumps / upsells / downsells ── */
 .cod-offers{display:grid;gap:12px;margin-bottom:16px}
 .cod-offer{position:relative;display:flex;align-items:center;gap:12px;width:100%;padding:14px 14px;text-align:left;
-  border:1.5px solid var(--cod-border);border-radius:calc(var(--cod-radius) + 6px);background:#fff;
+  border:1.5px var(--offer-border-style,solid) var(--offer-border,var(--cod-border));border-radius:calc(var(--cod-radius) + 6px);background:var(--offer-bg,#fff);
   color:var(--cod-text);font:inherit;cursor:pointer;
   transition:border-color .2s var(--cod-ease),box-shadow .2s var(--cod-ease),transform .15s var(--cod-ease)}
 .cod-offer:active{transform:scale(.99)}
 .cod-offer-has-badge{margin-top:8px}
 .cod-offer[aria-checked="true"]{border:2px solid var(--cod-offer-accent);
   box-shadow:var(--cod-offer-glow,0 0 0 7px color-mix(in srgb,var(--cod-offer-accent) 16%,transparent))}
-.cod-offer-ribbon{position:absolute;top:-12px;right:16px;padding:4px 12px;border-radius:99px;
+.cod-offer-ribbon{position:absolute;top:-12px;right:16px;z-index:3;display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:99px;
   background:linear-gradient(90deg,var(--cod-badge-from),var(--cod-badge-to));color:var(--cod-badge-color);
-  font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+  font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;pointer-events:none}
+.cod-offer-ribbon-left{right:auto;left:16px}
+.cod-offer-clock{display:inline-flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.cod-offer-ribbon span+.cod-offer-clock{padding-left:6px;border-left:1px solid rgba(255,255,255,.45)}
 .cod-offer-dot{width:22px;height:22px;border-radius:50%;border:2px solid #a9b0b8;flex-shrink:0;position:relative;background:#fff}
 .cod-offer[aria-checked="true"] .cod-offer-dot{border-color:var(--cod-offer-accent)}
 .cod-offer[aria-checked="true"] .cod-offer-dot::after{content:'';position:absolute;inset:4px;border-radius:50%;background:var(--cod-offer-accent)}
@@ -5454,7 +5542,7 @@ async function mount(opts) {
   root.className = "cod-root";
   shadow.appendChild(root);
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  if (host.dataset.mode !== "embedded") void import("./trigger-D23vF7na.js").catch(() => void 0);
+  if (host.dataset.mode !== "embedded") void import("./trigger-DU1n-GgK.js").catch(() => void 0);
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -5517,7 +5605,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-D23vF7na.js");
+    const { renderTrigger } = await import("./trigger-DU1n-GgK.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -5561,7 +5649,7 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-Cd8pDvJI.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-dZPdLlWw.js").catch(() => void 0);
     if (config.fields.some((f) => f.type === "location")) void import("./map-BTnRQ8LE.js").catch(() => void 0);
   };
   const ric = window.requestIdleCallback;
@@ -6134,27 +6222,53 @@ function ensureFbq(pixelId) {
   }
   return (_b = w.fbq) != null ? _b : null;
 }
+let shopifyPixelsCache = null;
+function shopifyMetaPixels() {
+  var _a2;
+  if (shopifyPixelsCache) return shopifyPixelsCache;
+  const found = /* @__PURE__ */ new Set();
+  try {
+    const re = /\\?"pixel_id\\?"\s*:\s*\\?"(\d{6,20})\\?"\s*,\s*\\?"pixel_type\\?"\s*:\s*\\?"facebook_pixel/g;
+    for (const s of Array.from(document.scripts)) {
+      if (s.src) continue;
+      const text = (_a2 = s.textContent) != null ? _a2 : "";
+      if (!text.includes("pixel_id")) continue;
+      for (const m of text.matchAll(re)) found.add(m[1]);
+    }
+  } catch {
+  }
+  shopifyPixelsCache = Array.from(found).slice(0, 5);
+  return shopifyPixelsCache;
+}
+function metaPixelIds(configured) {
+  return Array.from(/* @__PURE__ */ new Set([...configured ? [configured] : [], ...shopifyMetaPixels()]));
+}
+function trackMeta(ids, event, data, opts) {
+  for (const id of ids) {
+    const fbq = ensureFbq(id);
+    if (fbq) fbq("trackSingle", id, event, data, ...opts ? [opts] : []);
+  }
+}
 let checkoutFired = false;
 function fireCheckoutPixel(config) {
-  var _a2, _b, _c;
+  var _a2, _b;
   try {
-    const id = config.settings.tracking.metaPixelId;
-    if (!id || checkoutFired) return;
+    const ids = metaPixelIds(config.settings.tracking.metaPixelId);
+    if (!ids.length || checkoutFired) return;
     checkoutFired = true;
-    (_c = ensureFbq(id)) == null ? void 0 : _c("track", "InitiateCheckout", { currency: config.settings.currency, value: ((_b = (_a2 = config.product) == null ? void 0 : _a2.unitPriceCents) != null ? _b : 0) / 100 });
+    trackMeta(ids, "InitiateCheckout", { currency: config.settings.currency, value: ((_b = (_a2 = config.product) == null ? void 0 : _a2.unitPriceCents) != null ? _b : 0) / 100 });
   } catch {
   }
 }
 function firePurchasePixel(p) {
-  var _a2, _b;
+  var _a2;
   const value = p.valueCents / 100;
   try {
-    if (p.metaPixelId) {
-      (_a2 = ensureFbq(p.metaPixelId)) == null ? void 0 : _a2("track", p.eventName, { currency: p.currency, value }, { eventID: p.eventId });
-    }
+    const metaIds = metaPixelIds(p.metaPixelId);
+    if (metaIds.length) trackMeta(metaIds, p.eventName, { currency: p.currency, value }, { eventID: p.eventId });
     if (p.tiktokPixelId) {
       const w = window;
-      (_b = w.ttq) == null ? void 0 : _b.track("CompletePayment", { currency: p.currency, value, event_id: p.eventId });
+      (_a2 = w.ttq) == null ? void 0 : _a2.track("CompletePayment", { currency: p.currency, value, event_id: p.eventId });
     }
   } catch {
   }
