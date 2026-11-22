@@ -788,14 +788,51 @@ function ensureFbq(pixelId: string): ((...a: unknown[]) => void) | null {
   return w.fbq ?? null;
 }
 
+/**
+ * Píxeles de Meta que la tienda ya tiene puestos con la app «Facebook e
+ * Instagram» de Shopify. Shopify los escribe en la página (webPixelsConfigList,
+ * `"pixel_id":"…","pixel_type":"facebook_pixel"`), pero los corre aislados: el
+ * formulario no los ve. Así, sin configurar nada, la compra del formulario le
+ * llega al mismo píxel (como hacen otras apps de pago contra entrega).
+ */
+let shopifyPixelsCache: string[] | null = null;
+function shopifyMetaPixels(): string[] {
+  if (shopifyPixelsCache) return shopifyPixelsCache;
+  const found = new Set<string>();
+  try {
+    const re = /\\?"pixel_id\\?"\s*:\s*\\?"(\d{6,20})\\?"\s*,\s*\\?"pixel_type\\?"\s*:\s*\\?"facebook_pixel/g;
+    for (const s of Array.from(document.scripts)) {
+      if (s.src) continue;
+      const text = s.textContent ?? '';
+      if (!text.includes('pixel_id')) continue;
+      for (const m of text.matchAll(re)) found.add(m[1]!);
+    }
+  } catch { /* nada */ }
+  shopifyPixelsCache = Array.from(found).slice(0, 5);
+  return shopifyPixelsCache;
+}
+
+/** Píxeles de Meta a los que va el evento: el que puso la tienda en Ajustes y los de la app de Shopify. */
+function metaPixelIds(configured: string | null | undefined): string[] {
+  return Array.from(new Set([...(configured ? [configured] : []), ...shopifyMetaPixels()]));
+}
+
+/** Envía el evento a cada píxel por separado (sin tocar otros píxeles que tenga el tema). */
+function trackMeta(ids: string[], event: string, data: Record<string, unknown>, opts?: Record<string, unknown>): void {
+  for (const id of ids) {
+    const fbq = ensureFbq(id);
+    if (fbq) fbq('trackSingle', id, event, data, ...(opts ? [opts] : []));
+  }
+}
+
 /** «Inicio de pago» en Meta al abrir el formulario (una vez por página). */
 let checkoutFired = false;
 function fireCheckoutPixel(config: WidgetConfig): void {
   try {
-    const id = config.settings.tracking.metaPixelId;
-    if (!id || checkoutFired) return;
+    const ids = metaPixelIds(config.settings.tracking.metaPixelId);
+    if (!ids.length || checkoutFired) return;
     checkoutFired = true;
-    ensureFbq(id)?.('track', 'InitiateCheckout', { currency: config.settings.currency, value: (config.product?.unitPriceCents ?? 0) / 100 });
+    trackMeta(ids, 'InitiateCheckout', { currency: config.settings.currency, value: (config.product?.unitPriceCents ?? 0) / 100 });
   } catch { /* nunca bloquea el formulario */ }
 }
 
@@ -808,9 +845,8 @@ function firePurchasePixel(p: NonNullable<import('@cod/contracts').SubmitRespons
   const value = p.valueCents / 100;
 
   try {
-    if (p.metaPixelId) {
-      ensureFbq(p.metaPixelId)?.('track', p.eventName, { currency: p.currency, value }, { eventID: p.eventId });
-    }
+    const metaIds = metaPixelIds(p.metaPixelId);
+    if (metaIds.length) trackMeta(metaIds, p.eventName, { currency: p.currency, value }, { eventID: p.eventId });
 
     if (p.tiktokPixelId) {
       const w = window as unknown as { ttq?: { track: (...a: unknown[]) => void } };

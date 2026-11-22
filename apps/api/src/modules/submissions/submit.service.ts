@@ -263,7 +263,9 @@ export class SubmitService {
 
     // eventId estable = submissionId. El píxel del navegador y el CAPI usan el
     // mismo, así Meta deduplica y no cuenta la compra dos veces.
-    const hasPixel = !!(t.metaPixelId || t.tiktokPixelId);
+    // Siempre se devuelve: aunque la tienda no haya puesto su píxel en Ajustes,
+    // el formulario usa el que instaló la app «Facebook e Instagram» de Shopify.
+    const hasPixel = true;
 
     return {
       ok: true,
@@ -281,7 +283,7 @@ export class SubmitService {
             currency: settings.currency,
             metaPixelId: t.metaPixelId || null,
             tiktokPixelId: t.tiktokPixelId || null,
-            eventName: t.purchaseEventName,
+            eventName: t.purchaseEventName || 'Purchase',
           }
         : null,
     };
