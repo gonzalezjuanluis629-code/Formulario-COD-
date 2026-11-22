@@ -11,11 +11,12 @@ const DEMO_CSS = `
 ${cardAnimationCss('cod-cdemo', '.cod-cdemo-done')}`;
 
 /**
- * Animación de una tarjeta de extra. Cada opción se ve funcionando en una
+ * Animación de una tarjeta (extra u oferta por cantidad). Cada opción se ve funcionando en una
  * tarjeta en miniatura con el borde y el fondo del extra: se elige viendo.
  */
 export function CardAnimationPicker({
   value, speed, onChange, onSpeed, border, borderColor, background,
+  sample = 'Agrega por RD$ 350', stopHint = 'Se detiene cuando el cliente marca el extra.',
 }: {
   value: CardAnimation;
   speed: Speed;
@@ -24,6 +25,9 @@ export function CardAnimationPicker({
   border: 'dashed' | 'solid' | 'none';
   borderColor: string;
   background: string;
+  /** Texto de la tarjeta en miniatura (extras: «Agrega por…»; ofertas: «2 unidades»). */
+  sample?: string;
+  stopHint?: string;
 }) {
   return (
     <BlockStack gap="200">
@@ -45,7 +49,7 @@ export function CardAnimationPicker({
                   border: border === 'none' ? '1.5px solid transparent' : `1.5px ${border} ${borderColor}`,
                   background, ['--card-color' as string]: borderColor, ['--anim-speed' as string]: ANIMATION_SPEEDS[speed],
                 }}
-                dangerouslySetInnerHTML={{ __html: `${a.id === 'march' ? marchSvg('cod-cdemo', 8) : ''}<i></i>Agrega por RD$ 350` }} />
+                dangerouslySetInnerHTML={{ __html: `${a.id === 'march' ? marchSvg('cod-cdemo', 8) : ''}<i></i>${sample.replace(/[<>&]/g, '')}` }} />
               <Text as="span" variant="bodySm" fontWeight={on ? 'semibold' : 'regular'}>{a.label}</Text>
             </button>
           );
@@ -59,7 +63,7 @@ export function CardAnimationPicker({
               <Button key={v} size="slim" pressed={speed === v} onClick={() => onSpeed(v)}>{l}</Button>
             ))}
           </ButtonGroup>
-          <Text as="p" variant="bodySm" tone="subdued">Se detiene cuando el cliente marca el extra.</Text>
+          <Text as="p" variant="bodySm" tone="subdued">{stopHint}</Text>
         </BlockStack>
       )}
     </BlockStack>

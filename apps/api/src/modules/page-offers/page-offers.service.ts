@@ -111,6 +111,7 @@ const toOffer = (qty: number, cents: number): Offer => ({
   bundlePriceCents: cents, freeShipping: false, label: `${qty} unidades`,
   title: '', subtitle: '', badge: '', preselected: false, productIds: [],
   provinces: { mode: 'all', codes: [] },
+  style: { border: 'solid', borderColor: '', bg: '', animation: 'none', animationSpeed: 'normal', badgeColor: '', badgeSide: 'right', badgeTimer: 0 },
 });
 
 /**

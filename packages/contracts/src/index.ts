@@ -351,6 +351,23 @@ export const OfferSchema = z.object({
   preselected: z.boolean().default(false),
   /** Provincias donde sale esta oferta. */
   provinces: ProvinceRuleSchema,
+  /**
+   * Aspecto de esta tarjeta (como los extras). Colores vacíos = los del
+   * diseño del formulario, así las ofertas de antes se ven igual.
+   */
+  style: z.object({
+    border: z.enum(['solid', 'dashed', 'none']).catch('solid').default('solid'),
+    borderColor: z.string().max(20).catch('').default(''),
+    bg: z.string().max(20).catch('').default(''),
+    /** Animación para llamar la atención (se detiene en la tarjeta elegida). */
+    animation: z.enum(['none', 'march', 'shine', 'pulse', 'glow', 'shake']).catch('none').default('none'),
+    animationSpeed: z.enum(['slow', 'normal', 'fast']).catch('normal').default('normal'),
+    /** Color de la cinta (vacío = el degradado del diseño). */
+    badgeColor: z.string().max(20).catch('').default(''),
+    badgeSide: z.enum(['left', 'right']).catch('right').default('right'),
+    /** Cuenta regresiva en la cinta, en minutos (0 = sin reloj). Por visitante; vuelve a empezar en cero. */
+    badgeTimer: z.number().int().min(0).max(1440).catch(0).default(0),
+  }).default({}),
 });
 export type Offer = z.infer<typeof OfferSchema>;
 

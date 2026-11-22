@@ -25,6 +25,10 @@ type OfferDraft = {
   id: string; active: boolean; minQty: string; title: string; subtitle: string; badge: string;
   priceMode: 'bundle' | 'percent' | 'amount' | 'none'; bundlePrice: string; percent: string; amount: string;
   freeShipping: boolean; preselected: boolean;
+  /** Aspecto de la tarjeta (como los extras). Sin colores propios = los del diseño. */
+  customColors: boolean; border: 'solid' | 'dashed' | 'none'; borderColor: string; bg: string;
+  animation: CardAnimation; animationSpeed: 'slow' | 'normal' | 'fast';
+  badgeColor: string; badgeSide: 'left' | 'right'; badgeTimer: string;
 } & ProductScopeDraft & ProvinceDraft;
 
 /** En qué provincias sale una oferta o un extra. */
@@ -62,6 +66,14 @@ function toOffer(d: OfferDraft): Offer {
     freeShipping: d.freeShipping, label: d.title || `${qty} unidades`,
     title: d.title, subtitle: d.subtitle, badge: d.badge, preselected: d.preselected,
     provinces: provincesOf(d),
+    style: {
+      border: d.customColors ? d.border : 'solid',
+      borderColor: d.customColors && d.border !== 'none' ? d.borderColor : '',
+      bg: d.customColors ? d.bg : '',
+      animation: d.animation, animationSpeed: d.animationSpeed,
+      badgeColor: d.badgeColor.trim(), badgeSide: d.badgeSide,
+      badgeTimer: Math.min(1440, Math.max(0, parseInt(d.badgeTimer, 10) || 0)),
+    },
   };
 }
 
@@ -107,6 +119,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
       bundlePrice: fromCents(o.bundlePriceCents), percent: o.discountBps ? String(o.discountBps / 100) : '',
       amount: fromCents(o.discountCents),
       freeShipping: o.freeShipping, preselected: o.preselected, ...provinceDraft(o.provinces),
+      customColors: !!(o.style.bg || o.style.borderColor || o.style.border !== 'solid'),
+      border: o.style.border, borderColor: o.style.borderColor || '#4f6b94', bg: o.style.bg || '#ffffff',
+      animation: o.style.animation, animationSpeed: o.style.animationSpeed,
+      badgeColor: o.style.badgeColor, badgeSide: o.style.badgeSide, badgeTimer: o.style.badgeTimer ? String(o.style.badgeTimer) : '',
       ...scopeFrom(o.productIds, (r.payload as { productTitles?: unknown }).productTitles, live),
     };
   });
@@ -296,6 +312,8 @@ export default function Offers() {
       id: newId(), active: true, minQty: String(offers.length ? qty : 2), title: '', subtitle: '', badge: '',
       priceMode: 'bundle', bundlePrice: '', percent: '10', amount: '', freeShipping: false, preselected: false,
       scope: 'some', products: [], provMode: 'all', provCodes: [],
+      customColors: false, border: 'solid', borderColor: '#4f6b94', bg: '#ffffff', animation: 'none', animationSpeed: 'normal',
+      badgeColor: '', badgeSide: 'right', badgeTimer: '',
     };
     setOffers((l) => [...l, d]); setOpen(d.id); setDirty(true);
   };
@@ -427,6 +445,30 @@ export default function Offers() {
                       <Checkbox label="Envío gratis con esta oferta" checked={o.freeShipping} onChange={(v) => updOffer(o.id, { freeShipping: v })} />
                       <Checkbox label="Que venga marcada al abrir el formulario" checked={o.preselected} onChange={(v) => updOffer(o.id, { preselected: v })} />
                       <ProvincePicker value={o} what="esta oferta" onChange={(p) => updOffer(o.id, p)} />
+                      <Divider />
+                      <Text as="h3" variant="headingSm">Aspecto de la tarjeta</Text>
+                      <Checkbox label="Colores propios para esta tarjeta" checked={o.customColors}
+                        helpText="Sin marcar, usa los colores de «Diseño» como las demás."
+                        onChange={(v) => updOffer(o.id, { customColors: v })} />
+                      {o.customColors && (<>
+                        <Choice label="Borde" value={o.border} onChange={(v) => updOffer(o.id, { border: v as OfferDraft['border'] })}
+                          options={[['solid', 'Línea'], ['dashed', 'Rayas'], ['none', 'Sin borde']]} />
+                        {o.border !== 'none' && <Color label="Color del borde" value={o.borderColor} onChange={(v) => updOffer(o.id, { borderColor: v })} />}
+                        <Color label="Color de fondo" value={o.bg} onChange={(v) => updOffer(o.id, { bg: v })} />
+                      </>)}
+                      <CardAnimationPicker value={o.animation} speed={o.animationSpeed}
+                        border={o.customColors ? (o.border === 'none' ? 'none' : o.border) : 'solid'}
+                        borderColor={o.customColors ? o.borderColor : '#4f6b94'} background={o.customColors ? o.bg : '#ffffff'}
+                        sample={o.title.trim().slice(0, 22) || `${o.minQty || 2} unidades`} stopHint="Se detiene cuando el cliente elige esta oferta."
+                        onChange={(v) => updOffer(o.id, { animation: v })} onSpeed={(v) => updOffer(o.id, { animationSpeed: v })} />
+                      {(o.badge.trim() || o.badgeTimer) && (<>
+                        <Choice label="Lado de la cinta" value={o.badgeSide} onChange={(v) => updOffer(o.id, { badgeSide: v as OfferDraft['badgeSide'] })}
+                          options={[['left', 'Izquierda'], ['right', 'Derecha']]} />
+                        <Color label="Color de la cinta (vacío = el de «Diseño»)" value={o.badgeColor} onChange={(v) => updOffer(o.id, { badgeColor: v })} />
+                      </>)}
+                      <TextField label="Temporizador en la cinta (minutos)" type="number" min={0} max={1440} value={o.badgeTimer} autoComplete="off" placeholder="Sin temporizador"
+                        helpText="Cuenta regresiva, por ejemplo 15. Cada cliente ve su propio reloj; al llegar a cero vuelve a empezar."
+                        onChange={(v) => updOffer(o.id, { badgeTimer: v.replace(/[^0-9]/g, '').slice(0, 4) })} />
                       <ItemFooter active={o.active} onActive={(v) => updOffer(o.id, { active: v })}
                         onDelete={() => { setOffers((l) => l.filter((x) => x.id !== o.id)); setDirty(true); }} />
                     </Item>
