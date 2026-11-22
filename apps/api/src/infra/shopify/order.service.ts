@@ -81,7 +81,7 @@ export class OrderService {
         note: input.note ?? undefined,
         tags: input.tags,
         customAttributes: attrs,
-        lineItems: [{ variantId: input.variantId, quantity: input.qty }],
+        lineItems: [{ variantId: input.variantId, quantity: input.qty, requiresShipping: true }],
         shippingAddress: {
           firstName: input.customer.firstName,
           lastName: input.customer.lastName,
@@ -95,7 +95,7 @@ export class OrderService {
         },
         shippingLines: [
           {
-            title: 'Envío',
+            title: input.totals.shippingCents > 0 ? 'Envío' : 'Envío gratis',
             priceSet: {
               shopMoney: {
                 amount: (input.totals.shippingCents / 100).toFixed(2),

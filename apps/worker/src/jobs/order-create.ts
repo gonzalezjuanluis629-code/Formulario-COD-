@@ -152,6 +152,9 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
       lineItems: items.map((i) => ({
         variantId: i.variantId,
         quantity: i.qty,
+        // Sin esto Shopify guarda la línea como «No se requiere envío» (orderCreate
+        // no toma el valor de la variante): todo lo del formulario se entrega.
+        requiresShipping: true,
         // Extras con precio especial: Shopify cobra exactamente lo que vio el cliente.
         ...(i.priceCents != null
           ? { priceSet: { shopMoney: { amount: (i.priceCents / 100).toFixed(2), currencyCode: settings.currency } } }
@@ -174,7 +177,7 @@ async function createOrder(prisma: PrismaClient, log: Logger, submissionId: stri
       },
       shippingLines: [
         {
-          title: 'Envío',
+          title: totals.shippingCents > 0 ? 'Envío' : 'Envío gratis',
           priceSet: {
             shopMoney: {
               amount: (totals.shippingCents / 100).toFixed(2),
