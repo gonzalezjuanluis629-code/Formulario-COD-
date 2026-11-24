@@ -13,7 +13,9 @@ function createMap(el, opts) {
     tiles.style.transform = `translate3d(${dx}px,${dy}px,0)`;
   };
   const down = (e) => {
+    var _a, _b;
     if (!editing) return;
+    if ((_b = (_a = e.target) == null ? void 0 : _a.closest) == null ? void 0 : _b.call(_a, ".cod-map-zoom")) return;
     dragging = true;
     dx = dy = 0;
     const t = "touches" in e ? e.touches[0] : e;
@@ -92,6 +94,26 @@ function createMap(el, opts) {
     setAccuracy(m) {
       accuracy = m;
       drawAccuracy();
+    },
+    destroy() {
+      editing = false;
+      el.removeEventListener("mousedown", down);
+      el.removeEventListener("touchstart", down);
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("touchend", up);
+    },
+    zoom: () => z,
+    zoomBy(d) {
+      const nz = Math.max(5, Math.min(19, z + d));
+      if (nz === z) return;
+      const lat = pxToLat(cy, z), lng = pxToLng(cx, z);
+      z = nz;
+      cx = lngToPx(lng, z);
+      cy = latToPx(lat, z);
+      render();
+      if (editing) opts.onMove(lat, lng);
     }
   };
 }

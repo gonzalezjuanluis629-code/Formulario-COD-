@@ -297,6 +297,7 @@ function mountLocation(wrap, config, state, onChange) {
       <span class="cod-glider"></span>
       ${c.gpsEnabled ? `
       <button type="button" class="cod-seg-btn" data-mode="gps" role="radio" aria-checked="false">
+        <span class="cod-seg-tag">★ Recomendado</span>
         <span class="cod-seg-ico"><span class="cod-spinner-sm"></span></span>
         <b>${esc$2(c.gpsLabel)}</b><small>${esc$2(c.gpsHint)}</small>
       </button>` : ""}
@@ -311,6 +312,7 @@ function mountLocation(wrap, config, state, onChange) {
       <div class="cod-map cod-map-locked"><div class="cod-map-tiles"></div>
         <div class="cod-map-acc"></div><div class="cod-map-pin"></div>
         <span class="cod-map-lock">Ubicación fijada</span>
+        <div class="cod-map-zoom"><button type="button" data-z="1" aria-label="Acercar">+</button><button type="button" data-z="-1" aria-label="Alejar">−</button></div>
       </div>
       <div class="cod-locbar"><b class="cod-loc-addr">Ubicación marcada</b><span class="cod-loc-coords"></span></div>
       <button type="button" class="cod-edit-btn">Editar ubicación</button>
@@ -354,19 +356,26 @@ function mountLocation(wrap, config, state, onChange) {
   async function locate() {
     const gpsBtn = wrap.querySelector('[data-mode="gps"]');
     gpsBtn.classList.add("cod-locating");
+    wrap.classList.remove("cod-picking");
     let pos;
     try {
       pos = await getPosition();
+      report(config, "ok");
     } catch (e) {
-      await setMode("manual");
-      errEl.textContent = await whyNoLocation(e);
-      errEl.classList.add("cod-soft");
+      const err = e;
+      report(config, failCode(err));
       gpsBtn.classList.remove("cod-locating");
+      if (await pickOnMap(err)) return;
+      await setMode("manual");
+      errEl.textContent = await whyNoLocation(err, " Mientras, escribe tu dirección aquí abajo.");
+      errEl.classList.add("cod-soft");
       return;
     }
     try {
-      const { createMap } = await import("./map-BTnRQ8LE.js");
+      const { createMap } = await import("./map-DZEdKjFO.js");
       mapPanel.hidden = false;
+      map == null ? void 0 : map.destroy();
+      resetEdit();
       map = createMap(wrap.querySelector(".cod-map"), {
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
@@ -406,6 +415,66 @@ function mountLocation(wrap, config, state, onChange) {
       gpsBtn.classList.remove("cod-locating");
     }
   }
+  async function pickOnMap(err) {
+    let createMap;
+    try {
+      ({ createMap } = await import("./map-DZEdKjFO.js"));
+    } catch {
+      return false;
+    }
+    const addrEl = wrap.querySelector(".cod-loc-addr");
+    const coordsEl = wrap.querySelector(".cod-loc-coords");
+    wrap.classList.add("cod-picking");
+    mapPanel.hidden = false;
+    state.location = null;
+    setValue("");
+    const tip = "Acércalo con + y muévelo a tu casa";
+    addrEl.textContent = tip;
+    coordsEl.textContent = "";
+    errEl.textContent = await whyNoLocation(err, " Márcala en el mapa o toca «" + c.manualLabel + "».");
+    errEl.classList.add("cod-soft");
+    const mapEl = wrap.querySelector(".cod-map");
+    map == null ? void 0 : map.destroy();
+    map = createMap(mapEl, {
+      lat: COUNTRY_CENTER.lat,
+      lng: COUNTRY_CENTER.lng,
+      zoom: COUNTRY_ZOOM,
+      onMove: (lat, lng) => {
+        var _a2;
+        if (((_a2 = map == null ? void 0 : map.zoom()) != null ? _a2 : 0) < PICK_MIN_ZOOM) {
+          state.location = null;
+          setValue("");
+          addrEl.textContent = "Acércalo más (+) hasta ver tu calle";
+          coordsEl.textContent = "";
+          onChange();
+          return;
+        }
+        state.location = { lat, lng, accuracyMeters: null, source: "MAP_PIN", capturedAt: (/* @__PURE__ */ new Date()).toISOString() };
+        setValue("gps");
+        errEl.textContent = "";
+        void reverse(lat, lng);
+        onChange();
+      }
+    });
+    map.setEditing(true);
+    const edit = wrap.querySelector(".cod-edit-btn");
+    edit.textContent = "Guardar ubicación";
+    edit.classList.add("cod-saving");
+    onChange();
+    return true;
+  }
+  function resetEdit() {
+    const edit = wrap.querySelector(".cod-edit-btn");
+    edit.textContent = "Editar ubicación";
+    edit.classList.remove("cod-saving");
+  }
+  wrap.querySelectorAll(".cod-map-zoom button").forEach((b) => {
+    b.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      map == null ? void 0 : map.zoomBy(Number(b.dataset.z));
+    });
+  });
   async function reverse(lat, lng) {
     var _a2;
     const addrEl = wrap.querySelector(".cod-loc-addr");
@@ -432,8 +501,7 @@ function mountLocation(wrap, config, state, onChange) {
     btn.classList.toggle("cod-saving", on);
   });
 }
-async function whyNoLocation(e) {
-  const tail = " Mientras, escribe tu dirección aquí abajo.";
+async function whyNoLocation(e, tail) {
   const inFrame = (() => {
     try {
       return window.top !== window.self;
@@ -447,6 +515,10 @@ async function whyNoLocation(e) {
   }
   if (!navigator.geolocation || !window.isSecureContext) return "Este navegador no permite usar la ubicación." + tail;
   const code = e == null ? void 0 : e.code;
+  const app = inAppBrowser();
+  if (code === 1 && app) {
+    return `${app === "ig" ? "Instagram" : "Facebook"} no dejó usar tu ubicación.` + tail;
+  }
   if (code === 1) {
     let state = "";
     try {
@@ -459,15 +531,48 @@ async function whyNoLocation(e) {
   if (code === 3) return "La ubicación tardó demasiado. Inténtalo otra vez." + tail;
   return "Sin acceso a tu ubicación." + tail;
 }
-function getPosition() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error("sin soporte"));
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 12e3,
-      maximumAge: 0
-    });
+const COUNTRY_CENTER = { lat: 18.82, lng: -70.3 };
+const COUNTRY_ZOOM = 8;
+const PICK_MIN_ZOOM = 15;
+async function getPosition() {
+  if (!navigator.geolocation) throw new Error("sin soporte");
+  const ask = (o) => new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, o);
   });
+  try {
+    return await ask({ enableHighAccuracy: true, timeout: 1e4, maximumAge: 12e4 });
+  } catch (e) {
+    if (e.code === 1) throw e;
+    return ask({ enableHighAccuracy: false, timeout: 1e4, maximumAge: 3e5 });
+  }
+}
+function inAppBrowser() {
+  const ua = navigator.userAgent || "";
+  if (/Instagram/i.test(ua)) return "ig";
+  if (/FBAN|FBAV|FB_IAB|FBIOS|FB4A/i.test(ua)) return "fb";
+  return null;
+}
+function failCode(e) {
+  const code = e == null ? void 0 : e.code;
+  if (!navigator.geolocation || !window.isSecureContext) return "unsupported";
+  return code === 1 ? "denied" : code === 2 ? "unavailable" : code === 3 ? "timeout" : "error";
+}
+function report(config, outcome) {
+  var _a2;
+  try {
+    const inFrame = (() => {
+      try {
+        return window.top !== window.self;
+      } catch {
+        return true;
+      }
+    })();
+    if (inFrame) return;
+    const ua = navigator.userAgent || "";
+    const os = /iPhone|iPad|iPod/i.test(ua) ? "ios" : /Android/i.test(ua) ? "android" : "desktop";
+    api.track(config.formId, "location", config.formVersionId, `${outcome}:${(_a2 = inAppBrowser()) != null ? _a2 : "web"}-${os}`);
+  } catch {
+  }
 }
 const esc$2 = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 var util;
@@ -4275,7 +4380,7 @@ const TrackingSettingsSchema = objectType({
 });
 objectType({
   formId: stringType(),
-  event: enumType(["view", "start", "field_error", "submit_attempt", "abandon"]),
+  event: enumType(["view", "start", "field_error", "submit_attempt", "abandon", "location"]),
   /** Campo donde ocurrió (para saber dónde abandonan). */
   field: stringType().nullable().optional(),
   sessionId: stringType(),
@@ -4903,7 +5008,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-dZPdLlWw.js").then(({ renderAddons }) => {
+    void import("./addons-B_ZCD_Uu.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -5173,7 +5278,7 @@ function repaintOffers(root, state) {
   }
   const addonsSlot = root.querySelector(".cod-addons-slot");
   if (addonsSlot && config.addons.length) {
-    void import("./addons-dZPdLlWw.js").then(({ renderAddons }) => {
+    void import("./addons-B_ZCD_Uu.js").then(({ renderAddons }) => {
       addonsSlot.innerHTML = "";
       renderAddons(addonsSlot, config, state, () => update(root, state));
     });
@@ -5334,6 +5439,10 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-seg-btn[data-mode="gps"] .cod-seg-ico{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s-7-6.2-7-11.5a7 7 0 1114 0C19 14.8 12 21 12 21z'/%3E%3Ccircle cx='12' cy='9.5' r='2.6'/%3E%3C/svg%3E")}
 .cod-seg-btn[data-mode="manual"] .cod-seg-ico{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4z'/%3E%3Cpath d='M13.5 6.5l4 4'/%3E%3C/svg%3E")}
 .cod-locating .cod-seg-ico::before{display:none}
+.cod-seg-tag{position:absolute;top:-9px;left:50%;transform:translateX(-50%);white-space:nowrap;z-index:2;
+  padding:2px 8px;border-radius:99px;background:#16a34a;color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.02em;
+  box-shadow:0 2px 6px -2px rgba(22,163,74,.6)}
+.cod-seg{margin-top:12px}
 .cod-seg-btn b{font-size:12.5px;font-weight:700}.cod-seg-btn small{font-size:10.5px;color:var(--cod-muted)}
 /* Mientras no elige nada, la opción del mapa «llama» suavemente para que se note que se toca. */
 .cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]{animation:cod-tapme 2.4s ease-in-out infinite}
@@ -5353,6 +5462,12 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-map-locked{touch-action:pan-y;cursor:default}
 .cod-map-editing{touch-action:none;cursor:grab;border-color:var(--cod-brand);box-shadow:0 0 0 3.5px rgba(0,0,0,.08)}
 .cod-map-editing.cod-grabbing{cursor:grabbing}
+.cod-map-zoom{position:absolute;right:7px;top:7px;display:none;flex-direction:column;gap:5px;z-index:3}
+.cod-map-editing .cod-map-zoom{display:flex}
+.cod-map-zoom button{width:34px;height:34px;border:1.5px solid var(--cod-border);border-radius:9px;background:#fff;color:#111;
+  font:700 19px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer;box-shadow:0 2px 6px -2px rgba(0,0,0,.3);padding:0}
+.cod-map-zoom button:active{transform:scale(.94)}
+.cod-picking .cod-map-acc{display:none}
 .cod-map-tiles{position:absolute;inset:0;will-change:transform}
 .cod-map-tiles img{position:absolute;width:256px;height:256px;pointer-events:none;-webkit-user-drag:none}
 .cod-map-acc{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;
@@ -5542,7 +5657,7 @@ async function mount(opts) {
   root.className = "cod-root";
   shadow.appendChild(root);
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  if (host.dataset.mode !== "embedded") void import("./trigger-DU1n-GgK.js").catch(() => void 0);
+  if (host.dataset.mode !== "embedded") void import("./trigger-C-DmqD9x.js").catch(() => void 0);
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -5605,7 +5720,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-DU1n-GgK.js");
+    const { renderTrigger } = await import("./trigger-C-DmqD9x.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -5649,8 +5764,8 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-dZPdLlWw.js").catch(() => void 0);
-    if (config.fields.some((f) => f.type === "location")) void import("./map-BTnRQ8LE.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-B_ZCD_Uu.js").catch(() => void 0);
+    if (config.fields.some((f) => f.type === "location")) void import("./map-DZEdKjFO.js").catch(() => void 0);
   };
   const ric = window.requestIdleCallback;
   if (ric) ric(go, { timeout: 2500 });

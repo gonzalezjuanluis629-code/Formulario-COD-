@@ -79,14 +79,17 @@ export class SubmitService {
     }
 
     /* 3 ─ Honeypot + tiempo mínimo. Un humano no llena esto en 2 segundos. */
-    if (dto.hp) throw new BadRequestException('Solicitud rechazada');
+    if (dto.hp) { this.log.warn(`Pedido rechazado (campo trampa lleno) en ${ctx.domain}`); throw new BadRequestException('Solicitud rechazada'); }
     const elapsed = dto.startedAt ? Date.now() - dto.startedAt : Infinity;
-    if (elapsed < 2000) throw new BadRequestException('Solicitud rechazada');
+    if (elapsed < 2000) { this.log.warn(`Pedido rechazado (llenado en ${elapsed} ms) en ${ctx.domain}`); throw new BadRequestException('Solicitud rechazada'); }
 
     /* 4 ─ Teléfono a E.164. Shopify no acepta otro formato. */
     const rawPhone = String(dto.fields.phone ?? '');
     const phoneE164 = profile.phone.normalize(rawPhone);
-    if (!phoneE164) throw new BadRequestException('Número de teléfono no válido');
+    if (!phoneE164) {
+      this.log.warn(`Teléfono no válido (${rawPhone.replace(/\D/g, '').length} dígitos) en ${ctx.domain}`);
+      throw new BadRequestException('Número de teléfono no válido');
+    }
     const phoneHash = this.crypto.hash(phoneE164);
 
     /* 5 ─ Blocklist + duplicados + riesgo. */

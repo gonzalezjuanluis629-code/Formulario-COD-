@@ -31,6 +31,7 @@ export function createMap(
 
   const down = (e: MouseEvent | TouchEvent) => {
     if (!editing) return;             // bloqueado: el dedo hace scroll, no mueve el pin
+    if ((e.target as HTMLElement | null)?.closest?.('.cod-map-zoom')) return; // botones + / −
     dragging = true; dx = dy = 0;
     const t = 'touches' in e ? e.touches[0]! : e;
     sx = t.clientX; sy = t.clientY;
@@ -102,6 +103,25 @@ export function createMap(
     },
     isEditing: () => editing,
     setAccuracy(m: number) { accuracy = m; drawAccuracy(); },
+    destroy() {
+      editing = false;
+      el.removeEventListener('mousedown', down);
+      el.removeEventListener('touchstart', down);
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('mouseup', up);
+      window.removeEventListener('touchend', up);
+    },
+    zoom: () => z,
+    zoomBy(d: number) {
+      const nz = Math.max(5, Math.min(19, z + d));
+      if (nz === z) return;
+      const lat = pxToLat(cy, z), lng = pxToLng(cx, z);
+      z = nz;
+      cx = lngToPx(lng, z); cy = latToPx(lat, z);
+      render();
+      if (editing) opts.onMove(lat, lng);
+    },
   };
 }
 

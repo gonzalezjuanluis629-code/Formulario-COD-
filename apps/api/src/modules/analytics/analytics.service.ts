@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { TrackEvent } from '@cod/contracts';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import type { ShopContext } from '../../infra/shopify/shop-context.service';
@@ -12,9 +12,16 @@ import type { ShopContext } from '../../infra/shopify/shop-context.service';
  */
 @Injectable()
 export class AnalyticsService {
+  private log = new Logger('Ubicacion');
   constructor(private prisma: PrismaService) {}
 
   async track(ctx: ShopContext, ev: TrackEvent): Promise<void> {
+    // Cómo le fue al cliente al pedir la ubicación («denied:ig-ios», «ok:fb-android»…).
+    // Solo al registro: sirve para ver por qué la gente no usa el mapa.
+    if (ev.event === 'location') {
+      this.log.log(`ubicacion ${String(ev.field ?? '').slice(0, 40)} tienda=${ctx.domain}`);
+      return;
+    }
     const date = new Date();
     date.setUTCHours(0, 0, 0, 0);
 

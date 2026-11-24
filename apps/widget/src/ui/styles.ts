@@ -139,6 +139,10 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-seg-btn[data-mode="gps"] .cod-seg-ico{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s-7-6.2-7-11.5a7 7 0 1114 0C19 14.8 12 21 12 21z'/%3E%3Ccircle cx='12' cy='9.5' r='2.6'/%3E%3C/svg%3E")}
 .cod-seg-btn[data-mode="manual"] .cod-seg-ico{--ico:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4z'/%3E%3Cpath d='M13.5 6.5l4 4'/%3E%3C/svg%3E")}
 .cod-locating .cod-seg-ico::before{display:none}
+.cod-seg-tag{position:absolute;top:-9px;left:50%;transform:translateX(-50%);white-space:nowrap;z-index:2;
+  padding:2px 8px;border-radius:99px;background:#16a34a;color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.02em;
+  box-shadow:0 2px 6px -2px rgba(22,163,74,.6)}
+.cod-seg{margin-top:12px}
 .cod-seg-btn b{font-size:12.5px;font-weight:700}.cod-seg-btn small{font-size:10.5px;color:var(--cod-muted)}
 /* Mientras no elige nada, la opción del mapa «llama» suavemente para que se note que se toca. */
 .cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]{animation:cod-tapme 2.4s ease-in-out infinite}
@@ -158,6 +162,12 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-map-locked{touch-action:pan-y;cursor:default}
 .cod-map-editing{touch-action:none;cursor:grab;border-color:var(--cod-brand);box-shadow:0 0 0 3.5px rgba(0,0,0,.08)}
 .cod-map-editing.cod-grabbing{cursor:grabbing}
+.cod-map-zoom{position:absolute;right:7px;top:7px;display:none;flex-direction:column;gap:5px;z-index:3}
+.cod-map-editing .cod-map-zoom{display:flex}
+.cod-map-zoom button{width:34px;height:34px;border:1.5px solid var(--cod-border);border-radius:9px;background:#fff;color:#111;
+  font:700 19px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer;box-shadow:0 2px 6px -2px rgba(0,0,0,.3);padding:0}
+.cod-map-zoom button:active{transform:scale(.94)}
+.cod-picking .cod-map-acc{display:none}
 .cod-map-tiles{position:absolute;inset:0;will-change:transform}
 .cod-map-tiles img{position:absolute;width:256px;height:256px;pointer-events:none;-webkit-user-drag:none}
 .cod-map-acc{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;

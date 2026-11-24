@@ -189,7 +189,7 @@ export type TrackingSettings = z.infer<typeof TrackingSettingsSchema>;
 /** Eventos de embudo que emite el widget. */
 export const TrackEventSchema = z.object({
   formId: z.string(),
-  event: z.enum(['view', 'start', 'field_error', 'submit_attempt', 'abandon']),
+  event: z.enum(['view', 'start', 'field_error', 'submit_attempt', 'abandon', 'location']),
   /** Campo donde ocurrió (para saber dónde abandonan). */
   field: z.string().nullable().optional(),
   sessionId: z.string(),

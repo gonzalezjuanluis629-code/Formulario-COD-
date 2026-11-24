@@ -26,6 +26,7 @@ export function mountLocation(
       <span class="cod-glider"></span>
       ${c.gpsEnabled ? `
       <button type="button" class="cod-seg-btn" data-mode="gps" role="radio" aria-checked="false">
+        <span class="cod-seg-tag">★ Recomendado</span>
         <span class="cod-seg-ico"><span class="cod-spinner-sm"></span></span>
         <b>${esc(c.gpsLabel)}</b><small>${esc(c.gpsHint)}</small>
       </button>` : ''}
@@ -40,6 +41,7 @@ export function mountLocation(
       <div class="cod-map cod-map-locked"><div class="cod-map-tiles"></div>
         <div class="cod-map-acc"></div><div class="cod-map-pin"></div>
         <span class="cod-map-lock">Ubicación fijada</span>
+        <div class="cod-map-zoom"><button type="button" data-z="1" aria-label="Acercar">+</button><button type="button" data-z="-1" aria-label="Alejar">−</button></div>
       </div>
       <div class="cod-locbar"><b class="cod-loc-addr">Ubicación marcada</b><span class="cod-loc-coords"></span></div>
       <button type="button" class="cod-edit-btn">Editar ubicación</button>
@@ -93,16 +95,22 @@ export function mountLocation(
     const gpsBtn = wrap.querySelector<HTMLElement>('[data-mode="gps"]')!;
     gpsBtn.classList.add('cod-locating');
 
+    wrap.classList.remove('cod-picking');
     let pos: GeolocationPosition;
     try {
       pos = await getPosition();
+      report(config, 'ok');
     } catch (e) {
-      // Sin ubicación no se bloquea a nadie: se pasa solo al modo escrito,
-      // pero diciendo POR QUÉ (y cómo arreglarlo).
-      await setMode('manual');
-      errEl.textContent = await whyNoLocation(e as GeolocationPositionError);
-      errEl.classList.add('cod-soft');
+      const err = e as GeolocationPositionError;
+      report(config, failCode(err));
       gpsBtn.classList.remove('cod-locating');
+      // El teléfono no dio la ubicación (permiso negado, Facebook/Instagram no la
+      // deja usar, tardó…). En vez de mandarlo a escribirla, se le abre el mapa
+      // para que marque su casa con el dedo. «Escribirla» sigue ahí.
+      if (await pickOnMap(err)) return;
+      await setMode('manual');
+      errEl.textContent = await whyNoLocation(err, ' Mientras, escribe tu dirección aquí abajo.');
+      errEl.classList.add('cod-soft');
       return;
     }
 
@@ -111,6 +119,8 @@ export function mountLocation(
       const { createMap } = await import('./map');
 
       mapPanel.hidden = false;
+      map?.destroy();
+      resetEdit();
       map = createMap(wrap.querySelector('.cod-map')!, {
         lat: pos.coords.latitude,
         lng: pos.coords.longitude,
@@ -147,6 +157,67 @@ export function mountLocation(
     }
   }
 
+  /**
+   * Marcar la casa en el mapa a mano (sin GPS): el mapa abre en el país, se
+   * acerca con + y se mueve con el dedo. Solo vale cuando ya se ve la calle
+   * (zoom ≥ PICK_MIN_ZOOM): antes, la ubicación quedaría a kilómetros.
+   */
+  async function pickOnMap(err: GeolocationPositionError): Promise<boolean> {
+    let createMap: typeof import('./map').createMap;
+    try { ({ createMap } = await import('./map')); } catch { return false; }
+    const addrEl = wrap.querySelector<HTMLElement>('.cod-loc-addr')!;
+    const coordsEl = wrap.querySelector<HTMLElement>('.cod-loc-coords')!;
+    wrap.classList.add('cod-picking');
+    mapPanel.hidden = false;
+    state.location = null;
+    setValue('');
+    const tip = 'Acércalo con + y muévelo a tu casa';
+    addrEl.textContent = tip;
+    coordsEl.textContent = '';
+    errEl.textContent = await whyNoLocation(err, ' Márcala en el mapa o toca «' + c.manualLabel + '».');
+    errEl.classList.add('cod-soft');
+    const mapEl = wrap.querySelector<HTMLElement>('.cod-map')!;
+    map?.destroy();
+    map = createMap(mapEl, {
+      lat: COUNTRY_CENTER.lat, lng: COUNTRY_CENTER.lng, zoom: COUNTRY_ZOOM,
+      onMove: (lat, lng) => {
+        if ((map?.zoom() ?? 0) < PICK_MIN_ZOOM) {
+          state.location = null;
+          setValue('');
+          addrEl.textContent = 'Acércalo más (+) hasta ver tu calle';
+          coordsEl.textContent = '';
+          onChange();
+          return;
+        }
+        state.location = { lat, lng, accuracyMeters: null, source: 'MAP_PIN', capturedAt: new Date().toISOString() };
+        setValue('gps');
+        errEl.textContent = '';
+        void reverse(lat, lng);
+        onChange();
+      },
+    });
+    map.setEditing(true);
+    const edit = wrap.querySelector<HTMLButtonElement>('.cod-edit-btn')!;
+    edit.textContent = 'Guardar ubicación';
+    edit.classList.add('cod-saving');
+    onChange();
+    return true;
+  }
+
+  function resetEdit() {
+    const edit = wrap.querySelector<HTMLButtonElement>('.cod-edit-btn')!;
+    edit.textContent = 'Editar ubicación';
+    edit.classList.remove('cod-saving');
+  }
+
+  wrap.querySelectorAll<HTMLButtonElement>('.cod-map-zoom button').forEach((b) => {
+    b.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      map?.zoomBy(Number(b.dataset.z));
+    });
+  });
+
   /** El backend llama a Google; el navegador nunca ve la API key. */
   async function reverse(lat: number, lng: number) {
     const addrEl = wrap.querySelector<HTMLElement>('.cod-loc-addr')!;
@@ -180,8 +251,7 @@ export function mountLocation(
 }
 
 /** Mensaje claro según la causa real (el navegador a veces niega sin preguntar). */
-async function whyNoLocation(e: GeolocationPositionError | Error | undefined): Promise<string> {
-  const tail = ' Mientras, escribe tu dirección aquí abajo.';
+async function whyNoLocation(e: GeolocationPositionError | Error | undefined, tail: string): Promise<string> {
   const inFrame = (() => { try { return window.top !== window.self; } catch { return true; } })();
   const policy = (document as Document & { featurePolicy?: { allowsFeature(f: string): boolean } }).featurePolicy;
   if (inFrame && policy && !policy.allowsFeature('geolocation')) {
@@ -189,6 +259,10 @@ async function whyNoLocation(e: GeolocationPositionError | Error | undefined): P
   }
   if (!navigator.geolocation || !window.isSecureContext) return 'Este navegador no permite usar la ubicación.' + tail;
   const code = (e as GeolocationPositionError | undefined)?.code;
+  const app = inAppBrowser();
+  if (code === 1 && app) {
+    return `${app === 'ig' ? 'Instagram' : 'Facebook'} no dejó usar tu ubicación.` + tail;
+  }
   if (code === 1) {
     let state = '';
     try { state = (await navigator.permissions.query({ name: 'geolocation' })).state; } catch { /* sin API */ }
@@ -201,21 +275,66 @@ async function whyNoLocation(e: GeolocationPositionError | Error | undefined): P
   return 'Sin acceso a tu ubicación.' + tail;
 }
 
-function getPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error('sin soporte'));
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 12_000,
-      maximumAge: 0,
-    });
+/** Centro del país (República Dominicana) para marcar la casa a mano. */
+const COUNTRY_CENTER = { lat: 18.82, lng: -70.3 };
+const COUNTRY_ZOOM = 8;
+/** Desde este zoom ya se ven las calles: la ubicación marcada vale. */
+const PICK_MIN_ZOOM = 15;
+
+/**
+ * Pedir la ubicación. Primero precisa (GPS); si el GPS tarda o no responde
+ * (dentro de una casa pasa mucho), se pide la aproximada (wifi/antenas), que
+ * casi siempre llega. Una ubicación de hace un par de minutos también vale.
+ */
+async function getPosition(): Promise<GeolocationPosition> {
+  if (!navigator.geolocation) throw new Error('sin soporte');
+  const ask = (o: PositionOptions) => new Promise<GeolocationPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, o);
   });
+  try {
+    return await ask({ enableHighAccuracy: true, timeout: 10_000, maximumAge: 120_000 });
+  } catch (e) {
+    if ((e as GeolocationPositionError).code === 1) throw e; // permiso negado: no se insiste
+    return ask({ enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 });
+  }
+}
+
+/** Navegador dentro de Facebook o Instagram (de ahí viene casi todo el tráfico de anuncios). */
+function inAppBrowser(): 'fb' | 'ig' | null {
+  const ua = navigator.userAgent || '';
+  if (/Instagram/i.test(ua)) return 'ig';
+  if (/FBAN|FBAV|FB_IAB|FBIOS|FB4A/i.test(ua)) return 'fb';
+  return null;
+}
+
+function failCode(e: GeolocationPositionError | Error | undefined): string {
+  const code = (e as GeolocationPositionError | undefined)?.code;
+  if (!navigator.geolocation || !window.isSecureContext) return 'unsupported';
+  return code === 1 ? 'denied' : code === 2 ? 'unavailable' : code === 3 ? 'timeout' : 'error';
+}
+
+/**
+ * Cuenta cómo le fue a cada cliente al pedir la ubicación (sin datos
+ * personales): «denied:ig-ios», «ok:fb-android»… Así se ve en los registros
+ * por qué la gente no usa el mapa.
+ */
+function report(config: WidgetConfig, outcome: string): void {
+  try {
+    const inFrame = (() => { try { return window.top !== window.self; } catch { return true; } })();
+    if (inFrame) return; // vista previa del editor
+    const ua = navigator.userAgent || '';
+    const os = /iPhone|iPad|iPod/i.test(ua) ? 'ios' : /Android/i.test(ua) ? 'android' : 'desktop';
+    api.track(config.formId, 'location', config.formVersionId, `${outcome}:${inAppBrowser() ?? 'web'}-${os}`);
+  } catch { /* nunca bloquea */ }
 }
 
 export interface MapController {
   setEditing(on: boolean): void;
   isEditing(): boolean;
   setAccuracy(m: number): void;
+  zoom(): number;
+  zoomBy(d: number): void;
+  destroy(): void;
 }
 
 const esc = (s: string) =>
