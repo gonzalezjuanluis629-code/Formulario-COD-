@@ -107,10 +107,13 @@ function buttonAnimationCss(cls, color) {
   const a = (n) => `.${cls}.${cls}-anim-${n}`;
   const d = (s) => `calc(${s}s * var(--anim-speed, 1))`;
   return `
-.${cls}{position:relative;isolation:isolate;will-change:transform}
-${a("pulse")}{animation:${k("pulse")} ${d(1.8)} ease-in-out infinite}
-@keyframes ${k("pulse")}{0%,100%{transform:scale(1);box-shadow:0 0 0 0 color-mix(in srgb,${color} 45%,transparent)}
-  50%{transform:scale(1.05);box-shadow:0 0 0 12px color-mix(in srgb,${color} 0%,transparent)}}
+.${cls}{position:relative;isolation:isolate}
+.${cls}[class*="${cls}-anim-"]:not(.${cls}-anim-none){will-change:transform;backface-visibility:hidden}
+${a("pulse")}{overflow:visible;animation:${k("pulse")} ${d(1.8)} ease-in-out infinite}
+${a("pulse")}::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
+  box-shadow:0 0 0 7px color-mix(in srgb,${color} 40%,transparent);opacity:0;animation:${k("pulse-ring")} ${d(1.8)} ease-out infinite}
+@keyframes ${k("pulse")}{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes ${k("pulse-ring")}{0%{transform:scale(.96);opacity:.9}70%,100%{transform:scale(1.06,1.2);opacity:0}}
 
 ${a("heartbeat")}{animation:${k("heartbeat")} ${d(2.2)} ease-in-out infinite}
 @keyframes ${k("heartbeat")}{0%,40%,100%{transform:scale(1)}8%{transform:scale(1.08)}16%{transform:scale(.98)}24%{transform:scale(1.08)}32%{transform:scale(1)}}
@@ -120,8 +123,7 @@ ${a("bounce")}{animation:${k("bounce")} ${d(2)} cubic-bezier(.28,.84,.42,1) infi
   36%{transform:translateY(-4px)}44%{transform:translateY(0)}}
 
 ${a("float")}{animation:${k("float")} ${d(3)} ease-in-out infinite}
-@keyframes ${k("float")}{0%,100%{transform:translateY(0);box-shadow:0 6px 14px -6px rgba(0,0,0,.35)}
-  50%{transform:translateY(-6px);box-shadow:0 14px 22px -8px rgba(0,0,0,.28)}}
+@keyframes ${k("float")}{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 
 ${a("shake")}{animation:${k("shake")} ${d(2.8)} ease-in-out infinite}
 @keyframes ${k("shake")}{0%,62%,100%{transform:translateX(0)}65%,71%,77%,83%{transform:translateX(-5px)}68%,74%,80%{transform:translateX(5px)}86%{transform:translateX(2px)}}
@@ -144,9 +146,11 @@ ${a("shine")}::after{content:"";position:absolute;inset:-2px;pointer-events:none
   transform:translateX(-120%);animation:${k("shine")} ${d(2.6)} ease-in-out infinite}
 @keyframes ${k("shine")}{0%,45%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
 
-${a("glow")}{animation:${k("glow")} ${d(2.2)} ease-in-out infinite}
-@keyframes ${k("glow")}{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,${color} 0%,transparent),0 0 6px 0 color-mix(in srgb,${color} 35%,transparent)}
-  50%{box-shadow:0 0 0 3px color-mix(in srgb,${color} 25%,transparent),0 0 26px 4px color-mix(in srgb,${color} 65%,transparent)}}
+${a("glow")}{overflow:visible}
+${a("glow")}::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
+  box-shadow:0 0 0 3px color-mix(in srgb,${color} 25%,transparent),0 0 26px 4px color-mix(in srgb,${color} 65%,transparent);
+  opacity:.15;animation:${k("glow")} ${d(2.2)} ease-in-out infinite}
+@keyframes ${k("glow")}{0%,100%{opacity:.15}50%{opacity:1}}
 
 ${a("ripple")}{overflow:visible}
 ${a("ripple")}::before,${a("ripple")}::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
@@ -163,19 +167,18 @@ function buttonBackground(b) {
   return b.depth ? `linear-gradient(180deg, rgba(255,255,255,.26) 0%, rgba(255,255,255,.06) 48%, rgba(0,0,0,.12) 100%), ${base}` : base;
 }
 function buttonShadow(b) {
+  var _a2, _b;
   const c = b.shadowColor || "#000000";
   const mix = (pct) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
-  const glow = b.depth && b.bg ? ` drop-shadow(0 7px 9px color-mix(in srgb, ${b.bg} 45%, transparent)) drop-shadow(0 2px 2px color-mix(in srgb, ${b.bg} 22%, transparent))` : "";
-  switch (b.shadow) {
-    case "sm":
-      return `drop-shadow(0 2px 3px ${mix(30)})${glow}`;
-    case "md":
-      return `drop-shadow(0 6px 10px ${mix(32)})${glow}`;
-    case "lg":
-      return `drop-shadow(0 12px 20px ${mix(38)}) drop-shadow(0 3px 5px ${mix(20)})${glow}`;
-    default:
-      return glow ? glow.trim() : "drop-shadow(0 0 0 transparent)";
-  }
+  const glow = b.depth && b.bg ? [`0 7px 9px color-mix(in srgb, ${b.bg} 45%, transparent)`, `0 2px 2px color-mix(in srgb, ${b.bg} 22%, transparent)`] : [];
+  const base = (_b = {
+    sm: [`0 2px 3px ${mix(30)}`],
+    md: [`0 6px 10px ${mix(32)}`],
+    lg: [`0 12px 20px ${mix(38)}`, `0 3px 5px ${mix(20)}`],
+    none: []
+  }[(_a2 = b.shadow) != null ? _a2 : "none"]) != null ? _b : [];
+  const all = [...base, ...glow];
+  return all.length ? all.join(", ") : "none";
 }
 function tokensToCss(t) {
   var _a2;
@@ -4806,33 +4809,36 @@ function cardAnimationCss(cls, done = ".cod-bump-on,.cod-upsell-on") {
   const d = (s) => `calc(${s}s * var(--anim-speed, 1))`;
   const doneSel = done.split(",").map((s) => `${s.trim()}.${cls}`).join(",");
   return `
-.${cls}{will-change:transform}
+.${cls}[class*="${cls}-anim-"]:not(.${cls}-anim-none):not(.${cls}-anim-march){will-change:transform}
 ${a("march")}{border-color:transparent!important}
 .${cls}-march{position:absolute;inset:-1px;width:calc(100% + 2px);height:calc(100% + 2px);overflow:visible;pointer-events:none}
 .${cls}-march rect{fill:none;stroke:var(--card-color,#1f2a44);stroke-width:2;stroke-dasharray:7 5;
   animation:${k("march")} ${d(0.9)} linear infinite}
 @keyframes ${k("march")}{to{stroke-dashoffset:-24}}
 
-${a("shine")}::before{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;
-  background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.78) 50%,transparent 62%) no-repeat;background-size:260% 100%;
-  background-position:160% 0;animation:${k("shine")} ${d(3.2)} ease-in-out infinite}
-@keyframes ${k("shine")}{0%{background-position:160% 0}45%,100%{background-position:-60% 0}}
+/* Recorta el brillo a los lados y abajo, pero deja pasar la cinta de arriba. */
+${a("shine")}{clip-path:inset(-40px 0 0 0 round 0 0 12px 12px)}
+${a("shine")}::before{content:'';position:absolute;top:0;bottom:0;left:0;width:60%;pointer-events:none;z-index:1;
+  background:linear-gradient(105deg,transparent 20%,rgba(255,255,255,.78) 50%,transparent 80%);
+  transform:translate3d(-110%,0,0);animation:${k("shine")} ${d(3.2)} ease-in-out infinite}
+@keyframes ${k("shine")}{0%{transform:translate3d(-110%,0,0)}45%,100%{transform:translate3d(280%,0,0)}}
 
 ${a("pulse")}{animation:${k("pulse")} ${d(2.2)} ease-in-out infinite}
 @keyframes ${k("pulse")}{0%,60%,100%{transform:scale(1)}20%{transform:scale(1.025)}40%{transform:scale(.995)}}
 
-${a("glow")}{animation:${k("glow")} ${d(2.4)} ease-in-out infinite}
-@keyframes ${k("glow")}{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--card-color,#1f2a44) 0%,transparent)}
-  50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--card-color,#1f2a44) 22%,transparent),0 6px 18px -6px color-mix(in srgb,var(--card-color,#1f2a44) 45%,transparent)}}
+${a("glow")}::after{content:'';position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  box-shadow:0 0 0 5px color-mix(in srgb,var(--card-color,#1f2a44) 22%,transparent),0 6px 18px -6px color-mix(in srgb,var(--card-color,#1f2a44) 45%,transparent);
+  opacity:0;animation:${k("glow")} ${d(2.4)} ease-in-out infinite}
+@keyframes ${k("glow")}{0%,100%{opacity:0}50%{opacity:1}}
 
 ${a("shake")}{animation:${k("shake")} ${d(3.4)} ease-in-out infinite}
 @keyframes ${k("shake")}{0%,70%,100%{transform:translate3d(0,0,0) rotate(0)}73%{transform:translate3d(-3px,0,0) rotate(-.6deg)}
   76%{transform:translate3d(3px,0,0) rotate(.6deg)}79%{transform:translate3d(-2px,0,0) rotate(-.4deg)}82%{transform:translate3d(2px,0,0) rotate(.3deg)}85%{transform:translate3d(0,0,0)}}
 
-${doneSel}{animation:none}
-${done.split(",").map((s) => `${s.trim()}.${cls}::before`).join(",")}{animation:none;opacity:0}
+${doneSel}{animation:none;clip-path:none}
+${done.split(",").map((s) => `${s.trim()}.${cls}::before,${s.trim()}.${cls}::after`).join(",")}{animation:none;opacity:0}
 ${done.split(",").map((s) => `${s.trim()} .${cls}-march rect`).join(",")}{animation:none}
-@media (prefers-reduced-motion:reduce){.${cls},.${cls}::before,.${cls}-march rect{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.${cls},.${cls}::before,.${cls}::after,.${cls}-march rect{animation:none!important}}
 `;
 }
 function renderOffers(host, config, state, onChange) {
@@ -5008,7 +5014,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-B_ZCD_Uu.js").then(({ renderAddons }) => {
+    void import("./addons-D4nrFYRq.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -5278,7 +5284,7 @@ function repaintOffers(root, state) {
   }
   const addonsSlot = root.querySelector(".cod-addons-slot");
   if (addonsSlot && config.addons.length) {
-    void import("./addons-B_ZCD_Uu.js").then(({ renderAddons }) => {
+    void import("./addons-D4nrFYRq.js").then(({ renderAddons }) => {
       addonsSlot.innerHTML = "";
       renderAddons(addonsSlot, config, state, () => update(root, state));
     });
@@ -5334,7 +5340,7 @@ const CSS = `
 /* Mientras el cliente escribe, las animaciones que se repiten se detienen: el teclado y el
    desplazamiento van fluidos. Vuelven al salir del campo. */
 .cod-form:focus-within .cod-submit,.cod-form:focus-within .cod-submit::before,.cod-form:focus-within .cod-submit::after,
-.cod-form:focus-within .cod-seg-btn{animation-play-state:paused!important}
+.cod-form:focus-within .cod-seg-btn::after{animation-play-state:paused!important}
 /* Con la ventana abierta, el botón de la página (que queda detrás) no se anima. */
 :host([data-cod-paused]) .cod-trigger,:host([data-cod-paused]) .cod-trigger::before,:host([data-cod-paused]) .cod-trigger::after{animation-play-state:paused!important}
 .cod-w50{grid-column:span 6}.cod-w33{grid-column:span 4}.cod-w25{grid-column:span 3}
@@ -5445,10 +5451,11 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-seg{margin-top:12px}
 .cod-seg-btn b{font-size:12.5px;font-weight:700}.cod-seg-btn small{font-size:10.5px;color:var(--cod-muted)}
 /* Mientras no elige nada, la opción del mapa «llama» suavemente para que se note que se toca. */
-.cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]{animation:cod-tapme 2.4s ease-in-out infinite}
-@keyframes cod-tapme{0%,60%,100%{box-shadow:0 1px 1px rgba(0,0,0,.04),0 3px 8px -3px rgba(0,0,0,.16),0 0 0 0 color-mix(in srgb,var(--cod-brand) 35%,transparent)}
-  30%{box-shadow:0 1px 1px rgba(0,0,0,.04),0 3px 8px -3px rgba(0,0,0,.16),0 0 0 6px color-mix(in srgb,var(--cod-brand) 0%,transparent)}}
-@media (prefers-reduced-motion:reduce){.cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]{animation:none}}
+.cod-seg-btn[data-mode="gps"]::after{content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;
+  border:2px solid var(--cod-brand);opacity:0}
+.cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]::after{animation:cod-tapme 2.4s ease-out infinite}
+@keyframes cod-tapme{0%{transform:scale(1);opacity:.45}55%,100%{transform:scale(1.06,1.12);opacity:0}}
+@media (prefers-reduced-motion:reduce){.cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]::after{animation:none}}
 .cod-spinner-sm{display:none;width:15px;height:15px;border:2px solid rgba(0,0,0,.14);
   border-top-color:var(--cod-text);border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-locating .cod-spinner-sm{display:block}
@@ -5498,7 +5505,7 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-submit{width:100%;margin-top:14px;height:var(--cod-btn-height);display:flex;align-items:center;
   justify-content:center;gap:8px;background:var(--cod-btn-bg);color:var(--cod-btn-color);border:0;
   border-radius:var(--cod-btn-radius);font:inherit;font-size:var(--cod-btn-size);font-weight:700;cursor:pointer;
-  filter:var(--cod-btn-shadow,none);
+  box-shadow:var(--cod-btn-shadow,none);
   transition:background .18s var(--cod-ease),transform .12s var(--cod-ease)}
 .cod-submit:active{transform:scale(.985)}
 .cod-submit.cod-ready{background:var(--cod-btn-ready)}
@@ -5657,7 +5664,7 @@ async function mount(opts) {
   root.className = "cod-root";
   shadow.appendChild(root);
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  if (host.dataset.mode !== "embedded") void import("./trigger-C-DmqD9x.js").catch(() => void 0);
+  if (host.dataset.mode !== "embedded") void import("./trigger-C6-wci_R.js").catch(() => void 0);
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -5720,7 +5727,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-C-DmqD9x.js");
+    const { renderTrigger } = await import("./trigger-C6-wci_R.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -5764,7 +5771,7 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-B_ZCD_Uu.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-D4nrFYRq.js").catch(() => void 0);
     if (config.fields.some((f) => f.type === "location")) void import("./map-DZEdKjFO.js").catch(() => void 0);
   };
   const ric = window.requestIdleCallback;

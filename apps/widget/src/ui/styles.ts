@@ -34,7 +34,7 @@ export const CSS = `
 /* Mientras el cliente escribe, las animaciones que se repiten se detienen: el teclado y el
    desplazamiento van fluidos. Vuelven al salir del campo. */
 .cod-form:focus-within .cod-submit,.cod-form:focus-within .cod-submit::before,.cod-form:focus-within .cod-submit::after,
-.cod-form:focus-within .cod-seg-btn{animation-play-state:paused!important}
+.cod-form:focus-within .cod-seg-btn::after{animation-play-state:paused!important}
 /* Con la ventana abierta, el botón de la página (que queda detrás) no se anima. */
 :host([data-cod-paused]) .cod-trigger,:host([data-cod-paused]) .cod-trigger::before,:host([data-cod-paused]) .cod-trigger::after{animation-play-state:paused!important}
 .cod-w50{grid-column:span 6}.cod-w33{grid-column:span 4}.cod-w25{grid-column:span 3}
@@ -145,10 +145,11 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-seg{margin-top:12px}
 .cod-seg-btn b{font-size:12.5px;font-weight:700}.cod-seg-btn small{font-size:10.5px;color:var(--cod-muted)}
 /* Mientras no elige nada, la opción del mapa «llama» suavemente para que se note que se toca. */
-.cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]{animation:cod-tapme 2.4s ease-in-out infinite}
-@keyframes cod-tapme{0%,60%,100%{box-shadow:0 1px 1px rgba(0,0,0,.04),0 3px 8px -3px rgba(0,0,0,.16),0 0 0 0 color-mix(in srgb,var(--cod-brand) 35%,transparent)}
-  30%{box-shadow:0 1px 1px rgba(0,0,0,.04),0 3px 8px -3px rgba(0,0,0,.16),0 0 0 6px color-mix(in srgb,var(--cod-brand) 0%,transparent)}}
-@media (prefers-reduced-motion:reduce){.cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]{animation:none}}
+.cod-seg-btn[data-mode="gps"]::after{content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;
+  border:2px solid var(--cod-brand);opacity:0}
+.cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]::after{animation:cod-tapme 2.4s ease-out infinite}
+@keyframes cod-tapme{0%{transform:scale(1);opacity:.45}55%,100%{transform:scale(1.06,1.12);opacity:0}}
+@media (prefers-reduced-motion:reduce){.cod-seg:not([data-active]) .cod-seg-btn[data-mode="gps"]::after{animation:none}}
 .cod-spinner-sm{display:none;width:15px;height:15px;border:2px solid rgba(0,0,0,.14);
   border-top-color:var(--cod-text);border-radius:50%;animation:cod-spin .65s linear infinite}
 .cod-locating .cod-spinner-sm{display:block}
@@ -198,7 +199,7 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-submit{width:100%;margin-top:14px;height:var(--cod-btn-height);display:flex;align-items:center;
   justify-content:center;gap:8px;background:var(--cod-btn-bg);color:var(--cod-btn-color);border:0;
   border-radius:var(--cod-btn-radius);font:inherit;font-size:var(--cod-btn-size);font-weight:700;cursor:pointer;
-  filter:var(--cod-btn-shadow,none);
+  box-shadow:var(--cod-btn-shadow,none);
   transition:background .18s var(--cod-ease),transform .12s var(--cod-ease)}
 .cod-submit:active{transform:scale(.985)}
 .cod-submit.cod-ready{background:var(--cod-btn-ready)}

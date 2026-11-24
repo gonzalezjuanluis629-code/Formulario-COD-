@@ -6,7 +6,9 @@
  *
  * Reglas:
  * - Llaman la atención en ráfagas con pausa (no molestan todo el rato).
- * - Solo usan transform / opacity / box-shadow → fluidas incluso en móviles.
+ * - Solo animan transform y opacity (la tarjeta gráfica del teléfono lo hace
+ *   sola, sin volver a dibujar). Las sombras y halos van en ::before con un
+ *   dibujo fijo, y lo que se anima es su opacidad o su tamaño.
  * - La velocidad se ajusta con --anim-speed (1 = normal).
  * - Respetan «reducir movimiento» del sistema.
  */
@@ -40,10 +42,13 @@ export function buttonAnimationCss(cls: string, color: string): string {
   const a = (n: string) => `.${cls}.${cls}-anim-${n}`;
   const d = (s: number) => `calc(${s}s * var(--anim-speed, 1))`;
   return `
-.${cls}{position:relative;isolation:isolate;will-change:transform}
-${a('pulse')}{animation:${k('pulse')} ${d(1.8)} ease-in-out infinite}
-@keyframes ${k('pulse')}{0%,100%{transform:scale(1);box-shadow:0 0 0 0 color-mix(in srgb,${color} 45%,transparent)}
-  50%{transform:scale(1.05);box-shadow:0 0 0 12px color-mix(in srgb,${color} 0%,transparent)}}
+.${cls}{position:relative;isolation:isolate}
+.${cls}[class*="${cls}-anim-"]:not(.${cls}-anim-none){will-change:transform;backface-visibility:hidden}
+${a('pulse')}{overflow:visible;animation:${k('pulse')} ${d(1.8)} ease-in-out infinite}
+${a('pulse')}::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
+  box-shadow:0 0 0 7px color-mix(in srgb,${color} 40%,transparent);opacity:0;animation:${k('pulse-ring')} ${d(1.8)} ease-out infinite}
+@keyframes ${k('pulse')}{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes ${k('pulse-ring')}{0%{transform:scale(.96);opacity:.9}70%,100%{transform:scale(1.06,1.2);opacity:0}}
 
 ${a('heartbeat')}{animation:${k('heartbeat')} ${d(2.2)} ease-in-out infinite}
 @keyframes ${k('heartbeat')}{0%,40%,100%{transform:scale(1)}8%{transform:scale(1.08)}16%{transform:scale(.98)}24%{transform:scale(1.08)}32%{transform:scale(1)}}
@@ -53,8 +58,7 @@ ${a('bounce')}{animation:${k('bounce')} ${d(2)} cubic-bezier(.28,.84,.42,1) infi
   36%{transform:translateY(-4px)}44%{transform:translateY(0)}}
 
 ${a('float')}{animation:${k('float')} ${d(3)} ease-in-out infinite}
-@keyframes ${k('float')}{0%,100%{transform:translateY(0);box-shadow:0 6px 14px -6px rgba(0,0,0,.35)}
-  50%{transform:translateY(-6px);box-shadow:0 14px 22px -8px rgba(0,0,0,.28)}}
+@keyframes ${k('float')}{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 
 ${a('shake')}{animation:${k('shake')} ${d(2.8)} ease-in-out infinite}
 @keyframes ${k('shake')}{0%,62%,100%{transform:translateX(0)}65%,71%,77%,83%{transform:translateX(-5px)}68%,74%,80%{transform:translateX(5px)}86%{transform:translateX(2px)}}
@@ -77,9 +81,11 @@ ${a('shine')}::after{content:"";position:absolute;inset:-2px;pointer-events:none
   transform:translateX(-120%);animation:${k('shine')} ${d(2.6)} ease-in-out infinite}
 @keyframes ${k('shine')}{0%,45%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
 
-${a('glow')}{animation:${k('glow')} ${d(2.2)} ease-in-out infinite}
-@keyframes ${k('glow')}{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,${color} 0%,transparent),0 0 6px 0 color-mix(in srgb,${color} 35%,transparent)}
-  50%{box-shadow:0 0 0 3px color-mix(in srgb,${color} 25%,transparent),0 0 26px 4px color-mix(in srgb,${color} 65%,transparent)}}
+${a('glow')}{overflow:visible}
+${a('glow')}::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
+  box-shadow:0 0 0 3px color-mix(in srgb,${color} 25%,transparent),0 0 26px 4px color-mix(in srgb,${color} 65%,transparent);
+  opacity:.15;animation:${k('glow')} ${d(2.2)} ease-in-out infinite}
+@keyframes ${k('glow')}{0%,100%{opacity:.15}50%{opacity:1}}
 
 ${a('ripple')}{overflow:visible}
 ${a('ripple')}::before,${a('ripple')}::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;

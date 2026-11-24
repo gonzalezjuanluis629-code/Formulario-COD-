@@ -1,4 +1,4 @@
-import { A as ANIMATION_SPEEDS, b as buttonBackground, a as buttonShadow, c as buttonIconSvg, d as buttonAnimationCss } from "./index-Bq_YcaJB.js";
+import { A as ANIMATION_SPEEDS, b as buttonBackground, a as buttonShadow, c as buttonIconSvg, d as buttonAnimationCss } from "./index-DwJZg41m.js";
 function renderTrigger(host, cfg, onClick) {
   var _a;
   injectStylesOnce(host.getRootNode());
@@ -54,9 +54,8 @@ function injectStylesOnce(root) {
     .cod-trigger{display:inline-flex;align-items:center;justify-content:center;gap:10px;
       box-sizing:border-box;max-width:100%;padding:0 26px;background:var(--t-bg);color:var(--t-color);border:0;
       border-radius:var(--t-radius);font-family:inherit;font-weight:700;cursor:pointer;line-height:1.15;
-      text-align:center;overflow:hidden;filter:var(--t-shadow,none);
-      transition:transform .12s cubic-bezier(.32,.72,0,1),filter .2s;-webkit-tap-highlight-color:transparent}
-    .cod-trigger:hover{filter:var(--t-shadow,none) brightness(1.08)}
+      text-align:center;overflow:hidden;box-shadow:var(--t-shadow,none);
+      transition:transform .12s cubic-bezier(.32,.72,0,1);-webkit-tap-highlight-color:transparent}
     .cod-trigger:active{transform:scale(.97)}
     .cod-trigger-emoji{font-size:1.15em;line-height:1}
     .cod-ico{display:inline-flex}.cod-ico-svg{width:1.25em;height:1.25em;display:block}

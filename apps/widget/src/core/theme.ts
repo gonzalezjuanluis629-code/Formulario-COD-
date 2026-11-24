@@ -21,18 +21,22 @@ export function buttonBackground(b: { bg: string; bgType?: 'solid' | 'gradient';
  * transform, así que sombra y animación se combinan sin pisarse.
  */
 export function buttonShadow(b: { shadow?: 'none' | 'sm' | 'md' | 'lg'; shadowColor?: string; depth?: boolean; bg?: string }): string {
+  // box-shadow (no filter: drop-shadow): el teléfono no tiene que volver a
+  // dibujar la sombra en cada cuadro cuando el botón se anima.
   const c = b.shadowColor || '#000000';
   const mix = (pct: number) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
   // Profundidad: resplandor del MISMO color del botón debajo (como los de Figui).
   const glow = b.depth && b.bg
-    ? ` drop-shadow(0 7px 9px color-mix(in srgb, ${b.bg} 45%, transparent)) drop-shadow(0 2px 2px color-mix(in srgb, ${b.bg} 22%, transparent))`
-    : '';
-  switch (b.shadow) {
-    case 'sm': return `drop-shadow(0 2px 3px ${mix(30)})${glow}`;
-    case 'md': return `drop-shadow(0 6px 10px ${mix(32)})${glow}`;
-    case 'lg': return `drop-shadow(0 12px 20px ${mix(38)}) drop-shadow(0 3px 5px ${mix(20)})${glow}`;
-    default: return glow ? glow.trim() : 'drop-shadow(0 0 0 transparent)';
-  }
+    ? [`0 7px 9px color-mix(in srgb, ${b.bg} 45%, transparent)`, `0 2px 2px color-mix(in srgb, ${b.bg} 22%, transparent)`]
+    : [];
+  const base = {
+    sm: [`0 2px 3px ${mix(30)}`],
+    md: [`0 6px 10px ${mix(32)}`],
+    lg: [`0 12px 20px ${mix(38)}`, `0 3px 5px ${mix(20)}`],
+    none: [] as string[],
+  }[b.shadow ?? 'none'] ?? [];
+  const all = [...base, ...glow];
+  return all.length ? all.join(', ') : 'none';
 }
 
 export function tokensToCss(t: ThemeTokens): string {
