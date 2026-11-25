@@ -239,7 +239,7 @@ async function whyNoLocation(e: GeolocationPositionError | Error | undefined, ta
  *    instante después del permiso: con esa se muestra el mapa.
  *  - A la vez el GPS busca la exacta y, cuando llega, se avisa con onBetter
  *    (hasta 15 s o hasta tener ≤ 25 m).
- * Falla solo si se niega el permiso o si ninguna de las dos responde.
+ * Falla solo si se niega el permiso o si ninguna de las dos responde (10 s).
  */
 function fastPosition(onBetter: (p: GeolocationPosition) => void): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
@@ -260,9 +260,9 @@ function fastPosition(onBetter: (p: GeolocationPosition) => void): Promise<Geolo
       if (e.code === 1) { stop(); if (!first) reject(e); return; } // permiso negado: no se insiste
       if (++fails >= 2 && !first) { stop(); reject(lastErr); }
     };
-    geo.getCurrentPosition(ok, fail, { enableHighAccuracy: false, maximumAge: 600_000, timeout: 15_000 });
+    geo.getCurrentPosition(ok, fail, { enableHighAccuracy: false, maximumAge: 600_000, timeout: 10_000 });
     try {
-      watchId = geo.watchPosition(ok, (e) => { if (e.code !== 3 || !first) fail(e); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 });
+      watchId = geo.watchPosition(ok, (e) => { if (e.code !== 3 || !first) fail(e); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10_000 });
     } catch { fails++; }
     setTimeout(stop, 20_000);
   });

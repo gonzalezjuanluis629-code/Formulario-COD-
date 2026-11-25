@@ -1,5 +1,5 @@
 import type { Offer, WidgetConfig } from '@cod/contracts';
-import { provinceAllows } from '@cod/contracts';
+import { provinceAllows } from '../core/province';
 import { money } from '@cod/pricing';
 import type { FormState } from '../index';
 import { ANIMATION_SPEEDS } from './animations';

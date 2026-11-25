@@ -15,7 +15,7 @@ import type { FormState } from '../index';
 import { validateField } from '../core/validate';
 import { mountLocation } from './location';
 import { renderOffers } from './offers';
-import { provinceAllows } from '@cod/contracts';
+import { provinceAllows } from '../core/province';
 import { money } from '@cod/pricing';
 
 /**

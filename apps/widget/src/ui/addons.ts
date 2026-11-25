@@ -1,7 +1,7 @@
 import type { Addon, WidgetConfig } from '@cod/contracts';
 import type { FormState } from '../index';
 import { money } from '@cod/pricing';
-import { provinceAllows } from '@cod/contracts';
+import { provinceAllows } from '../core/province';
 import { ANIMATION_SPEEDS } from './animations';
 import { marchSvg } from './cardAnimations';
 
