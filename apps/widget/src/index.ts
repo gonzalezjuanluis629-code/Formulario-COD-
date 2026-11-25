@@ -671,6 +671,7 @@ async function submit(root: HTMLElement, config: WidgetConfig, state: FormState)
     errBox.textContent = '';
     if (state.cart) clearCart();
     try { api.track(config.formId, 'submit_attempt', state.idempotencyKey); } catch { /* no bloquea */ }
+    announce('figui:cod-order'); // antes: la confirmación puede llevar a WhatsApp
     showConfirmation(root, res, state.idempotencyKey);
   } catch (e) {
     btn.disabled = false;
@@ -841,7 +842,17 @@ function trackMeta(ids: string[], event: string, data: Record<string, unknown>, 
 
 /** «Inicio de pago» en Meta al abrir el formulario (una vez por página). */
 let checkoutFired = false;
+/**
+ * Avisa a la página que el formulario se abrió o que el pedido quedó hecho
+ * (figui:cod-open / figui:cod-order). Lo escucha el mapa de calor de Figui
+ * para saber de dónde vienen los que abren el formulario y los que compran.
+ */
+function announce(name: 'figui:cod-open' | 'figui:cod-order'): void {
+  try { document.dispatchEvent(new CustomEvent(name)); } catch { /* nunca bloquea */ }
+}
+
 function fireCheckoutPixel(config: WidgetConfig): void {
+  announce('figui:cod-open');
   try {
     const ids = metaPixelIds(config.settings.tracking.metaPixelId);
     if (!ids.length || checkoutFired) return;

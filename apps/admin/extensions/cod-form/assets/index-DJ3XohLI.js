@@ -956,7 +956,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-D3dWbu6c.js").then(({ renderAddons }) => {
+    void import("./addons-D9a4L8JQ.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1226,7 +1226,7 @@ function repaintOffers(root, state) {
   }
   const addonsSlot = root.querySelector(".cod-addons-slot");
   if (addonsSlot && config.addons.length) {
-    void import("./addons-D3dWbu6c.js").then(({ renderAddons }) => {
+    void import("./addons-D9a4L8JQ.js").then(({ renderAddons }) => {
       addonsSlot.innerHTML = "";
       renderAddons(addonsSlot, config, state, () => update(root, state));
     });
@@ -1600,7 +1600,7 @@ async function mount(opts) {
   root.className = "cod-root";
   shadow.appendChild(root);
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  if (host.dataset.mode !== "embedded") void import("./trigger-CbECSHWr.js").catch(() => void 0);
+  if (host.dataset.mode !== "embedded") void import("./trigger-BdTcdqsf.js").catch(() => void 0);
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -1663,7 +1663,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-CbECSHWr.js");
+    const { renderTrigger } = await import("./trigger-BdTcdqsf.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1707,7 +1707,7 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-D3dWbu6c.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-D9a4L8JQ.js").catch(() => void 0);
     if (config.fields.some((f) => f.type === "location")) {
       void import("./map-BOUckXBW.js").catch(() => void 0);
       try {
@@ -2183,6 +2183,7 @@ async function submit(root, config, state) {
       api.track(config.formId, "submit_attempt", state.idempotencyKey);
     } catch {
     }
+    announce("figui:cod-order");
     showConfirmation(root, res, state.idempotencyKey);
   } catch (e) {
     btn.disabled = false;
@@ -2324,8 +2325,15 @@ function trackMeta(ids, event, data, opts) {
   }
 }
 let checkoutFired = false;
+function announce(name) {
+  try {
+    document.dispatchEvent(new CustomEvent(name));
+  } catch {
+  }
+}
 function fireCheckoutPixel(config) {
   var _a2, _b;
+  announce("figui:cod-open");
   try {
     const ids = metaPixelIds(config.settings.tracking.metaPixelId);
     if (!ids.length || checkoutFired) return;
