@@ -1,4 +1,4 @@
-import { p as provinceAllows, A as ANIMATION_SPEEDS, m as money, e as marchSvg } from "./index-Dd2pyywb.js";
+import { p as provinceAllows, A as ANIMATION_SPEEDS, m as money, e as marchSvg } from "./index-BdQF1SFR.js";
 function renderAddons(host, config, state, onChange) {
   var _a;
   const addons = config.addons.filter((a) => a.minCartCents <= config.product.unitPriceCents * state.qty && provinceAllows(a.provinces, state.province()));

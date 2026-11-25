@@ -344,6 +344,12 @@ function mountLocation(wrap, config, state, onChange) {
     wrap.classList.remove("cod-invalid");
     state.values.locationMode = mode;
     if (mode === "manual") {
+      const g = wrap.querySelector('[data-mode="gps"]');
+      if (g) {
+        g.classList.remove("cod-locating");
+        const h = g.querySelector("small");
+        if (h) h.textContent = c.gpsHint;
+      }
       mapPanel.hidden = true;
       manualPanel.hidden = false;
       state.location = null;
@@ -372,12 +378,21 @@ function mountLocation(wrap, config, state, onChange) {
       pos = await fastPosition((better) => refine(better));
       report(config, "ok");
     } catch (e) {
+      if (state.values.locationMode !== "gps") {
+        report(config, failCode(e));
+        done();
+        return;
+      }
       const err = e;
       report(config, failCode(err));
       done();
       await setMode("manual");
       errEl.textContent = await whyNoLocation(err, " Escribe tu dirección aquí abajo.");
       errEl.classList.add("cod-soft");
+      return;
+    }
+    if (state.values.locationMode !== "gps") {
+      done();
       return;
     }
     try {
@@ -921,7 +936,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-DENYjOy3.js").then(({ renderAddons }) => {
+    void import("./addons-DWB8rJ1Y.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1191,7 +1206,7 @@ function repaintOffers(root, state) {
   }
   const addonsSlot = root.querySelector(".cod-addons-slot");
   if (addonsSlot && config.addons.length) {
-    void import("./addons-DENYjOy3.js").then(({ renderAddons }) => {
+    void import("./addons-DWB8rJ1Y.js").then(({ renderAddons }) => {
       addonsSlot.innerHTML = "";
       renderAddons(addonsSlot, config, state, () => update(root, state));
     });
@@ -1565,7 +1580,7 @@ async function mount(opts) {
   root.className = "cod-root";
   shadow.appendChild(root);
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  if (host.dataset.mode !== "embedded") void import("./trigger-CagG2tLP.js").catch(() => void 0);
+  if (host.dataset.mode !== "embedded") void import("./trigger-BpN9tnsP.js").catch(() => void 0);
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -1628,7 +1643,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-CagG2tLP.js");
+    const { renderTrigger } = await import("./trigger-BpN9tnsP.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1672,7 +1687,7 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-DENYjOy3.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-DWB8rJ1Y.js").catch(() => void 0);
     if (config.fields.some((f) => f.type === "location")) {
       void import("./map-BOUckXBW.js").catch(() => void 0);
       try {

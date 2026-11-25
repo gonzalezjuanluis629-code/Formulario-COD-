@@ -79,6 +79,9 @@ export function mountLocation(
     state.values.locationMode = mode;
 
     if (mode === 'manual') {
+      // Si estaba buscando la ubicación, el botón deja de decir «Buscando…».
+      const g = wrap.querySelector<HTMLElement>('[data-mode="gps"]');
+      if (g) { g.classList.remove('cod-locating'); const h = g.querySelector('small'); if (h) h.textContent = c.gpsHint; }
       mapPanel.hidden = true;
       manualPanel.hidden = false;
       state.location = null;
@@ -108,6 +111,8 @@ export function mountLocation(
       pos = await fastPosition((better) => refine(better));
       report(config, 'ok');
     } catch (e) {
+      // Mientras buscaba, el cliente ya eligió «Escribirla»: no se le cambia nada.
+      if (state.values.locationMode !== 'gps') { report(config, failCode(e as GeolocationPositionError)); done(); return; }
       // Sin ubicación (permiso negado, Facebook/Instagram no la deja usar…):
       // se pasa al modo escrito, diciendo POR QUÉ.
       const err = e as GeolocationPositionError;
@@ -118,6 +123,9 @@ export function mountLocation(
       errEl.classList.add('cod-soft');
       return;
     }
+
+    // Llegó tarde y el cliente ya está escribiendo su dirección: se respeta lo que eligió.
+    if (state.values.locationMode !== 'gps') { done(); return; }
 
     try {
       const { createMap } = await mapModule;
