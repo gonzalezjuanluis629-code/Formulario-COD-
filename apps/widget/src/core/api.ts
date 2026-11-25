@@ -68,10 +68,11 @@ export const api = {
   /**
    * Enviar el pedido. Si la conexión falla o el servidor está ocupado, se
    * reintenta solo (hasta 4 veces) con la MISMA clave: nunca se duplica y el
-   * cliente no tiene que volver a pulsar.
+   * cliente no tiene que volver a pulsar. Sin señal, espera a que vuelva.
    */
-  submit: async (body: SubmitRequest) => {
+  submit: async (body: SubmitRequest, onOffline?: () => void) => {
     const waits = [600, 1500, 3000, 5000];
+    let waitedOffline = false;
     for (let i = 0; ; i++) {
       const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const timer = ctl ? setTimeout(() => ctl.abort(), 20000) : 0;
@@ -81,6 +82,17 @@ export const api = {
         // Errores del pedido (datos, bloqueo…): se muestran. Red, tiempo o servidor caído: se reintenta.
         const retry = !(e instanceof ApiError) || e.status >= 500 || e.status === 429;
         if (!retry || i >= waits.length) throw e instanceof ApiError ? e : new ApiError(0, 'Sin conexión. Revisa tu internet e inténtalo de nuevo.');
+        // Sin señal: se espera a que vuelva (hasta 45 s) y se envía solo, sin que el cliente toque otra vez.
+        if (!waitedOffline && typeof navigator !== 'undefined' && navigator.onLine === false) {
+          waitedOffline = true;
+          onOffline?.();
+          await new Promise<void>((r) => {
+            const done = () => { clearTimeout(t); window.removeEventListener('online', done); setTimeout(r, 400); };
+            const t = setTimeout(done, 45000);
+            window.addEventListener('online', done);
+          });
+          continue;
+        }
         await new Promise((r) => setTimeout(r, waits[i]));
       } finally {
         if (timer) clearTimeout(timer);

@@ -47,10 +47,11 @@ const api = {
   /**
    * Enviar el pedido. Si la conexión falla o el servidor está ocupado, se
    * reintenta solo (hasta 4 veces) con la MISMA clave: nunca se duplica y el
-   * cliente no tiene que volver a pulsar.
+   * cliente no tiene que volver a pulsar. Sin señal, espera a que vuelva.
    */
-  submit: async (body) => {
+  submit: async (body, onOffline) => {
     const waits = [600, 1500, 3e3, 5e3];
+    let waitedOffline = false;
     for (let i = 0; ; i++) {
       const ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
       const timer = ctl ? setTimeout(() => ctl.abort(), 2e4) : 0;
@@ -59,6 +60,20 @@ const api = {
       } catch (e) {
         const retry = !(e instanceof ApiError) || e.status >= 500 || e.status === 429;
         if (!retry || i >= waits.length) throw e instanceof ApiError ? e : new ApiError(0, "Sin conexión. Revisa tu internet e inténtalo de nuevo.");
+        if (!waitedOffline && typeof navigator !== "undefined" && navigator.onLine === false) {
+          waitedOffline = true;
+          onOffline == null ? void 0 : onOffline();
+          await new Promise((r) => {
+            const done = () => {
+              clearTimeout(t);
+              window.removeEventListener("online", done);
+              setTimeout(r, 400);
+            };
+            const t = setTimeout(done, 45e3);
+            window.addEventListener("online", done);
+          });
+          continue;
+        }
         await new Promise((r) => setTimeout(r, waits[i]));
       } finally {
         if (timer) clearTimeout(timer);
@@ -936,7 +951,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-CuliNARr.js").then(({ renderAddons }) => {
+    void import("./addons-B8XTep0x.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1206,7 +1221,7 @@ function repaintOffers(root, state) {
   }
   const addonsSlot = root.querySelector(".cod-addons-slot");
   if (addonsSlot && config.addons.length) {
-    void import("./addons-CuliNARr.js").then(({ renderAddons }) => {
+    void import("./addons-B8XTep0x.js").then(({ renderAddons }) => {
       addonsSlot.innerHTML = "";
       renderAddons(addonsSlot, config, state, () => update(root, state));
     });
@@ -1580,7 +1595,7 @@ async function mount(opts) {
   root.className = "cod-root";
   shadow.appendChild(root);
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  if (host.dataset.mode !== "embedded") void import("./trigger-nupGIQ2Y.js").catch(() => void 0);
+  if (host.dataset.mode !== "embedded") void import("./trigger-B_crnDJZ.js").catch(() => void 0);
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -1643,7 +1658,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-nupGIQ2Y.js");
+    const { renderTrigger } = await import("./trigger-B_crnDJZ.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1687,7 +1702,7 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-CuliNARr.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-B8XTep0x.js").catch(() => void 0);
     if (config.fields.some((f) => f.type === "location")) {
       void import("./map-BOUckXBW.js").catch(() => void 0);
       try {
@@ -2154,7 +2169,10 @@ async function submit(root, config, state) {
     attribution: metaAttribution()
   };
   try {
-    const res = await api.submit(payload);
+    const res = await api.submit(payload, () => {
+      errBox.textContent = "Sin señal. Tu pedido se enviará solo apenas vuelva tu internet.";
+    });
+    errBox.textContent = "";
     if (state.cart) clearCart();
     try {
       api.track(config.formId, "submit_attempt", state.idempotencyKey);

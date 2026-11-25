@@ -665,7 +665,10 @@ async function submit(root: HTMLElement, config: WidgetConfig, state: FormState)
   };
 
   try {
-    const res = await api.submit(payload);
+    const res = await api.submit(payload, () => {
+      errBox.textContent = 'Sin señal. Tu pedido se enviará solo apenas vuelva tu internet.';
+    });
+    errBox.textContent = '';
     if (state.cart) clearCart();
     try { api.track(config.formId, 'submit_attempt', state.idempotencyKey); } catch { /* no bloquea */ }
     showConfirmation(root, res, state.idempotencyKey);
