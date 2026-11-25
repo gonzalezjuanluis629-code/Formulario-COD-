@@ -192,7 +192,8 @@ export function mountLocation(
     addrEl.textContent = 'Buscando dirección…';
 
     try {
-      const r = await api.reverse(lat, lng);
+      // Un fallo de red pasajero no deja al cliente sin provincia (y sin sus extras): se reintenta una vez.
+      const r = await api.reverse(lat, lng).catch(() => new Promise<Awaited<ReturnType<typeof api.reverse>>>((ok, ko) => setTimeout(() => api.reverse(lat, lng).then(ok, ko), 700)));
       addrEl.textContent = r.formatted ?? 'Ubicación marcada';
       // Los campos ocultos que el backend usará para la dirección de Shopify.
       if (r.provinceCode) state.values.provinceCode = r.provinceCode;

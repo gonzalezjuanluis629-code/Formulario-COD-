@@ -35,8 +35,15 @@ export class LocationService {
       return withPlace({ ...EMPTY, confidence: 0 }, lat, lng);
     }
 
+    // Google tiene 1,5 s: si tarda más, se responde ya con la provincia y el
+    // municipio de los límites oficiales (instantáneo). El cliente no espera.
     let result: ReverseGeocodeResponse;
-    try { result = await this.provider.reverse(lat, lng); } catch { result = EMPTY; }
+    try {
+      result = await Promise.race([
+        this.provider.reverse(lat, lng),
+        new Promise<ReverseGeocodeResponse>((r) => setTimeout(() => r(EMPTY), 1500)),
+      ]);
+    } catch { result = EMPTY; }
     // Solo se guarda lo que respondió Google (si falla, se vuelve a intentar luego).
     if (result.confidence > 0) {
       await this.redis.client.set(cacheKey, JSON.stringify(result), 'EX', this.TTL);

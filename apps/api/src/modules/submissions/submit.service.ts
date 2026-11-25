@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
+import { locateDO } from '../../infra/providers/geocoding/do-locate';
 import type { SubmitRequest, SubmitResponse, Field } from '@cod/contracts';
 import { ShopSettingsSchema } from '@cod/contracts';
 import { getCountryProfile, type NormalizedAddress } from '@cod/geo';
@@ -59,6 +60,7 @@ export class SubmitService {
   async submit(ctx: ShopContext, dto: SubmitRequest, ip: string, ua: string): Promise<SubmitResponse> {
     const settings = { ...ShopSettingsSchema.parse(ctx.settings ?? {}), ...(ctx.currency ? { currency: ctx.currency } : {}) };
     const profile = getCountryProfile(ctx.countryCode);
+    fillFromMap(dto);
 
     /* 1 ─ Idempotencia. Es la misma tecla pulsada dos veces, no dos pedidos. */
     const existing = await this.prisma.submission.findUnique({
@@ -378,4 +380,21 @@ export class SubmitService {
       country: profile.code,
     };
   }
+}
+
+/**
+ * El cliente marcó el mapa pero la dirección de ese punto no llegó a tiempo (el
+ * servicio de direcciones falló o tardó más de lo que tardó él en pedir): la
+ * provincia y el municipio salen del punto con los límites oficiales. Así el
+ * pedido nunca llega a Shopify sin provincia ni con «Sin especificar».
+ */
+function fillFromMap(dto: SubmitRequest): void {
+  const loc = dto.location;
+  if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) return;
+  const f = dto.fields as Record<string, unknown>;
+  if (f.provinceCode && f.city) return;
+  const place = locateDO(loc.lat, loc.lng);
+  if (!place) return;
+  if (!f.provinceCode && !f.province) f.provinceCode = place.provinceCode;
+  if (!f.city && !f.municipality) f.city = place.municipality;
 }
