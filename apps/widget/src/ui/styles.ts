@@ -163,12 +163,6 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-map-locked{touch-action:pan-y;cursor:default}
 .cod-map-editing{touch-action:none;cursor:grab;border-color:var(--cod-brand);box-shadow:0 0 0 3.5px rgba(0,0,0,.08)}
 .cod-map-editing.cod-grabbing{cursor:grabbing}
-.cod-map-zoom{position:absolute;right:7px;top:7px;display:none;flex-direction:column;gap:5px;z-index:3}
-.cod-map-editing .cod-map-zoom{display:flex}
-.cod-map-zoom button{width:34px;height:34px;border:1.5px solid var(--cod-border);border-radius:9px;background:#fff;color:#111;
-  font:700 19px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer;box-shadow:0 2px 6px -2px rgba(0,0,0,.3);padding:0}
-.cod-map-zoom button:active{transform:scale(.94)}
-.cod-picking .cod-map-acc{display:none}
 .cod-map-tiles{position:absolute;inset:0;will-change:transform}
 .cod-map-tiles img{position:absolute;width:256px;height:256px;pointer-events:none;-webkit-user-drag:none}
 .cod-map-acc{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;

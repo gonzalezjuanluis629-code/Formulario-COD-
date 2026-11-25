@@ -41,7 +41,6 @@ export function mountLocation(
       <div class="cod-map cod-map-locked"><div class="cod-map-tiles"></div>
         <div class="cod-map-acc"></div><div class="cod-map-pin"></div>
         <span class="cod-map-lock">Ubicación fijada</span>
-        <div class="cod-map-zoom"><button type="button" data-z="1" aria-label="Acercar">+</button><button type="button" data-z="-1" aria-label="Alejar">−</button></div>
       </div>
       <div class="cod-locbar"><b class="cod-loc-addr">Ubicación marcada</b><span class="cod-loc-coords"></span></div>
       <button type="button" class="cod-edit-btn">Editar ubicación</button>
@@ -56,6 +55,9 @@ export function mountLocation(
   const errEl = wrap.querySelector<HTMLElement>('.cod-err')!;
 
   let map: MapController | null = null;
+  // El mapa (y la conexión a sus imágenes) se prepara en cuanto se ve el campo:
+  // al tocar «Usar mi ubicación», lo único que falta es el permiso.
+  const mapModule = preloadMap();
   // Clave del campo en el formulario. Su valor ('gps' | 'manual') es lo que
   // cuenta como "respondido" para el obligatorio y la barra de progreso, y
   // `locationMode` es lo que usan las reglas condicionales (provincia, dirección…).
@@ -94,30 +96,31 @@ export function mountLocation(
   async function locate() {
     const gpsBtn = wrap.querySelector<HTMLElement>('[data-mode="gps"]')!;
     gpsBtn.classList.add('cod-locating');
+    const hint = gpsBtn.querySelector('small');
+    const hintText = hint?.textContent ?? '';
+    if (hint) hint.textContent = 'Buscando tu ubicación…';
+    const done = () => { gpsBtn.classList.remove('cod-locating'); if (hint) hint.textContent = hintText; };
 
-    wrap.classList.remove('cod-picking');
     let pos: GeolocationPosition;
     try {
-      pos = await getPosition();
+      // La primera ubicación que llegue (la aproximada sale en ~1 s); la
+      // exacta del GPS la va afinando después sin que el cliente espere.
+      pos = await fastPosition((better) => refine(better));
       report(config, 'ok');
     } catch (e) {
+      // Sin ubicación (permiso negado, Facebook/Instagram no la deja usar…):
+      // se pasa al modo escrito, diciendo POR QUÉ.
       const err = e as GeolocationPositionError;
       report(config, failCode(err));
-      gpsBtn.classList.remove('cod-locating');
-      // El teléfono no dio la ubicación (permiso negado, Facebook/Instagram no la
-      // deja usar, tardó…). En vez de mandarlo a escribirla, se le abre el mapa
-      // para que marque su casa con el dedo. «Escribirla» sigue ahí.
-      if (await pickOnMap(err)) return;
+      done();
       await setMode('manual');
-      errEl.textContent = await whyNoLocation(err, ' Mientras, escribe tu dirección aquí abajo.');
+      errEl.textContent = await whyNoLocation(err, ' Escribe tu dirección aquí abajo.');
       errEl.classList.add('cod-soft');
       return;
     }
 
     try {
-      // El mapa solo se descarga AHORA. El bundle base no lo paga.
-      const { createMap } = await import('./map');
-
+      const { createMap } = await mapModule;
       mapPanel.hidden = false;
       map?.destroy();
       resetEdit();
@@ -126,6 +129,7 @@ export function mountLocation(
         lng: pos.coords.longitude,
         zoom: config.location.defaultZoom,
         onMove: (lat, lng) => {
+          moved = true; // el cliente ajustó el pin: el GPS ya no lo mueve
           state.location = {
             lat, lng, accuracyMeters: null,
             source: 'MAP_PIN', capturedAt: new Date().toISOString(),
@@ -134,74 +138,14 @@ export function mountLocation(
           onChange();
         },
       });
-
-      state.location = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracyMeters: Math.round(pos.coords.accuracy),
-        source: 'GPS',
-        capturedAt: new Date().toISOString(),
-      };
       map.setAccuracy(pos.coords.accuracy);
-    } catch {
-      // Si el mapa no carga, la ubicación GPS igual vale.
-      state.location = {
-        lat: pos.coords.latitude, lng: pos.coords.longitude,
-        accuracyMeters: Math.round(pos.coords.accuracy), source: 'GPS', capturedAt: new Date().toISOString(),
-      };
-    } finally {
-      setValue('gps');
-      void reverse(pos.coords.latitude, pos.coords.longitude);
-      onChange();
-      gpsBtn.classList.remove('cod-locating');
-    }
-  }
-
-  /**
-   * Marcar la casa en el mapa a mano (sin GPS): el mapa abre en el país, se
-   * acerca con + y se mueve con el dedo. Solo vale cuando ya se ve la calle
-   * (zoom ≥ PICK_MIN_ZOOM): antes, la ubicación quedaría a kilómetros.
-   */
-  async function pickOnMap(err: GeolocationPositionError): Promise<boolean> {
-    let createMap: typeof import('./map').createMap;
-    try { ({ createMap } = await import('./map')); } catch { return false; }
-    const addrEl = wrap.querySelector<HTMLElement>('.cod-loc-addr')!;
-    const coordsEl = wrap.querySelector<HTMLElement>('.cod-loc-coords')!;
-    wrap.classList.add('cod-picking');
-    mapPanel.hidden = false;
-    state.location = null;
-    setValue('');
-    const tip = 'Acércalo con + y muévelo a tu casa';
-    addrEl.textContent = tip;
-    coordsEl.textContent = '';
-    errEl.textContent = await whyNoLocation(err, ' Márcala en el mapa o toca «' + c.manualLabel + '».');
-    errEl.classList.add('cod-soft');
-    const mapEl = wrap.querySelector<HTMLElement>('.cod-map')!;
-    map?.destroy();
-    map = createMap(mapEl, {
-      lat: COUNTRY_CENTER.lat, lng: COUNTRY_CENTER.lng, zoom: COUNTRY_ZOOM,
-      onMove: (lat, lng) => {
-        if ((map?.zoom() ?? 0) < PICK_MIN_ZOOM) {
-          state.location = null;
-          setValue('');
-          addrEl.textContent = 'Acércalo más (+) hasta ver tu calle';
-          coordsEl.textContent = '';
-          onChange();
-          return;
-        }
-        state.location = { lat, lng, accuracyMeters: null, source: 'MAP_PIN', capturedAt: new Date().toISOString() };
-        setValue('gps');
-        errEl.textContent = '';
-        void reverse(lat, lng);
-        onChange();
-      },
-    });
-    map.setEditing(true);
-    const edit = wrap.querySelector<HTMLButtonElement>('.cod-edit-btn')!;
-    edit.textContent = 'Guardar ubicación';
-    edit.classList.add('cod-saving');
+    } catch { /* si el mapa no carga, la ubicación igual vale */ }
+    moved = false;
+    setGps(pos);
+    setValue('gps');
+    void reverse(pos.coords.latitude, pos.coords.longitude);
     onChange();
-    return true;
+    done();
   }
 
   function resetEdit() {
@@ -210,13 +154,27 @@ export function mountLocation(
     edit.classList.remove('cod-saving');
   }
 
-  wrap.querySelectorAll<HTMLButtonElement>('.cod-map-zoom button').forEach((b) => {
-    b.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      map?.zoomBy(Number(b.dataset.z));
-    });
-  });
+  let moved = false;
+  let last: { lat: number; lng: number } | null = null;
+  function setGps(pos: GeolocationPosition) {
+    state.location = {
+      lat: pos.coords.latitude, lng: pos.coords.longitude,
+      accuracyMeters: Math.round(pos.coords.accuracy), source: 'GPS', capturedAt: new Date().toISOString(),
+    };
+    last = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  }
+  /** Llegó una ubicación más exacta: se centra el mapa ahí (si el cliente no movió el pin). */
+  function refine(pos: GeolocationPosition) {
+    if (moved || state.values.locationMode !== 'gps' || !state.location) return;
+    const prev = last;
+    setGps(pos);
+    map?.setView(pos.coords.latitude, pos.coords.longitude);
+    map?.setAccuracy(pos.coords.accuracy);
+    if (!prev || metersBetween(prev.lat, prev.lng, pos.coords.latitude, pos.coords.longitude) > 60) {
+      void reverse(pos.coords.latitude, pos.coords.longitude);
+    }
+    onChange();
+  }
 
   /** El backend llama a Google; el navegador nunca ve la API key. */
   async function reverse(lat: number, lng: number) {
@@ -275,28 +233,62 @@ async function whyNoLocation(e: GeolocationPositionError | Error | undefined, ta
   return 'Sin acceso a tu ubicación.' + tail;
 }
 
-/** Centro del país (República Dominicana) para marcar la casa a mano. */
-const COUNTRY_CENTER = { lat: 18.82, lng: -70.3 };
-const COUNTRY_ZOOM = 8;
-/** Desde este zoom ya se ven las calles: la ubicación marcada vale. */
-const PICK_MIN_ZOOM = 15;
-
 /**
- * Pedir la ubicación. Primero precisa (GPS); si el GPS tarda o no responde
- * (dentro de una casa pasa mucho), se pide la aproximada (wifi/antenas), que
- * casi siempre llega. Una ubicación de hace un par de minutos también vale.
+ * Ubicación lo más rápido posible:
+ *  - La aproximada (wifi/antenas, o una de hace unos minutos) responde casi al
+ *    instante después del permiso: con esa se muestra el mapa.
+ *  - A la vez el GPS busca la exacta y, cuando llega, se avisa con onBetter
+ *    (hasta 15 s o hasta tener ≤ 25 m).
+ * Falla solo si se niega el permiso o si ninguna de las dos responde.
  */
-async function getPosition(): Promise<GeolocationPosition> {
-  if (!navigator.geolocation) throw new Error('sin soporte');
-  const ask = (o: PositionOptions) => new Promise<GeolocationPosition>((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(resolve, reject, o);
+function fastPosition(onBetter: (p: GeolocationPosition) => void): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    const geo = navigator.geolocation;
+    if (!geo) return reject(new Error('sin soporte'));
+    let first: GeolocationPosition | null = null;
+    let fails = 0;
+    let lastErr: GeolocationPositionError | null = null;
+    let watchId: number | null = null;
+    const stop = () => { if (watchId !== null) { geo.clearWatch(watchId); watchId = null; } };
+    const ok = (p: GeolocationPosition) => {
+      if (!first) { first = p; resolve(p); }
+      else if (p.coords.accuracy < first.coords.accuracy - 5) { first = p; onBetter(p); }
+      if (p.coords.accuracy <= 25) stop();
+    };
+    const fail = (e: GeolocationPositionError) => {
+      lastErr = e;
+      if (e.code === 1) { stop(); if (!first) reject(e); return; } // permiso negado: no se insiste
+      if (++fails >= 2 && !first) { stop(); reject(lastErr); }
+    };
+    geo.getCurrentPosition(ok, fail, { enableHighAccuracy: false, maximumAge: 600_000, timeout: 15_000 });
+    try {
+      watchId = geo.watchPosition(ok, (e) => { if (e.code !== 3 || !first) fail(e); }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 });
+    } catch { fails++; }
+    setTimeout(stop, 20_000);
   });
+}
+
+/** El mapa en segundo plano y la conexión a sus imágenes abierta de antemano. */
+function preloadMap(): Promise<typeof import('./map')> {
   try {
-    return await ask({ enableHighAccuracy: true, timeout: 10_000, maximumAge: 120_000 });
-  } catch (e) {
-    if ((e as GeolocationPositionError).code === 1) throw e; // permiso negado: no se insiste
-    return ask({ enableHighAccuracy: false, timeout: 10_000, maximumAge: 300_000 });
-  }
+    if (!document.querySelector('link[data-cod-tiles]')) {
+      const l = document.createElement('link');
+      l.rel = 'preconnect'; l.href = 'https://tile.openstreetmap.org'; l.crossOrigin = 'anonymous';
+      l.setAttribute('data-cod-tiles', '');
+      document.head.appendChild(l);
+    }
+  } catch { /* nada */ }
+  return new Promise((resolve, reject) => {
+    const go = () => import('./map').then(resolve, reject);
+    const ric = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => void }).requestIdleCallback;
+    if (ric) ric(go, { timeout: 1500 }); else setTimeout(go, 300);
+  });
+}
+
+function metersBetween(a: number, b: number, c: number, d: number): number {
+  const R = 6371000, toR = Math.PI / 180;
+  const x = (d - b) * toR * Math.cos(((a + c) / 2) * toR), y = (c - a) * toR;
+  return Math.sqrt(x * x + y * y) * R;
 }
 
 /** Navegador dentro de Facebook o Instagram (de ahí viene casi todo el tráfico de anuncios). */
@@ -332,8 +324,7 @@ export interface MapController {
   setEditing(on: boolean): void;
   isEditing(): boolean;
   setAccuracy(m: number): void;
-  zoom(): number;
-  zoomBy(d: number): void;
+  setView(lat: number, lng: number): void;
   destroy(): void;
 }
 

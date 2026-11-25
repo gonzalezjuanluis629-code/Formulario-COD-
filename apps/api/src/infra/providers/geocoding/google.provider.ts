@@ -24,10 +24,11 @@ export class GoogleGeocodingProvider implements IGeocodingProvider {
     url.searchParams.set('region', 'do');
 
     const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    const body = (await res.json()) as { status: string; results: GoogleResult[] };
+    const body = (await res.json()) as { status: string; results: GoogleResult[]; error_message?: string };
 
     if (body.status !== 'OK' || !body.results.length) {
-      this.log.warn(`Google devolvió ${body.status}`);
+      // error_message dice el motivo (llave inválida, API sin activar, sin facturación…).
+      this.log.warn(`Google devolvió ${body.status}${body.error_message ? `: ${body.error_message.slice(0, 200)}` : ''}${this.key ? '' : ' (sin llave GOOGLE_MAPS_SERVER_KEY)'}`);
       return EMPTY;
     }
 

@@ -315,7 +315,6 @@ function mountLocation(wrap, config, state, onChange) {
       <div class="cod-map cod-map-locked"><div class="cod-map-tiles"></div>
         <div class="cod-map-acc"></div><div class="cod-map-pin"></div>
         <span class="cod-map-lock">Ubicación fijada</span>
-        <div class="cod-map-zoom"><button type="button" data-z="1" aria-label="Acercar">+</button><button type="button" data-z="-1" aria-label="Alejar">−</button></div>
       </div>
       <div class="cod-locbar"><b class="cod-loc-addr">Ubicación marcada</b><span class="cod-loc-coords"></span></div>
       <button type="button" class="cod-edit-btn">Editar ubicación</button>
@@ -328,6 +327,7 @@ function mountLocation(wrap, config, state, onChange) {
   const manualPanel = wrap.querySelector(".cod-manual-panel");
   const errEl = wrap.querySelector(".cod-err");
   let map = null;
+  const mapModule = preloadMap();
   const key = wrap.dataset.key || "location";
   const setValue = (v) => {
     if (v) state.values[key] = v;
@@ -357,25 +357,31 @@ function mountLocation(wrap, config, state, onChange) {
     await locate();
   }
   async function locate() {
+    var _a2;
     const gpsBtn = wrap.querySelector('[data-mode="gps"]');
     gpsBtn.classList.add("cod-locating");
-    wrap.classList.remove("cod-picking");
+    const hint = gpsBtn.querySelector("small");
+    const hintText = (_a2 = hint == null ? void 0 : hint.textContent) != null ? _a2 : "";
+    if (hint) hint.textContent = "Buscando tu ubicación…";
+    const done = () => {
+      gpsBtn.classList.remove("cod-locating");
+      if (hint) hint.textContent = hintText;
+    };
     let pos;
     try {
-      pos = await getPosition();
+      pos = await fastPosition((better) => refine(better));
       report(config, "ok");
     } catch (e) {
       const err = e;
       report(config, failCode(err));
-      gpsBtn.classList.remove("cod-locating");
-      if (await pickOnMap(err)) return;
+      done();
       await setMode("manual");
-      errEl.textContent = await whyNoLocation(err, " Mientras, escribe tu dirección aquí abajo.");
+      errEl.textContent = await whyNoLocation(err, " Escribe tu dirección aquí abajo.");
       errEl.classList.add("cod-soft");
       return;
     }
     try {
-      const { createMap } = await import("./map-DZEdKjFO.js");
+      const { createMap } = await mapModule;
       mapPanel.hidden = false;
       map == null ? void 0 : map.destroy();
       resetEdit();
@@ -384,6 +390,7 @@ function mountLocation(wrap, config, state, onChange) {
         lng: pos.coords.longitude,
         zoom: config.location.defaultZoom,
         onMove: (lat, lng) => {
+          moved = true;
           state.location = {
             lat,
             lng,
@@ -395,89 +402,44 @@ function mountLocation(wrap, config, state, onChange) {
           onChange();
         }
       });
-      state.location = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracyMeters: Math.round(pos.coords.accuracy),
-        source: "GPS",
-        capturedAt: (/* @__PURE__ */ new Date()).toISOString()
-      };
       map.setAccuracy(pos.coords.accuracy);
     } catch {
-      state.location = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracyMeters: Math.round(pos.coords.accuracy),
-        source: "GPS",
-        capturedAt: (/* @__PURE__ */ new Date()).toISOString()
-      };
-    } finally {
-      setValue("gps");
-      void reverse(pos.coords.latitude, pos.coords.longitude);
-      onChange();
-      gpsBtn.classList.remove("cod-locating");
     }
-  }
-  async function pickOnMap(err) {
-    let createMap;
-    try {
-      ({ createMap } = await import("./map-DZEdKjFO.js"));
-    } catch {
-      return false;
-    }
-    const addrEl = wrap.querySelector(".cod-loc-addr");
-    const coordsEl = wrap.querySelector(".cod-loc-coords");
-    wrap.classList.add("cod-picking");
-    mapPanel.hidden = false;
-    state.location = null;
-    setValue("");
-    const tip = "Acércalo con + y muévelo a tu casa";
-    addrEl.textContent = tip;
-    coordsEl.textContent = "";
-    errEl.textContent = await whyNoLocation(err, " Márcala en el mapa o toca «" + c.manualLabel + "».");
-    errEl.classList.add("cod-soft");
-    const mapEl = wrap.querySelector(".cod-map");
-    map == null ? void 0 : map.destroy();
-    map = createMap(mapEl, {
-      lat: COUNTRY_CENTER.lat,
-      lng: COUNTRY_CENTER.lng,
-      zoom: COUNTRY_ZOOM,
-      onMove: (lat, lng) => {
-        var _a2;
-        if (((_a2 = map == null ? void 0 : map.zoom()) != null ? _a2 : 0) < PICK_MIN_ZOOM) {
-          state.location = null;
-          setValue("");
-          addrEl.textContent = "Acércalo más (+) hasta ver tu calle";
-          coordsEl.textContent = "";
-          onChange();
-          return;
-        }
-        state.location = { lat, lng, accuracyMeters: null, source: "MAP_PIN", capturedAt: (/* @__PURE__ */ new Date()).toISOString() };
-        setValue("gps");
-        errEl.textContent = "";
-        void reverse(lat, lng);
-        onChange();
-      }
-    });
-    map.setEditing(true);
-    const edit = wrap.querySelector(".cod-edit-btn");
-    edit.textContent = "Guardar ubicación";
-    edit.classList.add("cod-saving");
+    moved = false;
+    setGps(pos);
+    setValue("gps");
+    void reverse(pos.coords.latitude, pos.coords.longitude);
     onChange();
-    return true;
+    done();
   }
   function resetEdit() {
     const edit = wrap.querySelector(".cod-edit-btn");
     edit.textContent = "Editar ubicación";
     edit.classList.remove("cod-saving");
   }
-  wrap.querySelectorAll(".cod-map-zoom button").forEach((b) => {
-    b.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      map == null ? void 0 : map.zoomBy(Number(b.dataset.z));
-    });
-  });
+  let moved = false;
+  let last = null;
+  function setGps(pos) {
+    state.location = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      accuracyMeters: Math.round(pos.coords.accuracy),
+      source: "GPS",
+      capturedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    last = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  }
+  function refine(pos) {
+    if (moved || state.values.locationMode !== "gps" || !state.location) return;
+    const prev = last;
+    setGps(pos);
+    map == null ? void 0 : map.setView(pos.coords.latitude, pos.coords.longitude);
+    map == null ? void 0 : map.setAccuracy(pos.coords.accuracy);
+    if (!prev || metersBetween(prev.lat, prev.lng, pos.coords.latitude, pos.coords.longitude) > 60) {
+      void reverse(pos.coords.latitude, pos.coords.longitude);
+    }
+    onChange();
+  }
   async function reverse(lat, lng) {
     var _a2;
     const addrEl = wrap.querySelector(".cod-loc-addr");
@@ -534,20 +496,76 @@ async function whyNoLocation(e, tail) {
   if (code === 3) return "La ubicación tardó demasiado. Inténtalo otra vez." + tail;
   return "Sin acceso a tu ubicación." + tail;
 }
-const COUNTRY_CENTER = { lat: 18.82, lng: -70.3 };
-const COUNTRY_ZOOM = 8;
-const PICK_MIN_ZOOM = 15;
-async function getPosition() {
-  if (!navigator.geolocation) throw new Error("sin soporte");
-  const ask = (o) => new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(resolve, reject, o);
+function fastPosition(onBetter) {
+  return new Promise((resolve, reject) => {
+    const geo = navigator.geolocation;
+    if (!geo) return reject(new Error("sin soporte"));
+    let first = null;
+    let fails = 0;
+    let lastErr = null;
+    let watchId = null;
+    const stop = () => {
+      if (watchId !== null) {
+        geo.clearWatch(watchId);
+        watchId = null;
+      }
+    };
+    const ok = (p) => {
+      if (!first) {
+        first = p;
+        resolve(p);
+      } else if (p.coords.accuracy < first.coords.accuracy - 5) {
+        first = p;
+        onBetter(p);
+      }
+      if (p.coords.accuracy <= 25) stop();
+    };
+    const fail = (e) => {
+      lastErr = e;
+      if (e.code === 1) {
+        stop();
+        if (!first) reject(e);
+        return;
+      }
+      if (++fails >= 2 && !first) {
+        stop();
+        reject(lastErr);
+      }
+    };
+    geo.getCurrentPosition(ok, fail, { enableHighAccuracy: false, maximumAge: 6e5, timeout: 15e3 });
+    try {
+      watchId = geo.watchPosition(ok, (e) => {
+        if (e.code !== 3 || !first) fail(e);
+      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15e3 });
+    } catch {
+      fails++;
+    }
+    setTimeout(stop, 2e4);
   });
+}
+function preloadMap() {
   try {
-    return await ask({ enableHighAccuracy: true, timeout: 1e4, maximumAge: 12e4 });
-  } catch (e) {
-    if (e.code === 1) throw e;
-    return ask({ enableHighAccuracy: false, timeout: 1e4, maximumAge: 3e5 });
+    if (!document.querySelector("link[data-cod-tiles]")) {
+      const l = document.createElement("link");
+      l.rel = "preconnect";
+      l.href = "https://tile.openstreetmap.org";
+      l.crossOrigin = "anonymous";
+      l.setAttribute("data-cod-tiles", "");
+      document.head.appendChild(l);
+    }
+  } catch {
   }
+  return new Promise((resolve, reject) => {
+    const go = () => import("./map-BOUckXBW.js").then(resolve, reject);
+    const ric = window.requestIdleCallback;
+    if (ric) ric(go, { timeout: 1500 });
+    else setTimeout(go, 300);
+  });
+}
+function metersBetween(a, b, c, d) {
+  const R = 6371e3, toR = Math.PI / 180;
+  const x = (d - b) * toR * Math.cos((a + c) / 2 * toR), y = (c - a) * toR;
+  return Math.sqrt(x * x + y * y) * R;
 }
 function inAppBrowser() {
   const ua = navigator.userAgent || "";
@@ -5014,7 +5032,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-D4nrFYRq.js").then(({ renderAddons }) => {
+    void import("./addons-CUfZgV9R.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -5284,7 +5302,7 @@ function repaintOffers(root, state) {
   }
   const addonsSlot = root.querySelector(".cod-addons-slot");
   if (addonsSlot && config.addons.length) {
-    void import("./addons-D4nrFYRq.js").then(({ renderAddons }) => {
+    void import("./addons-CUfZgV9R.js").then(({ renderAddons }) => {
       addonsSlot.innerHTML = "";
       renderAddons(addonsSlot, config, state, () => update(root, state));
     });
@@ -5469,12 +5487,6 @@ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:max(16px,
 .cod-map-locked{touch-action:pan-y;cursor:default}
 .cod-map-editing{touch-action:none;cursor:grab;border-color:var(--cod-brand);box-shadow:0 0 0 3.5px rgba(0,0,0,.08)}
 .cod-map-editing.cod-grabbing{cursor:grabbing}
-.cod-map-zoom{position:absolute;right:7px;top:7px;display:none;flex-direction:column;gap:5px;z-index:3}
-.cod-map-editing .cod-map-zoom{display:flex}
-.cod-map-zoom button{width:34px;height:34px;border:1.5px solid var(--cod-border);border-radius:9px;background:#fff;color:#111;
-  font:700 19px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;cursor:pointer;box-shadow:0 2px 6px -2px rgba(0,0,0,.3);padding:0}
-.cod-map-zoom button:active{transform:scale(.94)}
-.cod-picking .cod-map-acc{display:none}
 .cod-map-tiles{position:absolute;inset:0;will-change:transform}
 .cod-map-tiles img{position:absolute;width:256px;height:256px;pointer-events:none;-webkit-user-drag:none}
 .cod-map-acc{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;
@@ -5664,7 +5676,7 @@ async function mount(opts) {
   root.className = "cod-root";
   shadow.appendChild(root);
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  if (host.dataset.mode !== "embedded") void import("./trigger-C6-wci_R.js").catch(() => void 0);
+  if (host.dataset.mode !== "embedded") void import("./trigger-BNzJTXUZ.js").catch(() => void 0);
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -5727,7 +5739,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-C6-wci_R.js");
+    const { renderTrigger } = await import("./trigger-BNzJTXUZ.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -5771,8 +5783,8 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-D4nrFYRq.js").catch(() => void 0);
-    if (config.fields.some((f) => f.type === "location")) void import("./map-DZEdKjFO.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-CUfZgV9R.js").catch(() => void 0);
+    if (config.fields.some((f) => f.type === "location")) void import("./map-BOUckXBW.js").catch(() => void 0);
   };
   const ric = window.requestIdleCallback;
   if (ric) ric(go, { timeout: 2500 });
