@@ -152,7 +152,18 @@ function preloadParts(config: WidgetConfig): void {
   preloaded = true;
   const go = () => {
     if (config.addons.length) void import('./ui/addons').catch(() => undefined);
-    if (config.fields.some((f) => f.type === 'location')) void import('./ui/map').catch(() => undefined);
+    if (config.fields.some((f) => f.type === 'location')) {
+      void import('./ui/map').catch(() => undefined);
+      // Conexión a las imágenes del mapa abierta de antemano: el mapa pinta antes.
+      try {
+        if (!document.querySelector('link[data-cod-tiles]')) {
+          const l = document.createElement('link');
+          l.rel = 'preconnect'; l.href = 'https://tile.openstreetmap.org'; l.crossOrigin = 'anonymous';
+          l.setAttribute('data-cod-tiles', '');
+          document.head.appendChild(l);
+        }
+      } catch { /* nada */ }
+    }
   };
   const ric = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
   if (ric) ric(go, { timeout: 2500 }); else window.setTimeout(go, 1200);

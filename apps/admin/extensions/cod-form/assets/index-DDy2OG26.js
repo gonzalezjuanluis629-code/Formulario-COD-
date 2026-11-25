@@ -4501,7 +4501,9 @@ const ShopSettingsSchema = objectType({
     /** Botón flotante abajo de la pantalla al bajar (solo donde hay un botón fijo). */
     floating: booleanType().default(true),
     /** Botón «Comprar ahora» en el carrito (página y carrito lateral): cobra todo el carrito. */
-    cartButton: booleanType().default(true)
+    cartButton: booleanType().default(true),
+    /** Cuándo se quitó desde Figui (para no decir «activo» por las visitas de ese día). */
+    removedAt: stringType().optional()
   }).default({})
 });
 const ProvinceRuleSchema = objectType({
@@ -5032,7 +5034,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-CUfZgV9R.js").then(({ renderAddons }) => {
+    void import("./addons-B-i75HaA.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -5302,7 +5304,7 @@ function repaintOffers(root, state) {
   }
   const addonsSlot = root.querySelector(".cod-addons-slot");
   if (addonsSlot && config.addons.length) {
-    void import("./addons-CUfZgV9R.js").then(({ renderAddons }) => {
+    void import("./addons-B-i75HaA.js").then(({ renderAddons }) => {
       addonsSlot.innerHTML = "";
       renderAddons(addonsSlot, config, state, () => update(root, state));
     });
@@ -5676,7 +5678,7 @@ async function mount(opts) {
   root.className = "cod-root";
   shadow.appendChild(root);
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  if (host.dataset.mode !== "embedded") void import("./trigger-BNzJTXUZ.js").catch(() => void 0);
+  if (host.dataset.mode !== "embedded") void import("./trigger-BduIOYJq.js").catch(() => void 0);
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -5739,7 +5741,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-BNzJTXUZ.js");
+    const { renderTrigger } = await import("./trigger-BduIOYJq.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -5783,8 +5785,21 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-CUfZgV9R.js").catch(() => void 0);
-    if (config.fields.some((f) => f.type === "location")) void import("./map-BOUckXBW.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-B-i75HaA.js").catch(() => void 0);
+    if (config.fields.some((f) => f.type === "location")) {
+      void import("./map-BOUckXBW.js").catch(() => void 0);
+      try {
+        if (!document.querySelector("link[data-cod-tiles]")) {
+          const l = document.createElement("link");
+          l.rel = "preconnect";
+          l.href = "https://tile.openstreetmap.org";
+          l.crossOrigin = "anonymous";
+          l.setAttribute("data-cod-tiles", "");
+          document.head.appendChild(l);
+        }
+      } catch {
+      }
+    }
   };
   const ric = window.requestIdleCallback;
   if (ric) ric(go, { timeout: 2500 });

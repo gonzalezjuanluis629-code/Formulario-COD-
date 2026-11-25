@@ -300,6 +300,8 @@ export const ShopSettingsSchema = z.object({
     floating: z.boolean().default(true),
     /** Botón «Comprar ahora» en el carrito (página y carrito lateral): cobra todo el carrito. */
     cartButton: z.boolean().default(true),
+    /** Cuándo se quitó desde Figui (para no decir «activo» por las visitas de ese día). */
+    removedAt: z.string().optional(),
   }).default({}),
 });
 export type ShopSettings = z.infer<typeof ShopSettingsSchema>;

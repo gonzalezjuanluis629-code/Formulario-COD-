@@ -21,6 +21,8 @@ export type FiguiStatus = {
     floating: boolean;
     cartButton: boolean;
     installed: boolean;
+    /** El formulario se está viendo en la tienda (visitas de hoy o ayer), lo ponga Figui o no. */
+    live: boolean;
     themeName: string | null;
     canInstall: boolean;
     error: string | null;
@@ -107,11 +109,21 @@ export async function statusFor(domain: string): Promise<FiguiStatus> {
     }
   }
 
+  // ¿Se está viendo de verdad en la tienda? (puesto por Figui, con código o desde la app).
+  // Visitas al formulario hoy o ayer. Si se quitó desde Figui hace menos de 2 días,
+  // esas visitas son de antes de quitarlo y no cuentan.
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - 1);
+  since.setUTCHours(0, 0, 0, 0);
+  const seen = await db.analyticsDaily.aggregate({ where: { shopId: shop.id, date: { gte: since } }, _sum: { views: true, starts: true } });
+  const removedAt = settings.storefront.removedAt ? Date.parse(settings.storefront.removedAt) : 0;
+  const live = ((seen._sum.views ?? 0) + (seen._sum.starts ?? 0)) > 0 && !(removedAt && Date.now() - removedAt < 48 * 3600_000);
+
   return {
     shop: { domain, name: shop.name, currency: shop.currency },
     managedBy,
     form,
-    storefront: { autoPlace: settings.storefront.autoPlace, floating: settings.storefront.floating, cartButton: settings.storefront.cartButton, installed, themeName, canInstall, error },
+    storefront: { autoPlace: settings.storefront.autoPlace, floating: settings.storefront.floating, cartButton: settings.storefront.cartButton, installed, live, themeName, canInstall, error },
     manualSnippet: manualSnippet(domain, 'popup'),
     manualFormSnippet: manualSnippet(domain, 'embedded'),
   };
@@ -125,6 +137,7 @@ export async function updateStorefront(domain: string, input: { enabled?: boolea
   if (typeof input.autoPlace === 'boolean' || typeof input.floating === 'boolean' || typeof input.cartButton === 'boolean') {
     const current = ShopSettingsSchema.parse(shop.settings ?? {});
     const storefront = {
+      ...current.storefront,
       autoPlace: input.autoPlace ?? current.storefront.autoPlace,
       floating: input.floating ?? current.storefront.floating,
       cartButton: input.cartButton ?? current.storefront.cartButton,
@@ -149,6 +162,12 @@ export async function updateStorefront(domain: string, input: { enabled?: boolea
       } else {
         await removeFromTheme(domain, token);
       }
+      // Recordar cuándo se quitó (para que las visitas de antes no lo muestren «activo»).
+      const fresh = await db.shop.findUnique({ where: { id: shop.id }, select: { settings: true } });
+      const cur = ShopSettingsSchema.parse(fresh?.settings ?? {});
+      const { removedAt: _old, ...rest } = cur.storefront;
+      const storefront = input.enabled ? rest : { ...rest, removedAt: new Date().toISOString() };
+      await db.shop.update({ where: { id: shop.id }, data: { settings: { ...((fresh?.settings ?? {}) as object), storefront } } });
     } catch (e) {
       if (e instanceof ThemeAccessError) throw new FiguiError(e.message, e.missingScope ? 403 : 502);
       throw e;
