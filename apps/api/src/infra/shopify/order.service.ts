@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { getCountryProfile, type NormalizedAddress } from '@cod/geo';
+import { getCountryProfile, type NormalizedAddress, DO_PROVINCES } from '@cod/geo';
 import { AdminClientService } from './admin-client.service';
 import type { ShopContext } from './shop-context.service';
 
@@ -89,7 +89,9 @@ export class OrderService {
           address1: shopifyAddr.address1,
           address2: shopifyAddr.address2 ?? undefined,
           city: shopifyAddr.city,
-          provinceCode: shopifyAddr.provinceCode ?? undefined,
+          // Shopify no tiene provincias para RD: guarda el texto tal cual. Se manda el
+          // nombre («Santo Domingo»), no el código («DO-32»), para que se lea bien.
+          provinceCode: shopifyProvince(shopifyAddr.provinceCode, shopifyAddr.countryCode),
           countryCode: shopifyAddr.countryCode,
           zip: shopifyAddr.zip ?? undefined,
         },
@@ -176,3 +178,10 @@ const MUTATION = /* GraphQL */ `
     }
   }
 `;
+
+/** «DO-32» → «Santo Domingo» (RD no tiene provincias en Shopify: se guarda el texto). */
+function shopifyProvince(code: string | null | undefined, country: string | null | undefined): string | undefined {
+  if (!code) return undefined;
+  if ((country ?? 'DO').toUpperCase() !== 'DO') return code;
+  return DO_PROVINCES.find((p) => p.code === code.toUpperCase())?.name ?? code;
+}
