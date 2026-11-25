@@ -265,10 +265,11 @@ function renderField(
     if (f.type === 'checkbox') {
       state.values[f.key] = input.checked ? 'true' : '';
     } else if (f.type === 'phone') {
-      // Máscara dominicana: 809 555 1234. Si el cliente pega el número con el
-      // código del país («+1 809-555-1234», como lo copia de WhatsApp), el 1 se quita.
+      // Máscara: 809 555 1234 (RD) o 305 555 1234 (EE. UU.). Si el cliente pega el
+      // número con el código del país («+1 809-555-1234», como lo copia de WhatsApp),
+      // el 1 se quita: ningún código de área empieza por 1.
       let d = input.value.replace(/\D/g, '');
-      if (d.startsWith('1') && (d.length > 10 || /^1(809|829|849)/.test(d))) d = d.slice(1);
+      if (d.startsWith('1')) d = d.slice(1);
       d = d.slice(0, 10);
       input.value = d.length > 6 ? `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`
                   : d.length > 3 ? `${d.slice(0, 3)} ${d.slice(3)}` : d;

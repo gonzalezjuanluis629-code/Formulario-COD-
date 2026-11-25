@@ -112,12 +112,16 @@ export const DO_PROFILE: CountryProfile = {
   phone: {
     prefix: '+1',
     areaCodes: ['809', '829', '849'],
-    /** Acepta "809 555 1234", "(809)555-1234", "+18095551234"… */
+    /**
+     * Acepta "809 555 1234", "(809)555-1234", "+18095551234"… y también números
+     * de EE. UU. y Canadá (+1, mismo plan de numeración): hay clientes que
+     * compran desde allá o usan un número de allá. 10 dígitos; el código de área
+     * y la central no empiezan por 0 ni 1.
+     */
     normalize(raw: string): string | null {
       const d = raw.replace(/\D/g, '');
       const local = d.startsWith('1') && d.length === 11 ? d.slice(1) : d;
-      if (local.length !== 10) return null;
-      if (!['809', '829', '849'].includes(local.slice(0, 3))) return null;
+      if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(local) || /^[2-9]11/.test(local)) return null;
       return `+1${local}`; // E.164 — es lo que exige Shopify
     },
     format(e164: string): string {

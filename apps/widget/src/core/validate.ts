@@ -22,8 +22,8 @@ export function validateField(f: Field, value: string): string | null {
   if (regex && !new RegExp(regex).test(v)) return message ?? 'Formato no válido.';
 
   if (f.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return 'Revisa el correo.';
-  if (f.type === 'phone' && !/^(809|829|849)\d{7}$/.test(v.replace(/\D/g, ''))) {
-    return 'Número no válido (809, 829 u 849).';
+  if (f.type === 'phone' && !validPhone(v)) {
+    return 'Número no válido. Escribe los 10 dígitos (809, 829, 849 o de EE. UU.).';
   }
   return null;
 }
@@ -46,4 +46,15 @@ export function isVisible(f: Field, values: Record<string, string>): boolean {
       default: return true;
     }
   });
+}
+
+/**
+ * Teléfono aceptado: República Dominicana (809/829/849) o Estados Unidos y
+ * Canadá (+1). Mismo plan de numeración (NANP): 10 dígitos, el código de área
+ * y la central no empiezan por 0 ni 1. El 1 del país se quita si lo pegan.
+ */
+export function validPhone(v: string): boolean {
+  let d = v.replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('1')) d = d.slice(1);
+  return /^[2-9]\d{2}[2-9]\d{6}$/.test(d) && !/^[2-9]11/.test(d);
 }

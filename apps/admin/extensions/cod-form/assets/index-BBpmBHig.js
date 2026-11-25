@@ -251,8 +251,8 @@ function validateField(f, value) {
   if (maxLength != null && v.length > maxLength) return message != null ? message : `Máximo ${maxLength} caracteres.`;
   if (regex && !new RegExp(regex).test(v)) return message != null ? message : "Formato no válido.";
   if (f.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return "Revisa el correo.";
-  if (f.type === "phone" && !/^(809|829|849)\d{7}$/.test(v.replace(/\D/g, ""))) {
-    return "Número no válido (809, 829 u 849).";
+  if (f.type === "phone" && !validPhone(v)) {
+    return "Número no válido. Escribe los 10 dígitos (809, 829, 849 o de EE. UU.).";
   }
   return null;
 }
@@ -284,6 +284,11 @@ function isVisible(f, values) {
         return true;
     }
   });
+}
+function validPhone(v) {
+  let d = v.replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("1")) d = d.slice(1);
+  return /^[2-9]\d{2}[2-9]\d{6}$/.test(d) && !/^[2-9]11/.test(d);
 }
 const BUTTON_ICONS = {
   cart: { label: "Carrito", svg: '<circle cx="9" cy="20" r="1.6"/><circle cx="18" cy="20" r="1.6"/><path d="M2.5 3h2.6l2.4 11.2a1.6 1.6 0 0 0 1.6 1.3h8.3a1.6 1.6 0 0 0 1.6-1.2L21 7H6"/>' },
@@ -951,7 +956,7 @@ function renderForm(root, config, state, handlers) {
   const fields = [...config.fields].sort((a, b) => a.order - b.order);
   for (const f of fields) box.appendChild(renderField(f, config, state, () => update(root, state)));
   if (config.addons.length) {
-    void import("./addons-B8XTep0x.js").then(({ renderAddons }) => {
+    void import("./addons-D3dWbu6c.js").then(({ renderAddons }) => {
       renderAddons(root.querySelector(".cod-addons-slot"), config, state, () => update(root, state));
     });
   }
@@ -1157,7 +1162,7 @@ function renderField(f, config, state, onChange) {
       state.values[f.key] = input.checked ? "true" : "";
     } else if (f.type === "phone") {
       let d = input.value.replace(/\D/g, "");
-      if (d.startsWith("1") && (d.length > 10 || /^1(809|829|849)/.test(d))) d = d.slice(1);
+      if (d.startsWith("1")) d = d.slice(1);
       d = d.slice(0, 10);
       input.value = d.length > 6 ? `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}` : d.length > 3 ? `${d.slice(0, 3)} ${d.slice(3)}` : d;
       state.values[f.key] = input.value;
@@ -1221,7 +1226,7 @@ function repaintOffers(root, state) {
   }
   const addonsSlot = root.querySelector(".cod-addons-slot");
   if (addonsSlot && config.addons.length) {
-    void import("./addons-B8XTep0x.js").then(({ renderAddons }) => {
+    void import("./addons-D3dWbu6c.js").then(({ renderAddons }) => {
       addonsSlot.innerHTML = "";
       renderAddons(addonsSlot, config, state, () => update(root, state));
     });
@@ -1595,7 +1600,7 @@ async function mount(opts) {
   root.className = "cod-root";
   shadow.appendChild(root);
   root.innerHTML = `<div class="cod-skeleton"><span></span><span></span><span></span></div>`;
-  if (host.dataset.mode !== "embedded") void import("./trigger-B_crnDJZ.js").catch(() => void 0);
+  if (host.dataset.mode !== "embedded") void import("./trigger-CbECSHWr.js").catch(() => void 0);
   let config;
   try {
     config = await api.config(opts.productId, opts.variantId);
@@ -1658,7 +1663,7 @@ ${config.tokens.customCss}`;
   };
   const mode = isCart ? "popup" : host.dataset.mode === "popup" || host.dataset.mode === "embedded" ? host.dataset.mode : config.displayMode === "POPUP" ? "popup" : "embedded";
   if (mode === "popup") {
-    const { renderTrigger } = await import("./trigger-B_crnDJZ.js");
+    const { renderTrigger } = await import("./trigger-CbECSHWr.js");
     root.innerHTML = "";
     root.classList.add("cod-root-trigger");
     const floating = host.dataset.floating === "true";
@@ -1702,7 +1707,7 @@ function preloadParts(config) {
   if (preloaded) return;
   preloaded = true;
   const go = () => {
-    if (config.addons.length) void import("./addons-B8XTep0x.js").catch(() => void 0);
+    if (config.addons.length) void import("./addons-D3dWbu6c.js").catch(() => void 0);
     if (config.fields.some((f) => f.type === "location")) {
       void import("./map-BOUckXBW.js").catch(() => void 0);
       try {
